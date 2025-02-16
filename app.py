@@ -53,7 +53,7 @@ st.title("Bienvenido a InversorIA 📈")
 
 # Contador de visitantes
 st.write("""
-        ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%inversoria.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
+        ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Finversoria.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
         """)
 
 # Descripción de la aplicación
