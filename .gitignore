@@ -1,0 +1,113 @@
+# Archivos y carpetas específicos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+venv/
+env/
+.env
+
+# Archivos específicos de Streamlit
+.streamlit/secrets.toml
+
+# Archivos de configuración de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de registro
+*.log
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+*~
+
+# Archivos de base de datos
+*.sqlite
+
+# Carpetas de distribución / empaquetado
+dist/
+build/
+*.egg-info/
+
+# Archivos de dependencias
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Archivos de cobertura de pruebas
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Archivos de Jupyter Notebook
+.ipynb_checkpoints
+
+# Archivos específicos de pyenv
+.python-version
+
+# Archivos específicos de dotenv
+.env
+
+# Archivos específicos de Spyder project
+.spyderproject
+.spyproject
+
+# Archivos específicos de Rope project
+.ropeproject
+
+# Documentación
+docs/_build/
+
+# PyBuilder
+target/
+
+# Archivos específicos de Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Archivos de SageMath parsed
+*.sage.py
+
+# Archivos de configuración de Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Archivos de proyecto de Spyder
+.spyderproject
+.spyproject
+
+# Archivos de proyecto de Rope
+.ropeproject
+
+# Documentación de mkdocs
+/site
+
+# mypy
+.mypy_cache/
+
+# Archivos específicos de PyCharm
+.idea/
+
+# Archivos de API key y configuración
+config.ini
+api_key.txt
