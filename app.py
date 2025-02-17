@@ -1,161 +1,803 @@
-# Importación de bibliotecas necesarias
 import os
 import openai
 import streamlit as st
 import time
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+import ta
+from ta.trend import MACD, SMAIndicator
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+from scipy.stats import norm
+import logging
+import warnings
+warnings.filterwarnings('ignore')
 
-import streamlit as st
-import openai
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+# Función para verificar secrets.toml
+def secrets_file_exists():
+    """Verifica la existencia del archivo secrets.toml"""
+    try:
+        secrets_path = os.path.join('.streamlit', 'secrets.toml')
+        return os.path.isfile(secrets_path)
+    except Exception as e:
+        logger.error(f"Error verificando secrets.toml: {str(e)}")
+        return False
+
+# Función para obtener credenciales
+def get_credentials():
+    """Obtiene las credenciales de OpenAI"""
+    try:
+        if secrets_file_exists():
+            return st.secrets.get("OPENAI_API_KEY"), st.secrets.get("ASSISTANT_ID")
+        return None, None
+    except Exception as e:
+        logger.error(f"Error obteniendo credenciales: {str(e)}")
+        return None, None
+
+# Configuración de OpenAI
+API_KEY, ASSISTANT_ID = get_credentials()
+
+if not API_KEY:
+    API_KEY = os.environ.get("OPENAI_API_KEY") or st.sidebar.text_input(
+        "OpenAI API Key", type="password"
+    )
+
+if not ASSISTANT_ID:
+    ASSISTANT_ID = os.environ.get("ASSISTANT_ID") or st.sidebar.text_input(
+        "ID del Asistente", type="password"
+    )
+
+if not API_KEY or not ASSISTANT_ID:
+    st.error("⚠️ Se requieren credenciales de OpenAI")
+    st.stop()
+
+openai.api_key = API_KEY
 
 # Configuración de la página
 st.set_page_config(
-    page_title="InversorIA",
+    page_title="InversorIA Pro",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={
         'Get Help': 'https://www.alexanderoviedofadul.dev/',
         'Report a bug': None,
-        'About': "InversorIA: Tu agente de IA para la inversión bursátil. Aprende sobre análisis técnico, estrategias de inversión y gestión de riesgo."
+        'About': "InversorIA: Plataforma avanzada de trading con IA"
     }
 )
 
-# Función para verificar si el archivo secrets.toml existe
-def secrets_file_exists():
-    secrets_path = os.path.join('.streamlit', 'secrets.toml')
-    return os.path.isfile(secrets_path)
+def get_popular_symbols():
+    """Retorna lista completa de símbolos por categoría"""
+    return {
+        "Tecnología": [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "TSLA",
+            "NVDA",
+            "META",
+            "NFLX",
+            "PYPL",
+            "CRM",
+        ],
+        "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"],
+        "Salud": [
+            "JNJ",
+            "UNH",
+            "PFE",
+            "MRK",
+            "ABBV",
+            "LLY",
+            "AMGN",
+            "BMY",
+            "GILD",
+            "TMO",
+        ],
+        "Energía": [
+            "XOM",
+            "CVX",
+            "SHEL",
+            "TTE",
+            "COP",
+            "EOG",
+            "PXD",
+            "DVN",
+            "MPC",
+            "PSX",
+        ],
+        "Índices": [
+            "SPY",
+            "QQQ",
+            "DIA",
+            "IWM",
+            "EFA",
+            "VWO",
+            "IYR",
+            "XLE",
+            "XLF",
+            "XLV",
+        ],
+        "ETFs Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
+        "Cripto ETFs": ["BITO", "GBTC", "ETHE", "ARKW", "BLOK"],
+        "Opciones Populares": ["SPY", "QQQ", "IWM", "AAPL", "TSLA", "NVDA", "AMD"],
+    }
 
-# Intentar obtener el ID del asistente de OpenAI desde st.secrets si el archivo secrets.toml existe
-if secrets_file_exists():
+
+@st.cache_data(ttl=300)
+def fetch_market_data(symbol, period='6mo', interval='1d'):
+    """Obtiene datos de mercado con manejo mejorado de errores"""
     try:
-        ASSISTANT_ID = st.secrets['ASSISTANT_ID']
-    except KeyError:
-        ASSISTANT_ID = None
-else:
-    ASSISTANT_ID = None
+        # Descargar datos con yfinance
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(period=period, interval=interval)
+        
+        if data.empty:
+            logger.error(f"No se encontraron datos para {symbol}")
+            return None
+            
+        # Validar estructura de datos
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in data.columns for col in required_columns):
+            logger.error(f"Datos incompletos para {symbol}")
+            return None
+            
+        # Convertir a DataFrame y limpiar datos
+        df = pd.DataFrame(data)
+        
+        # Convertir columnas a tipo float
+        for col in required_columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+        # Eliminar filas con valores NaN
+        df = df.dropna()
+        
+        # Validar índice temporal
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+            
+        # Validar que tenemos suficientes datos
+        if len(df) < 20:
+            logger.error(f"Insuficientes datos para {symbol}")
+            return None
+            
+        return df
+        
+    except Exception as e:
+        logger.error(f"Error cargando datos: {str(e)}")
+        return None
 
-# Si no está disponible, pedir al usuario que lo introduzca
-if not ASSISTANT_ID:
-    ASSISTANT_ID = st.sidebar.text_input('Introduce el ID del asistente de OpenAI', type='password')
 
-# Si aún no se proporciona el ID, mostrar un error y detener la ejecución
-if not ASSISTANT_ID:
-    st.sidebar.error("Por favor, proporciona el ID del asistente de OpenAI.")
-    st.stop()
+class MarketAnalyzer:
+    """Clase para análisis de mercado con manejo mejorado de errores"""
+    
+    def __init__(self, symbol):
+        self.symbol = symbol
+        self.data = None
+        self.technical_data = None
+        self.ticker = yf.Ticker(symbol)
+        
+    def load_data(self, period='6mo', interval='1d'):
+        """Carga datos de mercado usando la función mejorada"""
+        try:
+            self.data = fetch_market_data(self.symbol, period, interval)
+            return self.data is not None
+        except Exception as e:
+            logger.error(f"Error en load_data: {str(e)}")
+            return False
+            
+    def calculate_indicators(self):
+        """Calcula indicadores técnicos con validación mejorada"""
+        try:
+            if self.data is None or self.data.empty:
+                logger.error("No hay datos disponibles para calcular indicadores")
+                return None
+                
+            df = self.data.copy()
+            
+            # Verificar que tenemos precios de cierre
+            if 'Close' not in df.columns:
+                logger.error("No se encontraron precios de cierre")
+                return None
+                
+            close_prices = df['Close'].astype(float)
+            
+            # MACD
+            macd = MACD(close_prices)
+            df['MACD'] = macd.macd()
+            df['MACD_Signal'] = macd.macd_signal()
+            df['MACD_Hist'] = macd.macd_diff()
+            
+            # RSI
+            rsi = RSIIndicator(close_prices)
+            df['RSI'] = rsi.rsi()
+            
+            # Bollinger Bands
+            bb = BollingerBands(close_prices)
+            df['BB_High'] = bb.bollinger_hband()
+            df['BB_Low'] = bb.bollinger_lband()
+            df['BB_Mid'] = bb.bollinger_mavg()
+            
+            # Moving Averages
+            for period in [20, 50, 200]:
+                df[f'SMA_{period}'] = SMAIndicator(
+                    close_prices, 
+                    window=period
+                ).sma_indicator()
+            
+            self.technical_data = df
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error calculando indicadores: {str(e)}")
+            return None
 
-assistant_id = ASSISTANT_ID
+    def get_market_profile(self):
+        """Obtiene perfil completo del mercado"""
+        try:
+            info = self.ticker.info
+            return {
+                "name": info.get("longName", "N/A"),
+                "sector": info.get("sector", "N/A"),
+                "industry": info.get("industry", "N/A"),
+                "market_cap": info.get("marketCap", "N/A"),
+                "volume": info.get("volume", "N/A"),
+                "beta": info.get("beta", "N/A"),
+                "pe_ratio": info.get("trailingPE", "N/A"),
+                "forward_pe": info.get("forwardPE", "N/A"),
+                "dividend_yield": info.get("dividendYield", "N/A"),
+                "52w_high": info.get("fiftyTwoWeekHigh", "N/A"),
+                "52w_low": info.get("fiftyTwoWeekLow", "N/A"),
+                "avg_volume": info.get("averageVolume", "N/A"),
+                "return_on_equity": info.get("returnOnEquity", "N/A"),
+                "profit_margins": info.get("profitMargins", "N/A"),
+            }
+        except Exception as e:
+            logger.error(f"Error en perfil: {str(e)}")
+            return None
 
-# Inicialización del cliente de OpenAI
-client = openai
+    def get_options_chain(self):
+        """Obtiene datos de opciones con Greeks"""
+        try:
+            expirations = self.ticker.options
+            if not expirations:
+                return None
 
-# Título de la aplicación
-st.title("Bienvenido a InversorIA 📈")
+            chains = {}
+            current_price = self.data["Close"].iloc[-1]
 
-# Contador de visitantes
-st.write("""
-        ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Finversoria.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
-        """)
+            for expiry in expirations:
+                opt = self.ticker.option_chain(expiry)
 
-# Descripción de la aplicación
-st.markdown("""
-### 📈 ¡Hola! Soy InversorIA, tu agente de IA para la inversión bursátil
+                # Calcular Greeks para calls y puts
+                calls = self.calculate_greeks(opt.calls, current_price, expiry)
+                puts = self.calculate_greeks(opt.puts, current_price, expiry)
 
-Estoy aquí para ayudarte a comprender el análisis técnico, las estrategias de inversión y la gestión de riesgo, basándome en los libros de la serie "Crea tu Propia Riqueza" de Alejandro Cardona.
+                chains[expiry] = {"calls": calls, "puts": puts}
 
-#### ¿Qué puedo hacer por ti hoy? 🤔
+            return chains
+        except Exception as e:
+            logger.error(f"Error en opciones: {str(e)}")
+            return None
 
-* Identificar tendencias alcistas y bajistas en el mercado.
-* Reconocer patrones de velas japonesas como martillos, 'hangers' y 'gaps'.
-* Identificar soportes y resistencias utilizando promedios móviles.
-* Analizar el volumen de transacciones para confirmar señales.
-* Explicar estrategias de inversión como 'Piso Fuerte', 'Primer Gap al Alza', 'Gap Normal al Alza' y 'Gap Bajista al Alza'.
-* Asesorar sobre la gestión de riesgo y el uso del stop loss.
-* Brindar información sobre el uso de opciones financieras (calls y puts) para el apalancamiento.
+    @staticmethod
+    def calculate_greeks(options_data, spot_price, expiry_date, risk_free_rate=0.02):
+        """Calcula Greeks para opciones"""
+        try:
+            expiry = pd.to_datetime(expiry_date)
+            options = options_data.copy()
 
-**¡No dudes en consultarme cualquier inquietud sobre el análisis técnico o las estrategias de inversión!**
+            for idx, option in options.iterrows():
+                T = (expiry - datetime.now()).days / 365
+                if T <= 0:
+                    continue
 
-*Recuerda: Mi conocimiento se basa en los libros de expertos en mercados de acciones y puede no ser aplicable a otros mercados o estrategias de inversión. No tengo acceso a información en tiempo real ni puedo realizar análisis de datos en vivo.*
-""")
+                K = option["strike"]
+                sigma = option["impliedVolatility"]
+                S = spot_price
+                r = risk_free_rate
 
-# Inicialización de variables de estado de sesión
-st.session_state.start_chat = True
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = None
+                d1 = (np.log(S / K) + (r + sigma**2 / 2) * T) / (sigma * np.sqrt(T))
+                d2 = d1 - sigma * np.sqrt(T)
 
-# Cargar la clave API de OpenAI
-API_KEY = os.environ.get('OPENAI_API_KEY') or st.secrets.get('OPENAI_API_KEY')
-if not API_KEY:
-    API_KEY = st.sidebar.text_input('Introduce tu clave API de OpenAI', type='password')
+                is_call = "C" in option["contractSymbol"]
 
-if not API_KEY:
-    st.sidebar.error("Por favor, proporciona una clave API para continuar.")
-    st.stop()
+                # Delta
+                options.loc[idx, "delta"] = norm.cdf(d1) if is_call else -norm.cdf(-d1)
 
-openai.api_key = API_KEY
+                # Gamma
+                options.loc[idx, "gamma"] = norm.pdf(d1) / (S * sigma * np.sqrt(T))
 
-def process_message_with_citations(message):
-    """Extraiga y devuelva solo el texto del mensaje del asistente."""
-    if hasattr(message, 'content') and len(message.content) > 0:
-        message_content = message.content[0]
-        if hasattr(message_content, 'text'):
-            nested_text = message_content.text
-            if hasattr(nested_text, 'value'):
-                return nested_text.value
-    return 'No se pudo procesar el mensaje'
+                # Theta
+                if is_call:
+                    theta = -S * norm.pdf(d1) * sigma / (
+                        2 * np.sqrt(T)
+                    ) - r * K * np.exp(-r * T) * norm.cdf(d2)
+                else:
+                    theta = -S * norm.pdf(d1) * sigma / (
+                        2 * np.sqrt(T)
+                    ) + r * K * np.exp(-r * T) * norm.cdf(-d2)
+                options.loc[idx, "theta"] = theta / 365
 
-# Crear un hilo de chat inmediatamente después de cargar la clave API
-if not st.session_state.thread_id:
-    thread = client.beta.threads.create()
-    st.session_state.thread_id = thread.id
-    st.write("ID del hilo: ", thread.id)
+                # Vega
+                options.loc[idx, "vega"] = S * np.sqrt(T) * norm.pdf(d1) / 100
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+            return options
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        except Exception as e:
+            logger.error(f"Error en Greeks: {str(e)}")
+            return options_data
 
-if prompt := st.chat_input("¿Cómo puedo ayudarte hoy?"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("usuario"):
-        st.markdown(prompt)
 
-    # Enviar mensaje del usuario
-    client.beta.threads.messages.create(
-        thread_id=st.session_state.thread_id,
-        role="user",
-        content=prompt
+def create_technical_chart(data):
+    """Crea gráfico técnico avanzado"""
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.5, 0.25, 0.25],
+        subplot_titles=("Precio y Tendencias", "MACD", "RSI"),
     )
 
-    # Crear una ejecución para el hilo de chat
-    run = client.beta.threads.runs.create(
-        thread_id=st.session_state.thread_id,
-        assistant_id=assistant_id
+    # Candlestick
+    fig.add_trace(
+        go.Candlestick(
+            x=data.index,
+            open=data["Open"],
+            high=data["High"],
+            low=data["Low"],
+            close=data["Close"],
+            name="OHLC",
+        ),
+        row=1,
+        col=1,
     )
 
-    while run.status != 'completed':
-        time.sleep(1)
-        run = client.beta.threads.runs.retrieve(
-            thread_id=st.session_state.thread_id,
-            run_id=run.id
+    # Medias móviles y Bandas de Bollinger
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=data["BB_High"],
+            name="BB Superior",
+            line=dict(color="gray", dash="dash"),
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=data["BB_Low"],
+            name="BB Inferior",
+            line=dict(color="gray", dash="dash"),
+            fill="tonexty",
+        ),
+        row=1,
+        col=1,
+    )
+
+    for period in [20, 50, 200]:
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=data[f"SMA_{period}"],
+                name=f"SMA {period}",
+                line=dict(width=1),
+            ),
+            row=1,
+            col=1,
         )
 
-    # Recuperar mensajes agregados por el asistente
-    messages = client.beta.threads.messages.list(
-    thread_id=st.session_state.thread_id
+    # MACD
+    fig.add_trace(
+        go.Scatter(x=data.index, y=data["MACD"], name="MACD", line=dict(color="blue")),
+        row=2,
+        col=1,
     )
 
-    # Procesar y mostrar mensajes del asistente
-    for message in messages:
-        if message.run_id == run.id and message.role == "assistant":
-            full_response = process_message_with_citations(message)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-            with st.chat_message("assistant"):
-                st.markdown(full_response)
-                
-# Footer
-st.sidebar.markdown('---')
-st.sidebar.subheader('Creado por:')
-st.sidebar.markdown('Alexander Oviedo Fadul')
-st.sidebar.markdown("[GitHub](https://github.com/bladealex9848) | [Website](https://alexanderoviedofadul.dev/) | [LinkedIn](https://www.linkedin.com/in/alexander-oviedo-fadul/) | [Instagram](https://www.instagram.com/alexander.oviedo.fadul) | [Twitter](https://twitter.com/alexanderofadul) | [Facebook](https://www.facebook.com/alexanderof/) | [WhatsApp](https://api.whatsapp.com/send?phone=573015930519&text=Hola%20!Quiero%20conversar%20contigo!%20)")
+    fig.add_trace(
+        go.Scatter(
+            x=data.index,
+            y=data["MACD_Signal"],
+            name="Señal MACD",
+            line=dict(color="orange"),
+        ),
+        row=2,
+        col=1,
+    )
+
+    # Histograma MACD
+    colors = np.where(data["MACD_Hist"] >= 0, "green", "red")
+    fig.add_trace(
+        go.Bar(
+            x=data.index, y=data["MACD_Hist"], name="MACD Hist", marker_color=colors
+        ),
+        row=2,
+        col=1,
+    )
+
+    # RSI
+    fig.add_trace(
+        go.Scatter(x=data.index, y=data["RSI"], name="RSI", line=dict(color="purple")),
+        row=3,
+        col=1,
+    )
+
+    # Líneas RSI
+    fig.add_hline(y=70, line_color="red", line_dash="dash", row=3, col=1)
+    fig.add_hline(y=30, line_color="green", line_dash="dash", row=3, col=1)
+
+    # Diseño
+    fig.update_layout(
+        height=900,
+        title_text=f"Análisis Técnico Avanzado",
+        showlegend=True,
+        xaxis_rangeslider_visible=False,
+    )
+
+    return fig
+
+
+def create_options_table(options_data):
+    """Formatea tabla de opciones"""
+    columns = {
+        "strike": "Strike",
+        "lastPrice": "Último",
+        "bid": "Bid",
+        "ask": "Ask",
+        "volume": "Volumen",
+        "openInterest": "Open Int.",
+        "impliedVolatility": "Vol. Impl.",
+        "delta": "Delta",
+        "gamma": "Gamma",
+        "theta": "Theta",
+        "vega": "Vega",
+    }
+
+    formatted = options_data[columns.keys()].copy()
+    formatted.columns = columns.values()
+
+    # Formato números
+    formatted["Vol. Impl."] = formatted["Vol. Impl."].map("{:.2%}".format)
+    for col in ["Delta", "Gamma", "Theta", "Vega"]:
+        formatted[col] = formatted[col].map("{:.4f}".format)
+
+    return formatted
+
+
+# Configuración de la barra lateral
+with st.sidebar:
+    st.subheader("🧑‍💻 Experto en Trading")
+    st.markdown("""
+    ### Especialidades:
+    - 📊 Análisis técnico avanzado
+    - 📈 Trading de opciones y volatilidad
+    - 🤖 Estrategias cuantitativas
+    - ⚠️ Risk management profesional
+    - 📉 Market microstructure
+    """)
+
+    st.markdown("---")
+    st.markdown("ℹ️ Información de Contacto")
+    st.markdown("Alexander Oviedo Fadul")
+    st.markdown(
+        "[💼 LinkedIn](https://www.linkedin.com/in/alexander-oviedo-fadul/) | [🌐 Website](https://alexanderoviedofadul.dev/)"
+    )
+
+    st.markdown("---")
+    st.markdown("Version: 1.0.0")
+    st.markdown("© 2025 Todos los derechos reservados")
+
+    # Configuración de OpenAI
+    st.markdown("---")
+    st.subheader("⚙️ Configuración")
+    if secrets_file_exists():
+        try:
+            ASSISTANT_ID = st.secrets["ASSISTANT_ID"]
+        except KeyError:
+            ASSISTANT_ID = None
+    else:
+        ASSISTANT_ID = None
+
+    if not ASSISTANT_ID:
+        ASSISTANT_ID = st.text_input("ID del Asistente de OpenAI", type="password")
+
+    API_KEY = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+    if not API_KEY:
+        API_KEY = st.text_input("OpenAI API Key", type="password")
+
+    if not ASSISTANT_ID or not API_KEY:
+        st.error("⚠️ Se requieren las credenciales de OpenAI")
+        st.stop()
+
+    openai.api_key = API_KEY
+
+# Herramientas para el asistente
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_market_data",
+            "description": "Obtiene datos de mercado actualizados",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Símbolo del activo (ej: AAPL, MSFT)",
+                    }
+                },
+                "required": ["symbol"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    }
+]
+
+
+def main():
+    # Inicialización del estado
+    if "thread_id" not in st.session_state:
+        thread = openai.beta.threads.create()
+        st.session_state.thread_id = thread.id
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    if "current_symbol" not in st.session_state:
+        st.session_state.current_symbol = "AAPL"
+
+    # Layout principal: dos columnas
+    col1, col2 = st.columns([2, 1])
+
+    # Columna del Chat
+    with col1:
+        st.title("💬 Trading Assistant Pro")
+
+        # Contador de visitantes
+        st.write("""
+                ![Visitantes](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Finversoria.streamlit.app&label=Visitantes&labelColor=%235d5d5d&countColor=%231e7ebf&style=flat)
+                """)
+
+        # Área de chat
+        chat_container = st.container()
+
+        with chat_container:
+            # Mostrar mensajes
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            # Input del usuario
+            if prompt := st.chat_input("¿Qué análisis necesitas hoy?"):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                # Procesar con OpenAI
+                openai.beta.threads.messages.create(
+                    thread_id=st.session_state.thread_id, role="user", content=prompt
+                )
+
+                run = openai.beta.threads.runs.create(
+                    thread_id=st.session_state.thread_id,
+                    assistant_id=ASSISTANT_ID,
+                    tools=tools,
+                )
+
+                # Procesar respuesta
+                with st.spinner("Analizando mercado..."):
+                    while True:
+                        run = openai.beta.threads.runs.retrieve(
+                            thread_id=st.session_state.thread_id, run_id=run.id
+                        )
+
+                        if run.status == "completed":
+                            break
+                        elif run.status == "requires_action":
+                            # Procesar llamadas a funciones
+                            tool_outputs = []
+                            for (
+                                tool_call
+                            ) in run.required_action.submit_tool_outputs.tool_calls:
+                                function_args = eval(tool_call.function.arguments)
+
+                                # Inicializar analizador
+                                market = MarketAnalyzer(function_args["symbol"])
+                                if market.load_data():
+                                    result = market.get_market_profile()
+                                else:
+                                    result = "Error cargando datos"
+
+                                tool_outputs.append(
+                                    {
+                                        "tool_call_id": tool_call.id,
+                                        "output": str(result),
+                                    }
+                                )
+
+                            run = openai.beta.threads.runs.submit_tool_outputs(
+                                thread_id=st.session_state.thread_id,
+                                run_id=run.id,
+                                tool_outputs=tool_outputs,
+                            )
+
+                        time.sleep(0.5)
+
+                    # Mostrar respuesta
+                    messages = openai.beta.threads.messages.list(
+                        thread_id=st.session_state.thread_id
+                    )
+
+                    for message in messages:
+                        if message.run_id == run.id and message.role == "assistant":
+                            response = message.content[0].text.value
+                            st.session_state.messages.append(
+                                {"role": "assistant", "content": response}
+                            )
+                            with st.chat_message("assistant"):
+                                st.markdown(response)
+
+    # Columna de Análisis
+    with col2:
+        st.title("📊 Market Analysis")
+
+        # Selector de categoría y símbolo
+        popular_symbols = get_popular_symbols()
+
+        symbol_category = st.selectbox(
+            "Categoría", options=list(popular_symbols.keys()), key="symbol_category"
+        )
+
+        symbol = st.selectbox(
+            "Activo", options=popular_symbols[symbol_category], key="symbol_select"
+        )
+
+        if symbol:
+            st.session_state.current_symbol = symbol
+
+            # Pestañas de análisis
+            tab1, tab2, tab3 = st.tabs(["📈 Técnico", "🎯 Opciones", "📊 Señales"])
+
+            # Inicializar analizador
+            market = MarketAnalyzer(symbol)
+
+            if market.load_data():
+                # Calcular indicadores
+                df_technical = market.calculate_indicators()
+
+                if df_technical is not None:
+                    # Tab Técnico
+                    with tab1:
+                        fig = create_technical_chart(df_technical)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # Métricas
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric(
+                                "Precio",
+                                f"${df_technical['Close'].iloc[-1]:.2f}",
+                                f"{(df_technical['Close'].iloc[-1] - df_technical['Close'].iloc[-2]):.2f}",
+                            )
+                        with col2:
+                            st.metric("RSI", f"{df_technical['RSI'].iloc[-1]:.2f}")
+
+                    # Tab Opciones
+                    with tab2:
+                        options_chain = market.get_options_chain()
+                        if options_chain:
+                            expiry = st.selectbox(
+                                "Vencimiento", options=list(options_chain.keys())
+                            )
+
+                            if expiry in options_chain:
+                                st.subheader("Calls")
+                                st.dataframe(
+                                    create_options_table(
+                                        options_chain[expiry]["calls"]
+                                    ),
+                                    use_container_width=True,
+                                )
+
+                                st.subheader("Puts")
+                                st.dataframe(
+                                    create_options_table(options_chain[expiry]["puts"]),
+                                    use_container_width=True,
+                                )
+                        else:
+                            st.warning("No hay opciones disponibles")
+
+                    # Tab Señales
+                    with tab3:
+                        # Análisis de tendencia
+                        trend = (
+                            "alcista"
+                            if df_technical["SMA_20"].iloc[-1]
+                            > df_technical["SMA_50"].iloc[-1]
+                            else "bajista"
+                        )
+                        rsi = df_technical["RSI"].iloc[-1]
+
+                        st.info(f"""
+                        ### Análisis Técnico
+                        
+                        📈 **Tendencia:** {trend.upper()}
+                        📊 **RSI:** {rsi:.2f}
+                        💰 **Precio:** ${df_technical["Close"].iloc[-1]:.2f}
+                        """)
+
+                        with st.expander("🔍 Análisis Detallado"):
+                            st.markdown(f"""
+                            ### Indicadores
+                            - **MACD:** {"Alcista" if df_technical["MACD"].iloc[-1] > df_technical["MACD_Signal"].iloc[-1] else "Bajista"}
+                            - **Volatilidad:** {((df_technical["BB_High"].iloc[-1] - df_technical["BB_Low"].iloc[-1]) / df_technical["Close"].iloc[-1] * 100):.2f}%
+                            - **SMA 200:** {"Por encima" if df_technical["Close"].iloc[-1] > df_technical["SMA_200"].iloc[-1] else "Por debajo"}
+                            """)
+
+                        with st.expander("📋 Recomendaciones"):
+                            if trend == "alcista":
+                                if rsi < 70:
+                                    st.markdown("""
+                                    ### Estrategia CALL
+                                    1. Comprar CALL ATM/OTM
+                                    2. Stop: -50% premium
+                                    3. Target: BB Superior
+                                    """)
+                                else:
+                                    st.markdown("""
+                                    ### PUT Credit Spread
+                                    1. Vender PUT OTM
+                                    2. Target: 50% beneficio
+                                    3. Gestionar en earnings
+                                    """)
+                            else:
+                                if rsi > 30:
+                                    st.markdown("""
+                                    ### Estrategia PUT
+                                    1. Comprar PUT ATM/OTM
+                                    2. Stop: -50% premium
+                                    3. Target: BB Inferior
+                                    """)
+                                else:
+                                    st.markdown("""
+                                    ### CALL Credit Spread
+                                    1. Vender CALL OTM
+                                    2. Target: 50% beneficio
+                                    3. Gestionar en earnings
+                                    """)
+
+                        st.warning("""
+                        ⚠️ **Aviso de Riesgo**
+                        
+                        Este análisis es informativo y no constituye asesoramiento financiero.
+                        Las operaciones con opciones conllevan alto riesgo.
+                        """)
+                else:
+                    st.error("Error en indicadores técnicos")
+            else:
+                st.error("Error cargando datos de mercado")
+
+        # Botón limpiar chat
+        if st.button("🗑️ Limpiar Chat"):
+            st.session_state.messages = []
+            st.rerun()
+
+
+if __name__ == "__main__":
+    main()

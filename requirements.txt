@@ -1,2 +1,16 @@
 streamlit
 openai
+yfinance
+pandas
+numpy
+plotly
+ta
+scikit-learn
+scipy
+python-dateutil
+requests
+python-dotenv
+logging
+tenacity
+matplotlib
+seaborn
