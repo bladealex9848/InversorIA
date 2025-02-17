@@ -1,0 +1,11 @@
+=== InversorIA Pro: Análisis Técnico Avanzado ===
+Símbolo: SPY
+Fecha: 2025-02-17 14:17:30
+
+=== Análisis Técnico ===
+Precio: $77.13
+Cambio: $34.47
+
+=== Señales Técnicas ===
+Tendencia: Alcista
+RSI: 48.0
