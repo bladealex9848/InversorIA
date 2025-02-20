@@ -8,6 +8,12 @@ from ta.trend import SMAIndicator, EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.utils import dropna
 
+# Verificación de autenticación
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.title("🔒 Acceso Restringido")
+    st.warning("Por favor, inicie sesión desde la página principal del sistema.")
+    st.stop()
+
 # Configuración de la página
 st.set_page_config(
     page_title="Analizador de Acciones Pro",

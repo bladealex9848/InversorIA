@@ -8,6 +8,7 @@ from datetime import datetime
 from market_utils import get_market_context, logger
 from openai_utils import process_tool_calls, tools
 from trading_dashboard import render_dashboard
+from authenticator import check_password, validate_session, clear_session
 
 # Configuración de logging
 logging.basicConfig(
@@ -50,6 +51,48 @@ TIMEFRAMES = {
     "Swing": ["1d", "1wk"],
     "Posicional": ["1mo", "3mo"]
 }
+
+def check_authentication():
+    """Verifica autenticación del usuario"""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+        
+    if not st.session_state.authenticated:
+        st.title("🔒 InversorIA Pro - Acceso Institucional")
+        
+        st.markdown("""
+        ### Plataforma Profesional de Trading
+        
+        InversorIA Pro es una suite avanzada de trading que ofrece:
+        
+        - 📊 Análisis técnico multi-timeframe
+        - 🎯 Trading de opciones y volatilidad
+        - 🤖 Estrategias sistemáticas
+        - ⚠️ Gestión de riesgo profesional
+        - 📈 Análisis cuantitativo
+        - 💹 Market making algorítmico
+        
+        #### Acceso Restringido
+        Esta plataforma está diseñada para uso institucional y requiere autenticación.
+        """)
+        
+        password = st.text_input("Ingrese su contraseña de acceso", type="password")
+        
+        if st.button("Acceder"):
+            if check_password(password):
+                st.session_state.authenticated = True
+                st.rerun()
+            
+        st.markdown("---")
+        st.markdown("© 2025 InversorIA Pro | Sistema de Trading Institucional")
+        
+        return False
+        
+    if not validate_session():
+        clear_session()
+        st.rerun()
+        
+    return True
 
 def setup_openai():
     """Configura credenciales de OpenAI"""
@@ -121,6 +164,10 @@ def render_sidebar():
             - [Trading Docs](https://docs.alexanderoviedofadul.dev/trading)
             - [Risk Management](https://docs.alexanderoviedofadul.dev/risk)
             """)
+        
+        if st.button("🔒 Cerrar Sesión"):
+            clear_session()
+            st.rerun()
         
         st.markdown("v1.0.0 | © 2025 InversorIA Pro")
 
@@ -211,7 +258,13 @@ def process_chat_input(prompt, ASSISTANT_ID):
         return None
 
 def main():
+    """Función principal de la aplicación"""
     try:
+        # Verificar autenticación
+        if not check_authentication():
+            return
+            
+        # Inicialización regular
         initialize_session_state()
         ASSISTANT_ID = setup_openai()
         render_sidebar()
@@ -295,36 +348,49 @@ def main():
                     try:
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                         filename = f"analysis_{st.session_state.current_symbol}_{timestamp}.txt"
+                        report_content = []
+                        
+                        # Generar contenido del reporte
+                        report_content.append("=== InversorIA Pro: Análisis Institucional ===")
+                        report_content.append(f"Instrumento: {st.session_state.current_symbol}")
+                        report_content.append(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                         
                         context = get_market_context(st.session_state.current_symbol)
+                        if context:
+                            report_content.append("=== Análisis Técnico ===")
+                            report_content.append(f"Último: ${context['last_price']:.2f}")
+                            report_content.append(f"Variación: ${context['change']:.2f}\n")
+                            
+                            report_content.append("=== Señales Técnicas ===")
+                            report_content.append(f"Tendencia: {context['signals']['trend']['sma_20_50']}")
+                            report_content.append(f"RSI: {context['signals']['momentum']['rsi']:.1f}")
+                            report_content.append(f"Volatilidad: {context['signals']['volatility']['bb_width']:.4f}\n")
                         
-                        with open(filename, "w", encoding="utf-8") as f:
-                            f.write(f"=== InversorIA Pro: Análisis Institucional ===\n")
-                            f.write(f"Instrumento: {st.session_state.current_symbol}\n")
-                            f.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                            
-                            if context:
-                                f.write("=== Análisis Técnico ===\n")
-                                f.write(f"Último: ${context['last_price']:.2f}\n")
-                                f.write(f"Variación: ${context['change']:.2f}\n\n")
-                                
-                                f.write("=== Señales Técnicas ===\n")
-                                f.write(f"Tendencia: {context['signals']['trend']['sma_20_50']}\n")
-                                f.write(f"RSI: {context['signals']['momentum']['rsi']:.1f}\n")
-                                f.write(f"Vol: {context['signals']['volatility']['bb_width']:.4f}\n\n")
-                            
-                            f.write("=== Análisis Cuantitativo ===\n")
-                            for message in st.session_state.messages:
-                                f.write(f"\n[{message['role'].upper()}]\n")
-                                f.write(f"{message['content']}\n")
-                            
-                            f.write("\n=== Disclaimer ===\n")
-                            f.write("Este análisis es generado mediante modelos cuantitativos "
-                                   "y requiere validación profesional. No constituye "
-                                   "asesoramiento financiero. Realizar due diligence "
-                                   "exhaustivo antes de cualquier operación.\n")
+                        report_content.append("=== Análisis Cuantitativo ===")
+                        for message in st.session_state.messages:
+                            report_content.append(f"[{message['role'].upper()}]")
+                            report_content.append(f"{message['content']}\n")
                         
-                        st.success(f"Análisis exportado: {filename}")
+                        report_content.append("=== Disclaimer ===")
+                        report_content.append(
+                            "Este análisis es generado mediante modelos cuantitativos "
+                            "y requiere validación profesional. No constituye "
+                            "asesoramiento financiero. Realizar due diligence "
+                            "exhaustivo antes de cualquier operación."
+                        )
+                        
+                        # Unir todo el contenido
+                        report_text = "\n".join(report_content)
+                        
+                        # Crear botón de descarga
+                        st.download_button(
+                            label="📥 Descargar Reporte",
+                            data=report_text,
+                            file_name=filename,
+                            mime="text/plain"
+                        )
+                        
+                        st.success("Reporte generado exitosamente")
                         
                     except Exception as e:
                         logger.error(f"Error en exportación: {str(e)}")

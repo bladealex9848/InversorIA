@@ -10,6 +10,12 @@ import pandas as pd
 import numpy as np
 import json
 
+# Verificación de autenticación
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.title("🔒 Acceso Restringido")
+    st.warning("Por favor, inicie sesión desde la página principal del sistema.")
+    st.stop()
+
 # Importar utilidades personalizadas
 from market_utils import (
     fetch_market_data,
