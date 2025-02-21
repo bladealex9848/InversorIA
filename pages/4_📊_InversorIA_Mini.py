@@ -8,6 +8,12 @@ from ta.volatility import BollingerBands
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
+# Verificación de autenticación
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.title("🔒 Acceso Restringido")
+    st.warning("Por favor, inicie sesión desde la página principal del sistema.")
+    st.stop()
+
 class TradingAnalyzer:
     def __init__(self):
         self.timeframes = {
