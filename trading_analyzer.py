@@ -17,14 +17,14 @@ class MarketDataError(Exception):
 
 class TechnicalIndicators:
     @staticmethod
-    def calculate_sma(series, window):
+    def calculate_sma(series: pd.Series, window: int) -> pd.Series:
         """Calcula SMA con validación"""
         if len(series) < window:
             return pd.Series(np.nan, index=series.index)
         return series.rolling(window=window).mean()
     
     @staticmethod
-    def calculate_rsi(series, window=14):
+    def calculate_rsi(series: pd.Series, window: int = 14) -> pd.Series:
         """Calcula RSI con validación"""
         if len(series) < window:
             return pd.Series(np.nan, index=series.index)
@@ -49,28 +49,18 @@ class TradingAnalyzer:
         self.strategies = self._initialize_strategies()
 
     def _initialize_strategies(self):
-        """Inicializa todas las estrategias disponibles"""
+        """Inicializa estrategias disponibles"""
         return {
             "CALL": {
                 "SMA40": {
                     "name": "Promedio Móvil de 40 en Hora",
                     "description": "CALL cuando el precio toca SMA40 y rompe línea bajista",
-                    "conditions": ["SMA40 actuando como soporte", "RSI < 30", "Ruptura de línea bajista"]
+                    "conditions": ["SMA40 como soporte", "RSI < 30", "Ruptura línea bajista"]
                 },
                 "NormalDrop": {
                     "name": "Caída Normal (2-3 puntos)",
                     "description": "CALL tras caída moderada con volumen",
                     "conditions": ["Caída de 2-3 puntos", "Volumen creciente", "RSI < 40"]
-                },
-                "StrongDrop": {
-                    "name": "Caída Fuerte (5-6 puntos)",
-                    "description": "CALL tras caída fuerte cerca de soporte mayor",
-                    "conditions": ["Caída de 5-6 puntos", "Cerca de SMA200 diario", "RSI < 30"]
-                },
-                "GapUp": {
-                    "name": "Gap Normal al Alza",
-                    "description": "CALL en gap alcista con volumen",
-                    "conditions": ["Gap alcista", "Volumen alto", "Primera vela verde"]
                 }
             },
             "PUT": {
@@ -78,21 +68,11 @@ class TradingAnalyzer:
                     "name": "Primera Vela Roja de Apertura",
                     "description": "PUT en primera vela roja con sobrecompra",
                     "conditions": ["Primera vela roja", "RSI > 70", "Cerca de resistencia"]
-                },
-                "GapBreak": {
-                    "name": "Ruptura del Piso del Gap",
-                    "description": "PUT en ruptura de gap con volumen",
-                    "conditions": ["Gap identificado", "Ruptura con volumen", "MACD bajista"]
-                },
-                "StrongResistance": {
-                    "name": "Resistencia Fuerte",
-                    "description": "PUT en rechazo de resistencia importante",
-                    "conditions": ["Toque de resistencia", "RSI > 70", "Vela de rechazo"]
                 }
             }
         }
 
-    def get_market_data(self, symbol, period="5d", interval="1h"):
+    def get_market_data(self, symbol: str, period: str = "5d", interval: str = "1h") -> pd.DataFrame:
         """Obtiene datos de mercado con validación"""
         try:
             data = yf.download(symbol, period=period, interval=interval, progress=False)
@@ -103,8 +83,8 @@ class TradingAnalyzer:
             logger.error(f"Error obteniendo datos para {symbol}: {str(e)}")
             raise MarketDataError(str(e))
 
-    def analyze_trend(self, symbol):
-        """Analiza tendencia con manejo mejorado de Series"""
+    def analyze_trend(self, symbol: str):
+        """Analiza tendencia del mercado"""
         try:
             data = self.get_market_data(symbol, period="1y", interval="1d")
             
@@ -112,34 +92,34 @@ class TradingAnalyzer:
                 raise MarketDataError("Datos insuficientes para análisis")
             
             # Calcular indicadores
-            close_series = data['Close']
-            data['SMA20'] = self.indicators.calculate_sma(close_series, 20)
-            data['SMA50'] = self.indicators.calculate_sma(close_series, 50)
-            data['SMA200'] = self.indicators.calculate_sma(close_series, 200)
-            data['RSI'] = self.indicators.calculate_rsi(close_series)
+            data['SMA20'] = self.indicators.calculate_sma(data['Close'], 20)
+            data['SMA50'] = self.indicators.calculate_sma(data['Close'], 50)
+            data['SMA200'] = self.indicators.calculate_sma(data['Close'], 200)
+            data['RSI'] = self.indicators.calculate_rsi(data['Close'])
             
-            # Obtener último registro
+            # Obtener último registro usando .iloc[0]
             latest = data.iloc[-1]
+            metrics = {
+                "price": float(latest['Close'].iloc[0] if isinstance(latest['Close'], pd.Series) else latest['Close']),
+                "sma20": float(latest['SMA20'].iloc[0] if isinstance(latest['SMA20'], pd.Series) else latest['SMA20']),
+                "sma50": float(latest['SMA50'].iloc[0] if isinstance(latest['SMA50'], pd.Series) else latest['SMA50']),
+                "sma200": float(latest['SMA200'].iloc[0] if isinstance(latest['SMA200'], pd.Series) else latest['SMA200']),
+                "rsi": float(latest['RSI'].iloc[0] if isinstance(latest['RSI'], pd.Series) else latest['RSI'])
+            }
             
-            # Extraer valores con iloc[0]
+            # Análisis de tendencia con valores numéricos
             trend = {
                 "direction": "INDEFINIDA",
                 "strength": "NEUTRAL",
                 "bias": "NEUTRAL",
-                "description": "",
-                "metrics": {
-                    "price": float(latest['Close']),
-                    "sma20": float(latest['SMA20']),
-                    "sma50": float(latest['SMA50']),
-                    "sma200": float(latest['SMA200']),
-                    "rsi": float(latest['RSI'])
-                }
+                "description": "Mercado sin tendencia clara",
+                "metrics": metrics
             }
             
-            # Análisis usando valores ya convertidos a float
-            price = trend["metrics"]["price"]
-            sma50 = trend["metrics"]["sma50"]
-            sma200 = trend["metrics"]["sma200"]
+            # Determinar tendencia usando valores numéricos
+            price = metrics["price"]
+            sma50 = metrics["sma50"]
+            sma200 = metrics["sma200"]
             
             if price > sma200:
                 if price > sma50:
@@ -178,25 +158,25 @@ class TradingAnalyzer:
             logger.error(f"Error en análisis de tendencia: {str(e)}")
             raise MarketDataError(str(e))
 
-    def identify_strategy(self, hourly_data, trend):
+    def identify_strategy(self, hourly_data: pd.DataFrame, trend: dict):
         """Identifica estrategias aplicables"""
         try:
-            close_series = hourly_data['Close']
-            hourly_data['RSI'] = self.indicators.calculate_rsi(close_series)
-            hourly_data['SMA40'] = self.indicators.calculate_sma(close_series, 40)
+            hourly_data['RSI'] = self.indicators.calculate_rsi(hourly_data['Close'])
+            hourly_data['SMA40'] = self.indicators.calculate_sma(hourly_data['Close'], 40)
             
             latest = hourly_data.iloc[-1]
-            applicable_strategies = []
             
-            # Extraer valores con iloc[0]
-            rsi = float(latest['RSI'])
-            price = float(latest['Close'])
-            sma40 = float(latest['SMA40'])
+            # Extraer valores usando .iloc[0] cuando sea necesario
+            current_rsi = float(latest['RSI'].iloc[0] if isinstance(latest['RSI'], pd.Series) else latest['RSI'])
+            current_price = float(latest['Close'].iloc[0] if isinstance(latest['Close'], pd.Series) else latest['Close'])
+            current_sma40 = float(latest['SMA40'].iloc[0] if isinstance(latest['SMA40'], pd.Series) else latest['SMA40'])
+            
+            strategies = []
             
             # Estrategias CALL
             if trend["bias"] in ["CALL", "NEUTRAL"]:
-                if rsi < 30 and price > sma40:
-                    applicable_strategies.append({
+                if current_rsi < 30 and current_price > current_sma40:
+                    strategies.append({
                         "type": "CALL",
                         "name": self.strategies["CALL"]["SMA40"]["name"],
                         "description": self.strategies["CALL"]["SMA40"]["description"],
@@ -206,9 +186,10 @@ class TradingAnalyzer:
                 
                 if len(hourly_data) >= 5:
                     high_5d = hourly_data['High'].iloc[-5:].max()
-                    price_change = (high_5d - price) / price
-                    if 0.02 <= price_change <= 0.03 and rsi < 40:
-                        applicable_strategies.append({
+                    price_change = (high_5d - current_price) / current_price
+                    
+                    if 0.02 <= price_change <= 0.03 and current_rsi < 40:
+                        strategies.append({
                             "type": "CALL",
                             "name": self.strategies["CALL"]["NormalDrop"]["name"],
                             "description": self.strategies["CALL"]["NormalDrop"]["description"],
@@ -218,8 +199,8 @@ class TradingAnalyzer:
             
             # Estrategias PUT
             if trend["bias"] in ["PUT", "NEUTRAL"]:
-                if rsi > 70:
-                    applicable_strategies.append({
+                if current_rsi > 70:
+                    strategies.append({
                         "type": "PUT",
                         "name": self.strategies["PUT"]["FirstRedCandle"]["name"],
                         "description": self.strategies["PUT"]["FirstRedCandle"]["description"],
@@ -227,7 +208,7 @@ class TradingAnalyzer:
                         "conditions": self.strategies["PUT"]["FirstRedCandle"]["conditions"]
                     })
             
-            return applicable_strategies
+            return strategies
             
         except Exception as e:
             logger.error(f"Error identificando estrategias: {str(e)}")

@@ -8,6 +8,12 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.warning("Por favor, inicie sesión desde la página principal del sistema.")
     st.stop()
 
+# Verificación de autenticación
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.title("🔒 Acceso Restringido")
+    st.warning("Por favor, inicie sesión desde la página principal del sistema.")
+    st.stop()
+
 # Configuración de logging
 logging.basicConfig(
     level=logging.INFO,
@@ -155,20 +161,18 @@ def main():
             # Niveles clave
             st.subheader("📍 Niveles Técnicos")
             col1, col2 = st.columns(2)
+            
             with col1:
-                st.write("""
-                **Soportes/Resistencias:**
-                - SMA200: ${trend['metrics']['sma200']:.2f}
-                - SMA50: ${trend['metrics']['sma50']:.2f}
-                - SMA20: ${trend['metrics']['sma20']:.2f}
-                """)
+                st.markdown("**Soportes/Resistencias:**")
+                st.write(f"• SMA200: ${trend['metrics']['sma200']:.2f}")
+                st.write(f"• SMA50: ${trend['metrics']['sma50']:.2f}")
+                st.write(f"• SMA20: ${trend['metrics']['sma20']:.2f}")
+            
             with col2:
-                st.write("""
-                **Zonas RSI:**
-                - Sobrecompra: RSI > 70
-                - Neutral: RSI 30-70
-                - Sobreventa: RSI < 30
-                """)
+                st.markdown("**Niveles RSI:**")
+                st.write("• Sobrecompra: RSI > 70")
+                st.write("• Neutral: RSI 30-70")
+                st.write("• Sobreventa: RSI < 30")
             
             # Disclaimer profesional
             st.markdown("---")
