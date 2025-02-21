@@ -164,7 +164,7 @@ def display_technical_analysis(symbol: str, cached_data: Optional[Dict] = None) 
 
 def run_market_scanner(selected_sectors: Optional[List[str]] = None) -> None:
     """
-    Ejecuta scanner de mercado con filtros.
+    Ejecuta scanner de mercado con filtros y presentación profesional.
     
     Args:
         selected_sectors: Lista de sectores a analizar
@@ -191,9 +191,35 @@ def run_market_scanner(selected_sectors: Optional[List[str]] = None) -> None:
                 with col3:
                     st.metric("Total Oportunidades", len(opportunities))
                 
+                # Preparar DataFrame para display
+                display_columns = [
+                    "Symbol", "Sector", "Tendencia", "Fuerza", "Precio", 
+                    "RSI", "Estrategia", "Setup", "Confianza", 
+                    "Entry", "Stop", "Target", "R/R", "Timestamp"
+                ]
+                
+                display_df = opportunities[display_columns].copy()
+                
+                # Formatear DataFrame
+                display_df = display_df.rename(columns={
+                    "Symbol": "Símbolo",
+                    "Entry": "Entrada",
+                    "Stop": "Stop Loss",
+                    "Target": "Objetivo",
+                    "Timestamp": "Hora"
+                })
+                
                 # Mostrar oportunidades
                 st.dataframe(
-                    opportunities.style.apply(lambda x: [
+                    display_df.style
+                    .format({
+                        "Precio": "${:.2f}",
+                        "RSI": "{:.1f}",
+                        "Entrada": "${:.2f}",
+                        "Stop Loss": "${:.2f}",
+                        "Objetivo": "${:.2f}"
+                    })
+                    .apply(lambda x: [
                         "background-color: #c8e6c9" if x["Estrategia"] == "CALL" else
                         "background-color: #ffcdd2" if x["Estrategia"] == "PUT" else
                         "" for i in range(len(x))
@@ -203,6 +229,20 @@ def run_market_scanner(selected_sectors: Optional[List[str]] = None) -> None:
                 
                 # Actualizar timestamp
                 st.session_state.last_scan_time = pd.Timestamp.now()
+                
+                # Mostrar análisis por sector si hay sectores seleccionados
+                if selected_sectors:
+                    st.subheader("📊 Análisis por Sector")
+                    for sector in selected_sectors:
+                        sector_opps = display_df[display_df["Sector"] == sector]
+                        if not sector_opps.empty:
+                            with st.expander(f"{sector} ({len(sector_opps)} señales)"):
+                                st.write(f"""
+                                **Señales Identificadas:**
+                                - CALLS: {len(sector_opps[sector_opps['Estrategia'] == 'CALL'])}
+                                - PUTS: {len(sector_opps[sector_opps['Estrategia'] == 'PUT'])}
+                                - Alta Confianza: {len(sector_opps[sector_opps['Confianza'] == 'ALTA'])}
+                                """)
             else:
                 st.warning("No se identificaron oportunidades que cumplan los criterios")
     
