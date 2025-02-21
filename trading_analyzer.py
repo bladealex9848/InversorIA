@@ -159,54 +159,92 @@ class TradingAnalyzer:
             raise MarketDataError(str(e))
 
     def identify_strategy(self, hourly_data: pd.DataFrame, trend: dict):
-        """Identifica estrategias aplicables"""
+        """Identifica estrategias aplicables usando comparaciones seguras"""
         try:
+            # Calcular indicadores
             hourly_data['RSI'] = self.indicators.calculate_rsi(hourly_data['Close'])
             hourly_data['SMA40'] = self.indicators.calculate_sma(hourly_data['Close'], 40)
             
+            # Obtener los últimos datos
             latest = hourly_data.iloc[-1]
             
-            # Extraer valores usando .iloc[0] cuando sea necesario
-            current_rsi = float(latest['RSI'].iloc[0] if isinstance(latest['RSI'], pd.Series) else latest['RSI'])
-            current_price = float(latest['Close'].iloc[0] if isinstance(latest['Close'], pd.Series) else latest['Close'])
-            current_sma40 = float(latest['SMA40'].iloc[0] if isinstance(latest['SMA40'], pd.Series) else latest['SMA40'])
+            # Extraer valores y asegurar que son escalares
+            current_rsi = latest['RSI']
+            current_price = latest['Close']
+            current_sma40 = latest['SMA40']
+            
+            # Verificar que no son nulos
+            if pd.isna(current_rsi) or pd.isna(current_price) or pd.isna(current_sma40):
+                logger.warning("Valores nulos encontrados en los indicadores")
+                return []
+            
+            # Convertir a float usando .item() para Series
+            current_rsi = float(current_rsi.item() if isinstance(current_rsi, pd.Series) else current_rsi)
+            current_price = float(current_price.item() if isinstance(current_price, pd.Series) else current_price)
+            current_sma40 = float(current_sma40.item() if isinstance(current_sma40, pd.Series) else current_sma40)
             
             strategies = []
             
             # Estrategias CALL
             if trend["bias"] in ["CALL", "NEUTRAL"]:
-                if current_rsi < 30 and current_price > current_sma40:
+                # Estrategia SMA40
+                if (current_rsi < 30) and (current_price > current_sma40):
+                    logger.info(f"SMA40 Strategy triggered - RSI: {current_rsi:.2f}, Price: {current_price:.2f}")
                     strategies.append({
                         "type": "CALL",
                         "name": self.strategies["CALL"]["SMA40"]["name"],
                         "description": self.strategies["CALL"]["SMA40"]["description"],
                         "confidence": "ALTA" if trend["direction"] == "ALCISTA" else "MEDIA",
-                        "conditions": self.strategies["CALL"]["SMA40"]["conditions"]
+                        "conditions": self.strategies["CALL"]["SMA40"]["conditions"],
+                        "levels": {
+                            "entry": current_price,
+                            "stop_loss": current_sma40 * 0.99,  # 1% bajo SMA40
+                            "target": current_price * 1.02  # 2% sobre precio actual
+                        }
                     })
                 
+                # Estrategia Caída Normal
                 if len(hourly_data) >= 5:
-                    high_5d = hourly_data['High'].iloc[-5:].max()
-                    price_change = (high_5d - current_price) / current_price
+                    recent_high = hourly_data['High'].iloc[-5:].max()
+                    price_change = (recent_high - current_price) / recent_high
                     
-                    if 0.02 <= price_change <= 0.03 and current_rsi < 40:
+                    if (0.02 <= price_change <= 0.03) and (current_rsi < 40):
+                        logger.info(f"NormalDrop Strategy triggered - Drop: {price_change:.2%}, RSI: {current_rsi:.2f}")
                         strategies.append({
                             "type": "CALL",
                             "name": self.strategies["CALL"]["NormalDrop"]["name"],
                             "description": self.strategies["CALL"]["NormalDrop"]["description"],
                             "confidence": "MEDIA",
-                            "conditions": self.strategies["CALL"]["NormalDrop"]["conditions"]
+                            "conditions": self.strategies["CALL"]["NormalDrop"]["conditions"],
+                            "levels": {
+                                "entry": current_price,
+                                "stop_loss": current_price * 0.985,  # 1.5% bajo precio actual
+                                "target": recent_high  # Objetivo en máximo reciente
+                            }
                         })
             
             # Estrategias PUT
             if trend["bias"] in ["PUT", "NEUTRAL"]:
+                # Estrategia FirstRedCandle
                 if current_rsi > 70:
+                    logger.info(f"FirstRedCandle Strategy triggered - RSI: {current_rsi:.2f}")
                     strategies.append({
                         "type": "PUT",
                         "name": self.strategies["PUT"]["FirstRedCandle"]["name"],
                         "description": self.strategies["PUT"]["FirstRedCandle"]["description"],
                         "confidence": "ALTA" if trend["direction"] == "BAJISTA" else "MEDIA",
-                        "conditions": self.strategies["PUT"]["FirstRedCandle"]["conditions"]
+                        "conditions": self.strategies["PUT"]["FirstRedCandle"]["conditions"],
+                        "levels": {
+                            "entry": current_price,
+                            "stop_loss": current_price * 1.01,  # 1% sobre precio actual
+                            "target": current_price * 0.98  # 2% bajo precio actual
+                        }
                     })
+            
+            if strategies:
+                logger.info(f"Identified {len(strategies)} valid strategies")
+            else:
+                logger.info("No valid strategies identified")
             
             return strategies
             
