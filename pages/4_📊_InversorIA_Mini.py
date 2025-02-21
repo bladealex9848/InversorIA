@@ -5,8 +5,8 @@ import numpy as np
 from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import logging
 
 # Verificación de autenticación
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -14,242 +14,247 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.warning("Por favor, inicie sesión desde la página principal del sistema.")
     st.stop()
 
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class MarketDataError(Exception):
+    """Excepción personalizada para errores de datos de mercado"""
+    pass
+
 class TradingAnalyzer:
     def __init__(self):
-        self.timeframes = {
-            "Largo Plazo": "1y",
-            "Medio Plazo": "6mo",
-            "Corto Plazo": "1mo",
-            "Intradía": "1d"
-        }
-        
-    def get_trend_data(self, symbol, timeframe="1y"):
-        """Obtiene datos y determina tendencia principal"""
-        try:
-            data = yf.download(symbol, period=timeframe, interval="1d")
-            if data.empty:
-                return None, "Sin datos disponibles"
-                
-            # Calcular SMAs
-            data['SMA20'] = SMAIndicator(data['Close'], window=20).sma_indicator()
-            data['SMA50'] = SMAIndicator(data['Close'], window=50).sma_indicator()
-            data['SMA200'] = SMAIndicator(data['Close'], window=200).sma_indicator()
-            
-            # Determinar tendencia principal
-            current_price = data['Close'].iloc[-1]
-            sma200 = data['SMA200'].iloc[-1]
-            sma50 = data['SMA50'].iloc[-1]
-            
-            if current_price > sma200 and sma50 > sma200:
-                trend = "ALCISTA 📈"
-            elif current_price < sma200 and sma50 < sma200:
-                trend = "BAJISTA 📉"
-            else:
-                trend = "LATERAL ↔️"
-                
-            return data, trend
-            
-        except Exception as e:
-            st.error(f"Error obteniendo datos: {str(e)}")
-            return None, "Error"
-
-    def analyze_signals(self, data):
-        """Analiza señales técnicas para CALL/PUT"""
-        try:
-            # Calcular indicadores
-            macd = MACD(data['Close'])
-            data['MACD'] = macd.macd()
-            data['MACD_Signal'] = macd.macd_signal()
-            data['RSI'] = RSIIndicator(data['Close']).rsi()
-            bb = BollingerBands(data['Close'])
-            data['BB_High'] = bb.bollinger_hband()
-            data['BB_Low'] = bb.bollinger_lband()
-            
-            # Últimos valores
-            current_price = data['Close'].iloc[-1]
-            current_rsi = data['RSI'].iloc[-1]
-            current_macd = data['MACD'].iloc[-1]
-            current_macd_signal = data['MACD_Signal'].iloc[-1]
-            bb_high = data['BB_High'].iloc[-1]
-            bb_low = data['BB_Low'].iloc[-1]
-            
-            # Señales para CALL
-            call_signals = []
-            if current_rsi < 30:
-                call_signals.append("RSI en sobreventa")
-            if current_price < bb_low:
-                call_signals.append("Precio bajo Banda Inferior")
-            if current_macd > current_macd_signal:
-                call_signals.append("Cruce MACD alcista")
-                
-            # Señales para PUT
-            put_signals = []
-            if current_rsi > 70:
-                put_signals.append("RSI en sobrecompra")
-            if current_price > bb_high:
-                put_signals.append("Precio sobre Banda Superior")
-            if current_macd < current_macd_signal:
-                put_signals.append("Cruce MACD bajista")
-                
-            # Evaluar señal dominante
-            signal_strength = {
-                "CALL": len(call_signals),
-                "PUT": len(put_signals)
-            }
-            
-            return {
-                "signals": {
-                    "CALL": call_signals,
-                    "PUT": put_signals
+        self.strategies = {
+            "CALL": {
+                "SMA40": {
+                    "name": "Promedio Móvil de 40 en Hora",
+                    "description": "Comprar CALL cuando el precio, tras caída, toca SMA40 y rompe línea bajista",
+                    "conditions": ["SMA40 actuando como soporte", "RSI < 30", "Ruptura de línea bajista"]
                 },
-                "recommendation": max(signal_strength.items(), key=lambda x: x[1])[0] if max(signal_strength.values()) > 0 else "NEUTRAL",
-                "metrics": {
-                    "price": current_price,
-                    "rsi": current_rsi,
-                    "macd": current_macd,
-                    "bb_high": bb_high,
-                    "bb_low": bb_low
+                "NormalDrop": {
+                    "name": "Caída Normal (2-3 puntos)",
+                    "description": "Comprar CALL tras caída moderada y ruptura de línea bajista",
+                    "conditions": ["Caída de 2-3 puntos", "Volumen creciente", "RSI < 40"]
+                },
+                "StrongDrop": {
+                    "name": "Caída Fuerte (5-6 puntos)",
+                    "description": "Comprar CALL tras caída fuerte cerca de soporte mayor",
+                    "conditions": ["Caída de 5-6 puntos", "Cerca de SMA200 diario", "RSI < 30"]
+                }
+            },
+            "PUT": {
+                "FirstRedCandle": {
+                    "name": "Primera Vela Roja de Apertura",
+                    "description": "Comprar PUT en primera vela roja de apertura",
+                    "conditions": ["Primera vela roja del día", "RSI > 70", "Cerca de resistencia"]
+                },
+                "GapBreak": {
+                    "name": "Ruptura del Piso del Gap",
+                    "description": "Comprar PUT en ruptura de piso de gap",
+                    "conditions": ["Gap identificado", "Ruptura con volumen", "MACD cruce bajista"]
                 }
             }
-            
-        except Exception as e:
-            st.error(f"Error en análisis: {str(e)}")
-            return None
+        }
 
-    def plot_analysis(self, data, signals):
-        """Genera gráfico interactivo con señales"""
+    def get_market_data(self, symbol, period):
+        """Obtiene datos de mercado con manejo de errores mejorado"""
         try:
-            fig = go.Figure()
+            data = yf.download(symbol, period=period, interval="1h")
+            if data.empty:
+                raise MarketDataError("No se obtuvieron datos")
             
-            # Precio y SMAs
-            fig.add_trace(go.Scatter(
-                x=data.index, 
-                y=data['Close'],
-                name='Precio',
-                line=dict(color='blue', width=1)
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=data.index, 
-                y=data['SMA20'],
-                name='SMA20',
-                line=dict(color='orange', width=1, dash='dash')
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=data.index, 
-                y=data['SMA50'],
-                name='SMA50',
-                line=dict(color='green', width=1, dash='dash')
-            ))
-            
-            # Bandas de Bollinger
-            fig.add_trace(go.Scatter(
-                x=data.index,
-                y=data['BB_High'],
-                name='BB Superior',
-                line=dict(color='gray', width=1, dash='dot')
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=data.index,
-                y=data['BB_Low'],
-                name='BB Inferior',
-                line=dict(color='gray', width=1, dash='dot')
-            ))
-            
-            # Configuración
-            fig.update_layout(
-                title='Análisis Técnico',
-                yaxis_title='Precio',
-                template='plotly_white',
-                showlegend=True,
-                height=600
-            )
-            
-            return fig
+            if len(data) < 20:  # Mínimo para cálculos técnicos
+                raise MarketDataError("Datos insuficientes para análisis")
+                
+            return data
             
         except Exception as e:
-            st.error(f"Error en visualización: {str(e)}")
-            return None
+            logger.error(f"Error obteniendo datos para {symbol}: {str(e)}")
+            raise MarketDataError(f"Error en descarga de datos: {str(e)}")
+
+    def analyze_trend(self, symbol):
+        """Analiza tendencia en múltiples timeframes"""
+        try:
+            # Datos diarios para tendencia macro
+            daily_data = yf.download(symbol, period="1y", interval="1d")
+            if daily_data.empty:
+                raise MarketDataError("No se obtuvieron datos diarios")
+            
+            # Calcular SMAs
+            daily_data['SMA50'] = SMAIndicator(daily_data['Close'], window=50).sma_indicator()
+            daily_data['SMA200'] = SMAIndicator(daily_data['Close'], window=200).sma_indicator()
+            
+            # Precios actuales
+            current_price = daily_data['Close'].iloc[-1]
+            sma50 = daily_data['SMA50'].iloc[-1]
+            sma200 = daily_data['SMA200'].iloc[-1]
+            
+            # Determinar tendencia
+            if current_price > sma200 and sma50 > sma200:
+                trend = {
+                    "direction": "ALCISTA",
+                    "strength": "FUERTE" if current_price > sma50 else "MODERADA",
+                    "description": "Tendencia alcista confirmada por SMA200 y SMA50",
+                    "strategy_bias": "CALL"
+                }
+            elif current_price < sma200 and sma50 < sma200:
+                trend = {
+                    "direction": "BAJISTA",
+                    "strength": "FUERTE" if current_price < sma50 else "MODERADA",
+                    "description": "Tendencia bajista confirmada por SMA200 y SMA50",
+                    "strategy_bias": "PUT"
+                }
+            else:
+                trend = {
+                    "direction": "LATERAL",
+                    "strength": "INDEFINIDA",
+                    "description": "Mercado en rango, sin tendencia clara",
+                    "strategy_bias": "NEUTRAL"
+                }
+            
+            return trend, daily_data
+            
+        except Exception as e:
+            logger.error(f"Error en análisis de tendencia: {str(e)}")
+            raise MarketDataError(f"Error analizando tendencia: {str(e)}")
+
+    def identify_strategy(self, hourly_data, trend):
+        """Identifica estrategias aplicables según condiciones actuales"""
+        try:
+            # Calcular indicadores horarios
+            hourly_data['RSI'] = RSIIndicator(hourly_data['Close']).rsi()
+            hourly_data['SMA40'] = SMAIndicator(hourly_data['Close'], window=40).sma_indicator()
+            macd = MACD(hourly_data['Close'])
+            hourly_data['MACD'] = macd.macd()
+            hourly_data['MACD_Signal'] = macd.macd_signal()
+            
+            # Últimos valores
+            current_price = hourly_data['Close'].iloc[-1]
+            current_rsi = hourly_data['RSI'].iloc[-1]
+            current_sma40 = hourly_data['SMA40'].iloc[-1]
+            
+            applicable_strategies = []
+            
+            # CALL Strategies
+            if trend["strategy_bias"] in ["CALL", "NEUTRAL"]:
+                # SMA40 Strategy
+                if abs(current_price - current_sma40) / current_price < 0.01 and current_rsi < 30:
+                    applicable_strategies.append({
+                        "type": "CALL",
+                        "strategy": self.strategies["CALL"]["SMA40"],
+                        "confidence": "ALTA" if trend["direction"] == "ALCISTA" else "MEDIA"
+                    })
+                    
+                # Normal Drop Strategy
+                price_drop = (hourly_data['High'].iloc[-4:].max() - current_price) / current_price
+                if 0.02 <= price_drop <= 0.03 and current_rsi < 40:
+                    applicable_strategies.append({
+                        "type": "CALL",
+                        "strategy": self.strategies["CALL"]["NormalDrop"],
+                        "confidence": "MEDIA"
+                    })
+            
+            # PUT Strategies
+            if trend["strategy_bias"] in ["PUT", "NEUTRAL"]:
+                # First Red Candle Strategy
+                if current_rsi > 70 and hourly_data['Close'].iloc[-1] < hourly_data['Open'].iloc[-1]:
+                    applicable_strategies.append({
+                        "type": "PUT",
+                        "strategy": self.strategies["PUT"]["FirstRedCandle"],
+                        "confidence": "ALTA" if trend["direction"] == "BAJISTA" else "MEDIA"
+                    })
+            
+            return applicable_strategies
+            
+        except Exception as e:
+            logger.error(f"Error identificando estrategias: {str(e)}")
+            return []
 
 def main():
     st.title("📊 InversorIA Mini")
+    st.write("Análisis Técnico Horario Alineado con Tendencia Macro")
+    
+    # Categorías de trading
+    symbols = {
+        "Índices": ["SPY", "QQQ", "DIA", "IWM"],
+        "Tecnología": ["AAPL", "MSFT", "GOOGL", "AMZN"],
+        "Finanzas": ["JPM", "BAC", "GS", "MS"]
+    }
+    
+    # Selectores
+    col1, col2 = st.columns(2)
+    with col1:
+        category = st.selectbox("Categoría", list(symbols.keys()))
+    with col2:
+        symbol = st.selectbox("Símbolo", symbols[category])
     
     analyzer = TradingAnalyzer()
     
-    # Selector de categoría y símbolo
-    categories = {
-        "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
-        "Tecnología": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "PYPL", "CRM"],
-        "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"]
-    }
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        category = st.selectbox("Categoría", list(categories.keys()))
-    with col2:
-        symbol = st.selectbox("Símbolo", categories[category])
-    
-    # Análisis por timeframes
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        data_lp, trend_lp = analyzer.get_trend_data(symbol, "1y")
-        st.metric("Tendencia Largo Plazo", trend_lp)
+    try:
+        # Análisis de tendencia
+        trend, daily_data = analyzer.analyze_trend(symbol)
         
-    with col2:
-        data_mp, trend_mp = analyzer.get_trend_data(symbol, "6mo")
-        st.metric("Tendencia Medio Plazo", trend_mp)
+        # Mostrar análisis de tendencia
+        st.subheader("🎯 Análisis de Tendencia")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Dirección", trend["direction"])
+        with col2:
+            st.metric("Fuerza", trend["strength"])
+        with col3:
+            st.metric("Sesgo", trend["strategy_bias"])
         
-    with col3:
-        data_cp, trend_cp = analyzer.get_trend_data(symbol, "1mo")
-        st.metric("Tendencia Corto Plazo", trend_cp)
-    
-    # Análisis detallado del timeframe actual
-    if data_cp is not None:
-        signals = analyzer.analyze_signals(data_cp)
+        st.info(trend["description"])
         
-        if signals:
-            st.subheader("Señales Activas")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write("**Señales CALL:**")
-                for signal in signals['signals']['CALL']:
-                    st.write(f"✅ {signal}")
+        # Datos horarios
+        hourly_data = analyzer.get_market_data(symbol, "5d")
+        
+        # Identificar estrategias aplicables
+        strategies = analyzer.identify_strategy(hourly_data, trend)
+        
+        if strategies:
+            st.subheader("📈 Estrategias Aplicables")
+            for strat in strategies:
+                with st.expander(f"{strat['type']} - {strat['strategy']['name']} (Confianza: {strat['confidence']})"):
+                    st.write(f"**Descripción:** {strat['strategy']['description']}")
+                    st.write("**Condiciones necesarias:**")
+                    for condition in strat['strategy']['conditions']:
+                        st.write(f"✓ {condition}")
                     
-            with col2:
-                st.write("**Señales PUT:**")
-                for signal in signals['signals']['PUT']:
-                    st.write(f"🔴 {signal}")
+                    if strat['confidence'] == "ALTA":
+                        st.success("⭐ Estrategia alineada con tendencia macro")
+                    else:
+                        st.warning("⚠️ Validar señales adicionales")
+        else:
+            st.warning("No se identificaron estrategias aplicables en el momento")
+        
+        # Métricas técnicas actuales
+        st.subheader("📊 Métricas Técnicas")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("RSI", f"{hourly_data['RSI'].iloc[-1]:.1f}")
+        with col2:
+            st.metric("SMA40", f"${hourly_data['SMA40'].iloc[-1]:.2f}")
+        with col3:
+            st.metric("Precio", f"${hourly_data['Close'].iloc[-1]:.2f}")
+        
+        # Disclaimer
+        st.caption("""
+        **⚠️ Disclaimer:** Este análisis es generado automáticamente y debe ser validado.
+        Las señales técnicas no garantizan resultados. Realizar análisis adicional y gestión de riesgo apropiada.
+        """)
             
-            # Recomendación
-            st.subheader("Recomendación")
-            if signals['recommendation'] == "CALL":
-                st.success("🟢 CALL - Oportunidad de Compra")
-            elif signals['recommendation'] == "PUT":
-                st.error("🔴 PUT - Oportunidad de Venta")
-            else:
-                st.warning("⚪ NEUTRAL - Esperar Confirmación")
-            
-            # Métricas
-            st.subheader("Métricas Técnicas")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("RSI", f"{signals['metrics']['rsi']:.2f}")
-            with col2:
-                st.metric("MACD", f"{signals['metrics']['macd']:.2f}")
-            with col3:
-                st.metric("Precio", f"${signals['metrics']['price']:.2f}")
-            
-            # Gráfico
-            st.plotly_chart(analyzer.plot_analysis(data_cp, signals), use_container_width=True)
-            
-            # Disclaimer
-            st.caption("""
-            **Disclaimer:** Este análisis es generado automáticamente y debe ser validado con análisis adicional. 
-            Las señales técnicas no garantizan resultados futuros. Trading implica riesgo de pérdida.
-            """)
+    except MarketDataError as e:
+        st.error(f"Error de datos: {str(e)}")
+        logger.error(f"MarketDataError: {str(e)}")
+        
+    except Exception as e:
+        st.error(f"Error inesperado: {str(e)}")
+        logger.error(f"Error inesperado: {str(e)}")
+        st.stop()
 
 if __name__ == "__main__":
     main()
