@@ -12,7 +12,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Inicialización del estado de la sesión
+# Universo de Trading
+SYMBOLS = {
+    "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
+    "Tecnología": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "PYPL", "CRM"],
+    "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"],
+    "Salud": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "AMGN", "BMY", "GILD", "TMO"],
+    "Energía": ["XOM", "CVX", "SHEL", "TTE", "COP", "EOG", "PXD", "DVN", "MPC", "PSX"],
+    "Consumo": ["MCD", "SBUX", "NKE", "TGT", "HD", "LOW", "TJX", "ROST", "CMG", "DHI"],
+    "Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
+    "Cripto ETFs": ["BITO", "GBTC", "ETHE", "ARKW", "BLOK"],
+    "Materias Primas": ["GLD", "SLV", "USO", "UNG", "CORN", "SOYB", "WEAT"],
+    "Bonos": ["AGG", "BND", "IEF", "TLT", "LQD", "HYG", "JNK", "TIP", "MUB", "SHY"],
+    "Inmobiliario": ["VNQ", "XLRE", "IYR", "REIT", "HST", "EQR", "AVB", "PLD", "SPG", "AMT"]
+}
+
+# Inicialización del estado
 if 'last_analysis' not in st.session_state:
     st.session_state.last_analysis = None
 if 'current_symbol' not in st.session_state:
@@ -27,14 +42,14 @@ class TechnicalIndicators:
     def calculate_sma(series, window):
         """Calcula SMA con validación"""
         if len(series) < window:
-            return pd.Series(index=series.index)
+            return pd.Series(np.nan, index=series.index)
         return series.rolling(window=window).mean()
     
     @staticmethod
     def calculate_rsi(series, window=14):
         """Calcula RSI con validación"""
         if len(series) < window:
-            return pd.Series(index=series.index)
+            return pd.Series(np.nan, index=series.index)
             
         delta = series.diff()
         gain = delta.copy()
@@ -87,60 +102,57 @@ class TradingAnalyzer:
             raise MarketDataError(str(e))
 
     def analyze_trend(self, symbol):
-        """Analiza tendencia con alineación de series mejorada"""
+        """Analiza tendencia con manejo mejorado de Series"""
         try:
-            # Obtener datos diarios
             data = self.get_market_data(symbol, period="1y", interval="1d")
             
-            # Asegurar que tenemos suficientes datos
             if len(data) < 200:
-                raise MarketDataError("Datos insuficientes para análisis de tendencia")
+                raise MarketDataError("Datos insuficientes para análisis")
             
-            # Calcular indicadores sobre la serie de precios
+            # Calcular indicadores
             close_series = data['Close']
             data['SMA20'] = self.indicators.calculate_sma(close_series, 20)
             data['SMA50'] = self.indicators.calculate_sma(close_series, 50)
             data['SMA200'] = self.indicators.calculate_sma(close_series, 200)
             data['RSI'] = self.indicators.calculate_rsi(close_series)
             
-            # Obtener últimos valores alineados
+            # Obtener últimos valores correctamente
             latest = data.iloc[-1]
+            price = latest['Close']
+            sma50 = latest['SMA50']
+            sma200 = latest['SMA200']
             
-            # Análisis de tendencia
+            # Inicializar tendencia
             trend = {
                 "direction": "INDEFINIDA",
                 "strength": "NEUTRAL",
                 "bias": "NEUTRAL",
                 "description": "",
                 "metrics": {
-                    "price": latest['Close'],
-                    "sma20": latest['SMA20'],
-                    "sma50": latest['SMA50'],
-                    "sma200": latest['SMA200'],
-                    "rsi": latest['RSI']
+                    "price": float(price),
+                    "sma20": float(latest['SMA20']),
+                    "sma50": float(sma50),
+                    "sma200": float(sma200),
+                    "rsi": float(latest['RSI'])
                 }
             }
             
-            # Determinar tendencia usando valores alineados
-            price = float(latest['Close'])
-            sma50 = float(latest['SMA50'])
-            sma200 = float(latest['SMA200'])
-            
-            if not (np.isnan(price) or np.isnan(sma50) or np.isnan(sma200)):
+            # Análisis de tendencia con valores numéricos
+            if not np.isnan([price, sma50, sma200]).any():
                 if price > sma200:
                     if price > sma50:
                         trend.update({
                             "direction": "ALCISTA",
                             "strength": "FUERTE",
                             "bias": "CALL",
-                            "description": "Tendencia alcista fuerte confirmada por todas las medias móviles"
+                            "description": "Tendencia alcista fuerte confirmada"
                         })
                     else:
                         trend.update({
                             "direction": "ALCISTA",
                             "strength": "MODERADA",
                             "bias": "CALL",
-                            "description": "Tendencia alcista moderada sobre SMA200"
+                            "description": "Tendencia alcista moderada"
                         })
                 else:
                     if price < sma50:
@@ -148,14 +160,14 @@ class TradingAnalyzer:
                             "direction": "BAJISTA",
                             "strength": "FUERTE",
                             "bias": "PUT",
-                            "description": "Tendencia bajista fuerte confirmada por todas las medias móviles"
+                            "description": "Tendencia bajista fuerte confirmada"
                         })
                     else:
                         trend.update({
                             "direction": "BAJISTA",
                             "strength": "MODERADA",
                             "bias": "PUT",
-                            "description": "Tendencia bajista moderada bajo SMA200"
+                            "description": "Tendencia bajista moderada"
                         })
             
             return trend, data
@@ -165,21 +177,21 @@ class TradingAnalyzer:
             raise MarketDataError(str(e))
 
     def identify_strategy(self, hourly_data, trend):
-        """Identifica estrategias con validación mejorada"""
+        """Identifica estrategias aplicables"""
         try:
-            # Calcular indicadores horarios con alineación
             close_series = hourly_data['Close']
             hourly_data['RSI'] = self.indicators.calculate_rsi(close_series)
             hourly_data['SMA40'] = self.indicators.calculate_sma(close_series, 40)
             
-            # Obtener último valor alineado
             latest = hourly_data.iloc[-1]
-            
             applicable_strategies = []
             
-            # Validar tendencia y bias
+            # Validar datos
+            if np.isnan([latest['RSI'], latest['SMA40'], latest['Close']]).any():
+                return []
+            
+            # Estrategias CALL
             if trend["bias"] in ["CALL", "NEUTRAL"]:
-                # Estrategia SMA40
                 if latest['RSI'] < 30 and latest['Close'] > latest['SMA40']:
                     applicable_strategies.append({
                         "type": "CALL",
@@ -189,10 +201,8 @@ class TradingAnalyzer:
                         "conditions": self.strategies["CALL"]["SMA40"]["conditions"]
                     })
                 
-                # Estrategia Caída Normal
-                if len(hourly_data) >= 5:  # Asegurar suficientes datos
-                    high_5d = hourly_data['High'].iloc[-5:].max()
-                    price_change = (high_5d - latest['Close']) / latest['Close']
+                if len(hourly_data) >= 5:
+                    price_change = (hourly_data['High'].iloc[-5:].max() - latest['Close']) / latest['Close']
                     if 0.02 <= price_change <= 0.03 and latest['RSI'] < 40:
                         applicable_strategies.append({
                             "type": "CALL",
@@ -202,7 +212,7 @@ class TradingAnalyzer:
                             "conditions": self.strategies["CALL"]["NormalDrop"]["conditions"]
                         })
             
-            # PUT strategies
+            # Estrategias PUT
             if trend["bias"] in ["PUT", "NEUTRAL"]:
                 if latest['RSI'] > 70:
                     applicable_strategies.append({
@@ -223,33 +233,20 @@ def main():
     st.title("📊 InversorIA Mini")
     st.write("Sistema Profesional de Análisis Técnico")
     
-    # Universo de trading
-    symbols = {
-        "Índices": ["SPY", "QQQ", "DIA", "IWM"],
-        "Tecnología": ["AAPL", "MSFT", "GOOGL", "AMZN"],
-        "Finanzas": ["JPM", "BAC", "GS", "MS"]
-    }
-    
     # Interfaz de selección
     col1, col2 = st.columns(2)
     with col1:
-        category = st.selectbox("Sector", list(symbols.keys()))
+        category = st.selectbox("Sector", list(SYMBOLS.keys()))
     with col2:
-        symbol = st.selectbox("Activo", symbols[category])
-    
-    if symbol != st.session_state.current_symbol:
-        st.session_state.current_symbol = symbol
-        st.session_state.last_analysis = None
+        symbol = st.selectbox("Activo", SYMBOLS[category])
     
     analyzer = TradingAnalyzer()
     
     try:
         with st.spinner("Analizando mercado..."):
-            # Análisis de tendencia
             trend, daily_data = analyzer.analyze_trend(symbol)
             
-            # Mostrar análisis de tendencia
-            st.subheader("🎯 Análisis de Tendencia Principal")
+            st.subheader("🎯 Análisis de Tendencia")
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Dirección", trend["direction"])
@@ -260,7 +257,6 @@ def main():
             
             st.info(trend["description"])
             
-            # Métricas técnicas
             st.subheader("📊 Métricas Técnicas")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -270,10 +266,9 @@ def main():
             with col3:
                 st.metric("RSI", f"{trend['metrics']['rsi']:.1f}")
             with col4:
-                distance_to_sma200 = ((trend['metrics']['price'] / trend['metrics']['sma200']) - 1) * 100
-                st.metric("Dist. SMA200", f"{distance_to_sma200:.1f}%")
+                dist = ((trend['metrics']['price'] / trend['metrics']['sma200']) - 1) * 100
+                st.metric("Dist. SMA200", f"{dist:.1f}%")
             
-            # Análisis horario y estrategias
             hourly_data = analyzer.get_market_data(symbol, period="5d", interval="1h")
             strategies = analyzer.identify_strategy(hourly_data, trend)
             
@@ -291,14 +286,12 @@ def main():
                         else:
                             st.warning("⚠️ Validar señales adicionales")
             else:
-                st.warning("No se identificaron estrategias aplicables en este momento")
+                st.warning("No se identificaron estrategias aplicables")
             
-            # Disclaimer profesional
             st.markdown("---")
             st.caption("""
-            **⚠️ Disclaimer:** Este análisis técnico es generado mediante algoritmos cuantitativos y requiere validación profesional.
-            Las señales deben ser confirmadas con análisis adicional y gestión de riesgo apropiada.
-            Trading implica riesgo sustancial de pérdida. Realizar due diligence exhaustivo.
+            **⚠️ Disclaimer:** Este análisis es generado mediante algoritmos cuantitativos y requiere validación profesional.
+            Las señales técnicas requieren confirmación adicional. Trading implica riesgo sustancial de pérdida.
             """)
             
     except MarketDataError as e:
