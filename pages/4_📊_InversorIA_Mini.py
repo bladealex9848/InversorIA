@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from ta.trend import SMAIndicator, MACD
+from ta.trend import MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 from datetime import datetime, timedelta
@@ -44,11 +44,6 @@ class TradingAnalyzer:
                     "name": "Caída Normal (2-3 puntos)",
                     "description": "Comprar CALL tras caída moderada y ruptura de línea bajista",
                     "conditions": ["Caída de 2-3 puntos", "Volumen creciente", "RSI < 40"]
-                },
-                "StrongDrop": {
-                    "name": "Caída Fuerte (5-6 puntos)",
-                    "description": "Comprar CALL tras caída fuerte cerca de soporte mayor",
-                    "conditions": ["Caída de 5-6 puntos", "Cerca de SMA200 diario", "RSI < 30"]
                 }
             },
             "PUT": {
@@ -56,72 +51,47 @@ class TradingAnalyzer:
                     "name": "Primera Vela Roja de Apertura",
                     "description": "Comprar PUT en primera vela roja de apertura",
                     "conditions": ["Primera vela roja del día", "RSI > 70", "Cerca de resistencia"]
-                },
-                "GapBreak": {
-                    "name": "Ruptura del Piso del Gap",
-                    "description": "Comprar PUT en ruptura de piso de gap",
-                    "conditions": ["Gap identificado", "Ruptura con volumen", "MACD cruce bajista"]
                 }
             }
         }
 
-    def validate_data(self, data):
-        """Valida la integridad de los datos"""
-        if data is None or data.empty:
-            return False
-        if not all(col in data.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume']):
-            return False
-        return True
+    def calculate_sma(self, data, window):
+        """Calcula SMA manualmente para evitar problemas de dimensionalidad"""
+        return data['Close'].rolling(window=window).mean()
+
+    def calculate_rsi(self, data, window=14):
+        """Calcula RSI manualmente"""
+        delta = data['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
 
     def get_market_data(self, symbol, period="5d", interval="1h"):
-        """Obtiene datos de mercado con validación mejorada"""
+        """Obtiene datos de mercado con validación"""
         try:
             data = yf.download(symbol, period=period, interval=interval, progress=False)
-            if not self.validate_data(data):
-                raise MarketDataError(f"Datos inválidos para {symbol}")
+            if data.empty:
+                raise MarketDataError(f"No se obtuvieron datos para {symbol}")
             return data
         except Exception as e:
             logger.error(f"Error obteniendo datos para {symbol}: {str(e)}")
-            raise MarketDataError(f"Error en descarga de datos: {str(e)}")
-
-    def calculate_indicators(self, data):
-        """Calcula indicadores técnicos con manejo de errores mejorado"""
-        try:
-            results = data.copy()
-            
-            # Convertir Close a serie unidimensional
-            close_series = pd.Series(results['Close'].values, index=results.index)
-            
-            # Calcular indicadores
-            results['SMA20'] = SMAIndicator(close_series, window=20).sma_indicator()
-            results['SMA50'] = SMAIndicator(close_series, window=50).sma_indicator()
-            results['SMA200'] = SMAIndicator(close_series, window=200).sma_indicator()
-            results['RSI'] = RSIIndicator(close_series).rsi()
-            
-            macd = MACD(close_series)
-            results['MACD'] = macd.macd()
-            results['MACD_Signal'] = macd.macd_signal()
-            
-            return results
-        except Exception as e:
-            logger.error(f"Error calculando indicadores: {str(e)}")
-            raise MarketDataError(f"Error en cálculo de indicadores: {str(e)}")
+            raise MarketDataError(str(e))
 
     def analyze_trend(self, symbol):
-        """Analiza tendencia en múltiples timeframes"""
+        """Analiza tendencia con cálculos manuales optimizados"""
         try:
             # Obtener datos diarios
             daily_data = self.get_market_data(symbol, period="1y", interval="1d")
             
-            # Calcular indicadores
-            analysis = self.calculate_indicators(daily_data)
+            # Calcular indicadores manualmente
+            daily_data['SMA20'] = self.calculate_sma(daily_data, 20)
+            daily_data['SMA50'] = self.calculate_sma(daily_data, 50)
+            daily_data['SMA200'] = self.calculate_sma(daily_data, 200)
+            daily_data['RSI'] = self.calculate_rsi(daily_data)
             
             # Obtener últimos valores
-            current_price = analysis['Close'].iloc[-1]
-            sma20 = analysis['SMA20'].iloc[-1]
-            sma50 = analysis['SMA50'].iloc[-1]
-            sma200 = analysis['SMA200'].iloc[-1]
-            rsi = analysis['RSI'].iloc[-1]
+            current = daily_data.iloc[-1]
             
             # Determinar tendencia
             trend = {
@@ -132,8 +102,8 @@ class TradingAnalyzer:
             }
             
             # Análisis de tendencia
-            if current_price > sma200:
-                if current_price > sma50 and sma50 > sma200:
+            if current['Close'] > current['SMA200']:
+                if current['Close'] > current['SMA50']:
                     trend.update({
                         "direction": "ALCISTA",
                         "strength": "FUERTE",
@@ -147,8 +117,8 @@ class TradingAnalyzer:
                         "bias": "CALL",
                         "description": "Tendencia alcista moderada sobre SMA200"
                     })
-            elif current_price < sma200:
-                if current_price < sma50 and sma50 < sma200:
+            else:
+                if current['Close'] < current['SMA50']:
                     trend.update({
                         "direction": "BAJISTA",
                         "strength": "FUERTE",
@@ -163,37 +133,35 @@ class TradingAnalyzer:
                         "description": "Tendencia bajista moderada bajo SMA200"
                     })
                     
-            # Añadir métricas actuales
+            # Añadir métricas
             trend["metrics"] = {
-                "price": current_price,
-                "sma20": sma20,
-                "sma50": sma50,
-                "sma200": sma200,
-                "rsi": rsi
+                "price": current['Close'],
+                "sma20": current['SMA20'],
+                "sma50": current['SMA50'],
+                "sma200": current['SMA200'],
+                "rsi": current['RSI']
             }
             
-            return trend, analysis
+            return trend, daily_data
             
         except Exception as e:
             logger.error(f"Error en análisis de tendencia: {str(e)}")
-            raise MarketDataError(f"Error analizando tendencia: {str(e)}")
+            raise MarketDataError(str(e))
 
     def identify_strategy(self, hourly_data, trend):
-        """Identifica estrategias aplicables según condiciones actuales"""
+        """Identifica estrategias aplicables"""
         try:
             # Calcular indicadores horarios
-            analysis = self.calculate_indicators(hourly_data)
+            hourly_data['RSI'] = self.calculate_rsi(hourly_data)
+            hourly_data['SMA40'] = self.calculate_sma(hourly_data, 40)
             
-            current_price = analysis['Close'].iloc[-1]
-            current_rsi = analysis['RSI'].iloc[-1]
-            current_sma20 = analysis['SMA20'].iloc[-1]
-            
+            current = hourly_data.iloc[-1]
             applicable_strategies = []
             
             # Evaluación de estrategias según tendencia
             if trend["bias"] in ["CALL", "NEUTRAL"]:
                 # Estrategia SMA40
-                if current_rsi < 30 and current_price > current_sma20:
+                if current['RSI'] < 30 and current['Close'] > current['SMA40']:
                     applicable_strategies.append({
                         "type": "CALL",
                         "name": self.strategies["CALL"]["SMA40"]["name"],
@@ -203,8 +171,8 @@ class TradingAnalyzer:
                     })
                 
                 # Estrategia Caída Normal
-                price_change = (hourly_data['High'].max() - current_price) / current_price
-                if 0.02 <= price_change <= 0.03 and current_rsi < 40:
+                price_change = (hourly_data['High'].max() - current['Close']) / current['Close']
+                if 0.02 <= price_change <= 0.03 and current['RSI'] < 40:
                     applicable_strategies.append({
                         "type": "CALL",
                         "name": self.strategies["CALL"]["NormalDrop"]["name"],
@@ -215,7 +183,7 @@ class TradingAnalyzer:
             
             # PUT strategies
             if trend["bias"] in ["PUT", "NEUTRAL"]:
-                if current_rsi > 70:
+                if current['RSI'] > 70:
                     applicable_strategies.append({
                         "type": "PUT",
                         "name": self.strategies["PUT"]["FirstRedCandle"]["name"],
