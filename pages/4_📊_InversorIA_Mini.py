@@ -1,12 +1,9 @@
 import streamlit as st
 from trading_analyzer import TradingAnalyzer, MarketDataError
+from market_scanner import run_scanner
 import logging
-
-# Verificación de autenticación
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.title("🔒 Acceso Restringido")
-    st.warning("Por favor, inicie sesión desde la página principal del sistema.")
-    st.stop()
+from datetime import datetime
+import pytz
 
 # Verificación de autenticación
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -36,39 +33,48 @@ SYMBOLS = {
     "Inmobiliario": ["VNQ", "XLRE", "IYR", "REIT", "HST", "EQR", "AVB", "PLD", "SPG", "AMT"]
 }
 
-# Inicialización del estado
+# Inicialización de estado
 if 'last_analysis' not in st.session_state:
     st.session_state.last_analysis = None
 if 'current_symbol' not in st.session_state:
     st.session_state.current_symbol = None
+if 'scanner_last_update' not in st.session_state:
+    st.session_state.scanner_last_update = None
 
-def main():
-    st.title("📊 InversorIA Mini")
-    st.write("Sistema Profesional de Trading")
+def get_ny_time():
+    """Obtiene hora actual en NY"""
+    ny_tz = pytz.timezone('America/New_York')
+    return datetime.now(ny_tz)
+
+def display_market_status():
+    """Muestra estado del mercado"""
+    ny_time = get_ny_time()
     
-    # Interfaz de selección
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        category = st.selectbox("Sector", list(SYMBOLS.keys()))
+        st.metric("Hora NY", ny_time.strftime("%H:%M:%S"))
     with col2:
-        symbol = st.selectbox("Activo", SYMBOLS[category])
-    
-    if symbol != st.session_state.current_symbol:
-        st.session_state.current_symbol = symbol
-        st.session_state.last_analysis = None
-    
-    analyzer = TradingAnalyzer()
-    
+        analyzer = TradingAnalyzer()
+        session = analyzer._get_market_session()
+        st.metric("Sesión", session)
+    with col3:
+        next_update = "NA" if not st.session_state.scanner_last_update else \
+            (st.session_state.scanner_last_update + pd.Timedelta(minutes=5)).strftime("%H:%M:%S")
+        st.metric("Próx. Update", next_update)
+
+def display_single_analysis(symbol, analyzer):
+    """Muestra análisis de símbolo individual"""
     try:
         with st.spinner("Analizando mercado..."):
-            # Análisis de tendencia
             trend, daily_data = analyzer.analyze_trend(symbol)
             
-            # Mostrar análisis de tendencia
+            # Análisis de Tendencia
             st.subheader("🎯 Análisis de Tendencia")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Dirección", trend["direction"])
+                st.metric("Dirección", trend["direction"], 
+                    delta="↑" if trend["direction"] == "ALCISTA" else "↓" if trend["direction"] == "BAJISTA" else "→",
+                    delta_color="normal" if trend["direction"] == "ALCISTA" else "inverse" if trend["direction"] == "BAJISTA" else "off")
             with col2:
                 st.metric("Fuerza", trend["strength"])
             with col3:
@@ -76,7 +82,7 @@ def main():
             
             st.info(trend["description"])
             
-            # Métricas técnicas
+            # Métricas Técnicas
             st.subheader("📊 Métricas Técnicas")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -95,117 +101,154 @@ def main():
             
             if strategies:
                 st.subheader("📈 Estrategias Activas")
-                for strat in strategies:
+                
+                for idx, strat in enumerate(strategies):
                     with st.expander(f"{strat['type']} - {strat['name']} (Confianza: {strat['confidence']})"):
-                        st.write(f"""
-                        **Descripción:**
-                        {strat['description']}
+                        st.write("**Descripción:**")
+                        st.write(strat['description'])
                         
-                        **Condiciones necesarias:**
-                        """)
+                        st.write("**Condiciones Técnicas:**")
                         for condition in strat['conditions']:
                             st.write(f"✓ {condition}")
                         
+                        if 'levels' in strat:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Entry", f"${strat['levels']['entry']:.2f}")
+                            with col2:
+                                st.metric("Stop", f"${strat['levels']['stop']:.2f}")
+                            with col3:
+                                st.metric("Target", f"${strat['levels']['target']:.2f}")
+                        
                         if strat['confidence'] == "ALTA":
                             st.success("""
-                            ⭐ Señal de trading confirmada
-                            - Alta probabilidad de éxito
-                            - Alineación con tendencia principal
+                            ⭐ Oportunidad Confirmada
+                            - Setup alineado con tendencia
+                            - Condiciones técnicas óptimas
                             - Risk/Reward favorable
-                            
-                            Gestión de Riesgo:
-                            1. Stop Loss: 1-2 puntos bajo soporte
-                            2. Take Profit: 2-3x el riesgo
-                            3. Sizing: 2-3% del capital
                             """)
                         else:
                             st.warning("""
-                            ⚠️ Señal requiere confirmación
-                            - Validar niveles técnicos
-                            - Confirmar con volumen
-                            - Esperar alineación con tendencia
+                            ⚠️ Requiere Confirmación
+                            - Validar niveles clave
+                            - Confirmar volumen
+                            - Monitorear momentum
                             """)
                 
-                # Resumen operativo
-                st.subheader("🎯 Resumen Operativo")
-                best_strategy = [s for s in strategies if s['confidence'] == "ALTA"]
-                
-                if best_strategy:
-                    st.success(f"""
-                    **Recomendación Principal:** {best_strategy[0]['type']}
-                    - Estrategia: {best_strategy[0]['name']}
-                    - Tendencia: {trend['direction']} {trend['strength']}
-                    - Confianza: ALTA
-                    
-                    Próximos Pasos:
-                    1. Validar niveles de entrada
-                    2. Definir zona de stop loss
-                    3. Calcular ratio riesgo/beneficio
-                    4. Determinar tamaño de posición
-                    """)
-                else:
-                    st.info("""
-                    **Recomendación:** Esperar mejores condiciones
-                    - Señales requieren confirmación
-                    - Mantener disciplina operativa
-                    - Vigilar próximos niveles
-                    """)
+                # Risk Management
+                st.subheader("⚠️ Gestión de Riesgo")
+                col1, col2 = st.columns(2)
+                with col1:
+                    position_size = st.slider(
+                        "Tamaño de Posición (%)",
+                        min_value=1.0,
+                        max_value=5.0,
+                        value=2.0,
+                        step=0.5
+                    )
+                with col2:
+                    st.metric(
+                        "Capital en Riesgo ($)",
+                        f"${position_size * 1000:.2f}",
+                        delta=f"{position_size}% del capital"
+                    )
             else:
                 st.warning("""
-                **No hay estrategias aplicables**
+                **No hay estrategias activas**
                 - Mercado sin señales claras
-                - Preservar capital
+                - Mantener capital preservado
                 - Esperar mejor setup
                 """)
             
-            # Niveles clave
+            # Niveles Técnicos
             st.subheader("📍 Niveles Técnicos")
             col1, col2 = st.columns(2)
-            
             with col1:
                 st.markdown("**Soportes/Resistencias:**")
                 st.write(f"• SMA200: ${trend['metrics']['sma200']:.2f}")
                 st.write(f"• SMA50: ${trend['metrics']['sma50']:.2f}")
                 st.write(f"• SMA20: ${trend['metrics']['sma20']:.2f}")
-            
             with col2:
-                st.markdown("**Niveles RSI:**")
+                st.markdown("**Zonas RSI:**")
+                rsi_current = trend['metrics']['rsi']
                 st.write("• Sobrecompra: RSI > 70")
                 st.write("• Neutral: RSI 30-70")
                 st.write("• Sobreventa: RSI < 30")
-            
-            # Disclaimer profesional
-            st.markdown("---")
-            st.caption("""
-            **⚠️ Disclaimer Profesional:**
-            Este análisis técnico es generado por algoritmos cuantitativos y requiere validación profesional.
-            Las señales técnicas requieren confirmación adicional y gestión de riesgo apropiada.
-            Trading implica riesgo sustancial de pérdida.
-            """)
+                st.progress(min(rsi_current/100, 1.0))
             
     except MarketDataError as e:
-        st.error(f"""
-        Error en datos de mercado: {str(e)}
-        
-        Posibles soluciones:
-        1. Verificar conectividad
-        2. Validar símbolo seleccionado
-        3. Intentar con otro timeframe
-        4. Actualizar la página
-        """)
+        st.error(f"Error en datos de mercado: {str(e)}")
         logger.error(f"MarketDataError: {str(e)}")
         
     except Exception as e:
-        st.error(f"""
-        Error inesperado: {str(e)}
-        
-        Por favor:
-        1. Reportar al equipo técnico
-        2. Proporcionar detalles del error
-        3. Intentar nuevamente
-        """)
+        st.error(f"Error inesperado: {str(e)}")
         logger.error(f"Error inesperado: {str(e)}")
         st.stop()
+
+def main():
+    st.set_page_config(
+        page_title="InversorIA Mini Pro",
+        page_icon="📊",
+        layout="wide"
+    )
+    
+    # Header Principal
+    st.title("📊 InversorIA Mini Pro")
+    display_market_status()
+    
+    # Navegación Principal
+    tab1, tab2 = st.tabs(["🔍 Análisis Individual", "📡 Scanner de Mercado"])
+    
+    with tab1:
+        # Análisis Individual
+        col1, col2 = st.columns(2)
+        with col1:
+            category = st.selectbox("Sector", list(SYMBOLS.keys()))
+        with col2:
+            symbol = st.selectbox("Activo", SYMBOLS[category])
+        
+        if symbol != st.session_state.current_symbol:
+            st.session_state.current_symbol = symbol
+            st.session_state.last_analysis = None
+        
+        analyzer = TradingAnalyzer()
+        display_single_analysis(symbol, analyzer)
+        
+    with tab2:
+        # Scanner de Mercado
+        st.subheader("📡 Scanner de Mercado")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            scan_interval = st.selectbox(
+                "Intervalo",
+                ["1 min", "5 min", "15 min"],
+                index=1
+            )
+        with col2:
+            confidence_filter = st.selectbox(
+                "Confianza",
+                ["Todas", "Alta", "Media"],
+                index=0
+            )
+        with col3:
+            sector_filter = st.multiselect(
+                "Sectores",
+                list(SYMBOLS.keys()),
+                default=list(SYMBOLS.keys())
+            )
+        
+        if st.button("🔄 Actualizar Scanner"):
+            run_scanner(SYMBOLS)
+    
+    # Disclaimer profesional
+    st.markdown("---")
+    st.caption("""
+    **⚠️ Disclaimer Profesional:**
+    Este sistema provee análisis técnico cuantitativo y requiere validación profesional.
+    Las señales identificadas deben ser confirmadas con análisis adicional y gestión de riesgo apropiada.
+    Trading implica riesgo sustancial de pérdida. Realizar due diligence exhaustivo.
+    """)
 
 if __name__ == "__main__":
     main()
