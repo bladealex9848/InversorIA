@@ -160,55 +160,66 @@ class TradingAnalyzer:
 
     def identify_strategy(self, hourly_data: pd.DataFrame, trend: dict):
         """
-        Identifica estrategias de trading aplicables con manejo robusto de datos.
+        Identifica estrategias de trading aplicables con validación avanzada.
         
-        Args:
-            hourly_data (pd.DataFrame): Datos de precio horarios
-            trend (dict): Información de tendencia actual
+        Parámetros:
+            hourly_data (pd.DataFrame): Datos OHLCV horarios
+            trend (dict): Análisis de tendencia actual
             
         Returns:
-            list: Lista de estrategias aplicables con sus condiciones
+            list: Estrategias identificadas con niveles operativos
         """
         try:
-            # Validación inicial de datos
+            # Validación inicial
             if hourly_data.empty:
-                logger.warning("Dataset vacío recibido")
+                logger.warning("Dataset vacío")
                 return []
             
             if len(hourly_data) < 5:
                 logger.warning("Datos insuficientes para análisis")
                 return []
-                
-            # Calcular indicadores técnicos
+
+            # Calcular indicadores
             hourly_data['RSI'] = self.indicators.calculate_rsi(hourly_data['Close'])
             hourly_data['SMA40'] = self.indicators.calculate_sma(hourly_data['Close'], 40)
             
             # Obtener datos más recientes
             latest_data = hourly_data.iloc[-1]
-            logger.info("Procesando datos más recientes para análisis")
+            logger.info("Procesando análisis técnico")
             
             try:
-                # Extraer valores con manejo seguro
+                # Extraer valores usando .iloc[0] apropiadamente
                 current_price = latest_data['Close']
                 current_rsi = latest_data['RSI']
                 current_sma40 = latest_data['SMA40']
                 
-                # Convertir a valores escalares
-                current_price = float(current_price) if not isinstance(current_price, float) else current_price
-                current_rsi = float(current_rsi) if not isinstance(current_rsi, float) else current_rsi
-                current_sma40 = float(current_sma40) if not isinstance(current_sma40, float) else current_sma40
+                # Convertir a escalares de manera segura
+                if isinstance(current_price, pd.Series):
+                    current_price = current_price.iloc[0]
+                if isinstance(current_rsi, pd.Series):
+                    current_rsi = current_rsi.iloc[0]
+                if isinstance(current_sma40, pd.Series):
+                    current_sma40 = current_sma40.iloc[0]
                 
-                logger.info(f"Valores actuales - Precio: {current_price:.2f}, RSI: {current_rsi:.2f}, SMA40: {current_sma40:.2f}")
+                # Validar valores
+                if pd.isna(current_price) or pd.isna(current_rsi) or pd.isna(current_sma40):
+                    logger.warning("Valores técnicos no disponibles - posible horario fuera de mercado")
+                    return []
+                    
+                logger.info(f"Métricas actuales - Precio: {current_price:.2f}, RSI: {current_rsi:.2f}, SMA40: {current_sma40:.2f}")
                 
             except Exception as e:
-                logger.error(f"Error procesando valores actuales: {str(e)}")
+                logger.error(f"Error procesando valores técnicos: {str(e)}")
                 return []
             
-            # Inicializar lista de estrategias
+            # Inicializar estrategias
             strategies = []
-            
-            # Validar tendencia
             bias = trend.get("bias", "NEUTRAL")
+            
+            # Validar horario de mercado
+            if not self._is_market_active(hourly_data.index[-1]):
+                logger.info("Mercado cerrado - análisis informativo solamente")
+                return []
             
             # Analizar estrategias CALL
             if bias in ["CALL", "NEUTRAL"]:
@@ -221,21 +232,23 @@ class TradingAnalyzer:
                             "description": "CALL en soporte SMA40 con RSI sobrevendido",
                             "confidence": "ALTA" if trend["direction"] == "ALCISTA" else "MEDIA",
                             "conditions": [
-                                "RSI en zona de sobreventa",
-                                "Precio por encima de SMA40",
-                                "Tendencia alcista de fondo"
+                                "RSI en sobreventa",
+                                "Precio > SMA40",
+                                "Tendencia alcista confirmada"
                             ],
-                            "metrics": {
-                                "rsi": current_rsi,
-                                "price_vs_sma40": f"{((current_price/current_sma40)-1)*100:.1f}%"
+                            "levels": {
+                                "entry": current_price,
+                                "stop": current_sma40 * 0.99,
+                                "target": current_price * 1.02
                             }
                         })
-                        logger.info("Estrategia CALL SMA40 identificada")
+                        logger.info("Señal CALL identificada en SMA40")
                     
                     # Estrategia Caída Normal
                     recent_high = hourly_data['High'].iloc[-5:].max()
                     if isinstance(recent_high, pd.Series):
                         recent_high = recent_high.iloc[0]
+                    
                     price_drop = ((recent_high - current_price) / recent_high)
                     
                     if (0.02 <= price_drop <= 0.03) and (current_rsi < 40.0):
@@ -245,19 +258,20 @@ class TradingAnalyzer:
                             "description": "CALL tras corrección moderada",
                             "confidence": "MEDIA",
                             "conditions": [
-                                "Caída de 2-3% desde máximos",
-                                "RSI bajo 40",
-                                "Volumen por encima de la media"
+                                "Caída 2-3%",
+                                "RSI < 40",
+                                "Volumen > promedio"
                             ],
-                            "metrics": {
-                                "drop": f"{price_drop*100:.1f}%",
-                                "rsi": current_rsi
+                            "levels": {
+                                "entry": current_price,
+                                "stop": current_price * 0.985,
+                                "target": recent_high
                             }
                         })
-                        logger.info("Estrategia CALL Caída Normal identificada")
+                        logger.info("Señal CALL identificada en corrección")
                         
                 except Exception as e:
-                    logger.error(f"Error procesando estrategias CALL: {str(e)}")
+                    logger.error(f"Error en análisis CALL: {str(e)}")
             
             # Analizar estrategias PUT
             if bias in ["PUT", "NEUTRAL"]:
@@ -266,30 +280,54 @@ class TradingAnalyzer:
                         strategies.append({
                             "type": "PUT",
                             "name": "Sobrecompra RSI",
-                            "description": "PUT en condición de sobrecompra",
+                            "description": "PUT en nivel de sobrecompra",
                             "confidence": "ALTA" if trend["direction"] == "BAJISTA" else "MEDIA",
                             "conditions": [
-                                "RSI en zona de sobrecompra",
-                                "Tendencia bajista de fondo",
-                                "Cerca de resistencia técnica"
+                                "RSI > 70",
+                                "Tendencia bajista",
+                                "Resistencia técnica"
                             ],
-                            "metrics": {
-                                "rsi": current_rsi
+                            "levels": {
+                                "entry": current_price,
+                                "stop": current_price * 1.015,
+                                "target": current_price * 0.97
                             }
                         })
-                        logger.info("Estrategia PUT RSI identificada")
+                        logger.info("Señal PUT identificada en sobrecompra")
                         
                 except Exception as e:
-                    logger.error(f"Error procesando estrategias PUT: {str(e)}")
-            
-            # Logging final
-            if strategies:
-                logger.info(f"Se identificaron {len(strategies)} estrategias válidas")
-            else:
-                logger.info("No se identificaron estrategias válidas")
+                    logger.error(f"Error en análisis PUT: {str(e)}")
             
             return strategies
             
         except Exception as e:
-            logger.error(f"Error en identificación de estrategias: {str(e)}")
+            logger.error(f"Error en análisis técnico: {str(e)}")
             return []
+            
+    def _is_market_active(self, timestamp) -> bool:
+        """
+        Valida si el mercado está activo para el timestamp dado.
+        
+        Args:
+            timestamp: Timestamp a validar
+            
+        Returns:
+            bool: True si el mercado está activo
+        """
+        try:
+            # Convertir a hora NY
+            ny_time = pd.Timestamp(timestamp).tz_localize('UTC').tz_convert('America/New_York')
+            
+            # Validar día de semana (0=Lunes, 6=Domingo)
+            if ny_time.weekday() > 4:
+                return False
+                
+            # Validar horario (9:30 AM - 4:00 PM ET)
+            market_open = ny_time.replace(hour=9, minute=30)
+            market_close = ny_time.replace(hour=16, minute=0)
+            
+            return market_open <= ny_time <= market_close
+            
+        except Exception as e:
+            logger.error(f"Error validando horario de mercado: {str(e)}")
+            return False
