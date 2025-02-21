@@ -10,40 +10,20 @@ logger = logging.getLogger(__name__)
 
 class MarketScanner:
     def __init__(self, symbols_dict):
-        """
-        Inicializa el scanner de mercado.
-        
-        Args:
-            symbols_dict (dict): Diccionario de símbolos por sector
-        """
         self.symbols_dict = symbols_dict
         self.analyzer = TradingAnalyzer()
         self.all_symbols = [symbol for symbols in symbols_dict.values() for symbol in symbols]
+        self.last_scan_results = {}  # Almacena resultados del último scan
 
     def _analyze_symbol(self, symbol):
-        """
-        Analiza un símbolo individual.
-        
-        Args:
-            symbol (str): Símbolo a analizar
-            
-        Returns:
-            dict: Resultados del análisis
-        """
         try:
-            # Obtener tendencia
-            trend, _ = self.analyzer.analyze_trend(symbol)
-            
-            # Obtener datos horarios
+            trend, daily_data = self.analyzer.analyze_trend(symbol)
             hourly_data = self.analyzer.get_market_data(symbol, period="5d", interval="1h")
-            
-            # Obtener estrategias
             strategies = self.analyzer.identify_strategy(hourly_data, trend)
             
             if not strategies:
                 return None
             
-            # Construir resultado
             result = {
                 "Symbol": symbol,
                 "Sector": next(sector for sector, symbols in self.symbols_dict.items() if symbol in symbols),
@@ -51,15 +31,20 @@ class MarketScanner:
                 "Fuerza": trend["strength"],
                 "Precio": trend["metrics"]["price"],
                 "RSI": trend["metrics"]["rsi"],
-                "Estrategia": strategies[0]["type"],  # Primera estrategia identificada
+                "Estrategia": strategies[0]["type"],
                 "Setup": strategies[0]["name"],
                 "Confianza": strategies[0]["confidence"],
-                "Entry": strategies[0]["levels"]["entry"] if "levels" in strategies[0] else None,
-                "Stop": strategies[0]["levels"]["stop"] if "levels" in strategies[0] else None,
-                "Target": strategies[0]["levels"]["target"] if "levels" in strategies[0] else None,
-                "R/R": strategies[0]["levels"]["r_r"] if "levels" in strategies[0] else None,
-                "Timestamp": datetime.now().strftime("%H:%M:%S")
+                "Entry": strategies[0]["levels"]["entry"],
+                "Stop": strategies[0]["levels"]["stop"],
+                "Target": strategies[0]["levels"]["target"],
+                "R/R": strategies[0]["levels"]["r_r"],
+                "Timestamp": datetime.now().strftime("%H:%M:%S"),
+                "trend_data": trend,
+                "strategies": strategies  # Guardamos todas las estrategias
             }
+            
+            # Almacenar resultado en el cache
+            self.last_scan_results[symbol] = result
             
             return result
             
@@ -67,33 +52,43 @@ class MarketScanner:
             logger.error(f"Error analizando {symbol}: {str(e)}")
             return None
 
-    def scan_market(self):
+    def get_cached_analysis(self, symbol):
+        """Obtiene el último análisis cacheado para un símbolo"""
+        return self.last_scan_results.get(symbol)
+
+    def scan_market(self, selected_sectors=None):
         """
-        Escanea todo el mercado en busca de oportunidades.
+        Escanea el mercado, opcionalmente filtrando por sectores.
         
-        Returns:
-            pd.DataFrame: Oportunidades identificadas
+        Args:
+            selected_sectors (list): Lista de sectores a analizar. None para todos.
         """
+        # Filtrar símbolos por sector si es necesario
+        symbols_to_scan = []
+        if selected_sectors:
+            symbols_to_scan = [
+                symbol 
+                for sector in selected_sectors 
+                for symbol in self.symbols_dict.get(sector, [])
+            ]
+        else:
+            symbols_to_scan = self.all_symbols
+
         results = []
-        
-        # Analizar símbolos en paralelo
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for result in executor.map(self._analyze_symbol, self.all_symbols):
+            for result in executor.map(self._analyze_symbol, symbols_to_scan):
                 if result is not None:
                     results.append(result)
         
-        if not results:
-            return pd.DataFrame()
+        # Ordenar resultados
+        if results:
+            df = pd.DataFrame(results)
+            confidence_order = {"ALTA": 0, "MEDIA": 1}
+            df["conf_order"] = df["Confianza"].map(confidence_order)
+            df = df.sort_values(["conf_order", "Symbol"]).drop("conf_order", axis=1)
+            return df
         
-        # Crear DataFrame
-        df = pd.DataFrame(results)
-        
-        # Ordenar por confianza y alineación
-        confidence_order = {"ALTA": 0, "MEDIA": 1}
-        df["conf_order"] = df["Confianza"].map(confidence_order)
-        df = df.sort_values(["conf_order", "Symbol"]).drop("conf_order", axis=1)
-        
-        return df
+        return pd.DataFrame()
 
 def display_opportunities(scanner):
     """

@@ -1,9 +1,11 @@
 import streamlit as st
 from trading_analyzer import TradingAnalyzer, MarketDataError
-from market_scanner import run_scanner
+from market_scanner import MarketScanner
+import pandas as pd
 import logging
 from datetime import datetime
 import pytz
+from typing import Dict, List, Optional
 
 # Verificación de autenticación
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -33,48 +35,65 @@ SYMBOLS = {
     "Inmobiliario": ["VNQ", "XLRE", "IYR", "REIT", "HST", "EQR", "AVB", "PLD", "SPG", "AMT"]
 }
 
-# Inicialización de estado
+# Inicialización del estado de sesión
+if 'market_scanner' not in st.session_state:
+    st.session_state.market_scanner = None
 if 'last_analysis' not in st.session_state:
     st.session_state.last_analysis = None
 if 'current_symbol' not in st.session_state:
     st.session_state.current_symbol = None
-if 'scanner_last_update' not in st.session_state:
-    st.session_state.scanner_last_update = None
+if 'last_scan_time' not in st.session_state:
+    st.session_state.last_scan_time = None
 
-def get_ny_time():
-    """Obtiene hora actual en NY"""
-    ny_tz = pytz.timezone('America/New_York')
-    return datetime.now(ny_tz)
-
-def display_market_status():
-    """Muestra estado del mercado"""
-    ny_time = get_ny_time()
+def get_market_status() -> Dict:
+    """
+    Obtiene el estado actual del mercado.
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Hora NY", ny_time.strftime("%H:%M:%S"))
-    with col2:
-        analyzer = TradingAnalyzer()
-        session = analyzer._get_market_session()
-        st.metric("Sesión", session)
-    with col3:
-        next_update = "NA" if not st.session_state.scanner_last_update else \
-            (st.session_state.scanner_last_update + pd.Timedelta(minutes=5)).strftime("%H:%M:%S")
-        st.metric("Próx. Update", next_update)
+    Returns:
+        dict: Estado actual del mercado
+    """
+    ny_tz = pytz.timezone('America/New_York')
+    now = datetime.now(ny_tz)
+    
+    analyzer = TradingAnalyzer()
+    session = analyzer._get_market_session()
+    
+    return {
+        "time": now.strftime("%H:%M:%S"),
+        "session": session,
+        "next_update": (st.session_state.last_scan_time + pd.Timedelta(minutes=5)).strftime("%H:%M:%S") 
+            if st.session_state.last_scan_time else "NA"
+    }
 
-def display_single_analysis(symbol, analyzer):
-    """Muestra análisis de símbolo individual"""
+def display_technical_analysis(symbol: str, cached_data: Optional[Dict] = None) -> None:
+    """
+    Muestra análisis técnico detallado de un símbolo.
+    
+    Args:
+        symbol: Símbolo a analizar
+        cached_data: Datos cacheados del scanner si existen
+    """
     try:
         with st.spinner("Analizando mercado..."):
-            trend, daily_data = analyzer.analyze_trend(symbol)
+            # Usar datos cacheados o realizar nuevo análisis
+            if cached_data:
+                trend = cached_data["trend_data"]
+                strategies = cached_data["strategies"]
+            else:
+                analyzer = TradingAnalyzer()
+                trend, _ = analyzer.analyze_trend(symbol)
+                hourly_data = analyzer.get_market_data(symbol, period="5d", interval="1h")
+                strategies = analyzer.identify_strategy(hourly_data, trend)
             
-            # Análisis de Tendencia
-            st.subheader("🎯 Análisis de Tendencia")
+            # Mostrar análisis de tendencia
+            st.subheader("🎯 Análisis Técnico")
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Dirección", trend["direction"], 
-                    delta="↑" if trend["direction"] == "ALCISTA" else "↓" if trend["direction"] == "BAJISTA" else "→",
-                    delta_color="normal" if trend["direction"] == "ALCISTA" else "inverse" if trend["direction"] == "BAJISTA" else "off")
+                st.metric(
+                    "Dirección",
+                    trend["direction"],
+                    delta="↑" if trend["direction"] == "ALCISTA" else "↓" if trend["direction"] == "BAJISTA" else "→"
+                )
             with col2:
                 st.metric("Fuerza", trend["strength"])
             with col3:
@@ -82,8 +101,8 @@ def display_single_analysis(symbol, analyzer):
             
             st.info(trend["description"])
             
-            # Métricas Técnicas
-            st.subheader("📊 Métricas Técnicas")
+            # Métricas técnicas
+            st.subheader("📊 Indicadores")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Precio", f"${trend['metrics']['price']:.2f}")
@@ -95,46 +114,25 @@ def display_single_analysis(symbol, analyzer):
                 dist = ((trend['metrics']['price'] / trend['metrics']['sma200']) - 1) * 100
                 st.metric("Dist. SMA200", f"{dist:.1f}%")
             
-            # Análisis horario y estrategias
-            hourly_data = analyzer.get_market_data(symbol, period="5d", interval="1h")
-            strategies = analyzer.identify_strategy(hourly_data, trend)
-            
+            # Estrategias identificadas
             if strategies:
-                st.subheader("📈 Estrategias Activas")
-                
-                for idx, strat in enumerate(strategies):
+                st.subheader("📈 Señales Activas")
+                for strat in strategies:
                     with st.expander(f"{strat['type']} - {strat['name']} (Confianza: {strat['confidence']})"):
-                        st.write("**Descripción:**")
-                        st.write(strat['description'])
-                        
-                        st.write("**Condiciones Técnicas:**")
-                        for condition in strat['conditions']:
-                            st.write(f"✓ {condition}")
-                        
-                        if 'levels' in strat:
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write("**Descripción:**")
+                            st.write(strat['description'])
+                            st.write("**Condiciones:**")
+                            for condition in strat['conditions']:
+                                st.write(f"✓ {condition}")
+                        with col2:
+                            if 'levels' in strat:
+                                st.write("**Niveles Operativos:**")
                                 st.metric("Entry", f"${strat['levels']['entry']:.2f}")
-                            with col2:
                                 st.metric("Stop", f"${strat['levels']['stop']:.2f}")
-                            with col3:
                                 st.metric("Target", f"${strat['levels']['target']:.2f}")
                         
-                        if strat['confidence'] == "ALTA":
-                            st.success("""
-                            ⭐ Oportunidad Confirmada
-                            - Setup alineado con tendencia
-                            - Condiciones técnicas óptimas
-                            - Risk/Reward favorable
-                            """)
-                        else:
-                            st.warning("""
-                            ⚠️ Requiere Confirmación
-                            - Validar niveles clave
-                            - Confirmar volumen
-                            - Monitorear momentum
-                            """)
-                
                 # Risk Management
                 st.subheader("⚠️ Gestión de Riesgo")
                 col1, col2 = st.columns(2)
@@ -154,53 +152,90 @@ def display_single_analysis(symbol, analyzer):
                     )
             else:
                 st.warning("""
-                **No hay estrategias activas**
-                - Mercado sin señales claras
-                - Mantener capital preservado
-                - Esperar mejor setup
+                **Sin Señales Activas**
+                - Mercado sin setup válido
+                - Mantener disciplina operativa
+                - Esperar mejor oportunidad
                 """)
-            
-            # Niveles Técnicos
-            st.subheader("📍 Niveles Técnicos")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Soportes/Resistencias:**")
-                st.write(f"• SMA200: ${trend['metrics']['sma200']:.2f}")
-                st.write(f"• SMA50: ${trend['metrics']['sma50']:.2f}")
-                st.write(f"• SMA20: ${trend['metrics']['sma20']:.2f}")
-            with col2:
-                st.markdown("**Zonas RSI:**")
-                rsi_current = trend['metrics']['rsi']
-                st.write("• Sobrecompra: RSI > 70")
-                st.write("• Neutral: RSI 30-70")
-                st.write("• Sobreventa: RSI < 30")
-                st.progress(min(rsi_current/100, 1.0))
-            
-    except MarketDataError as e:
-        st.error(f"Error en datos de mercado: {str(e)}")
-        logger.error(f"MarketDataError: {str(e)}")
-        
+    
     except Exception as e:
-        st.error(f"Error inesperado: {str(e)}")
-        logger.error(f"Error inesperado: {str(e)}")
-        st.stop()
+        logger.error(f"Error en análisis técnico: {str(e)}")
+        st.error("Error procesando análisis técnico")
+
+def run_market_scanner(selected_sectors: Optional[List[str]] = None) -> None:
+    """
+    Ejecuta scanner de mercado con filtros.
+    
+    Args:
+        selected_sectors: Lista de sectores a analizar
+    """
+    try:
+        if not st.session_state.market_scanner:
+            st.session_state.market_scanner = MarketScanner(SYMBOLS)
+        
+        with st.spinner("Escaneando mercado..."):
+            opportunities = st.session_state.market_scanner.scan_market(
+                selected_sectors=selected_sectors
+            )
+            
+            if not opportunities.empty:
+                # Métricas del scan
+                total_calls = len(opportunities[opportunities["Estrategia"] == "CALL"])
+                total_puts = len(opportunities[opportunities["Estrategia"] == "PUT"])
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Señales CALL", total_calls)
+                with col2:
+                    st.metric("Señales PUT", total_puts)
+                with col3:
+                    st.metric("Total Oportunidades", len(opportunities))
+                
+                # Mostrar oportunidades
+                st.dataframe(
+                    opportunities.style.apply(lambda x: [
+                        "background-color: #c8e6c9" if x["Estrategia"] == "CALL" else
+                        "background-color: #ffcdd2" if x["Estrategia"] == "PUT" else
+                        "" for i in range(len(x))
+                    ], axis=1),
+                    use_container_width=True
+                )
+                
+                # Actualizar timestamp
+                st.session_state.last_scan_time = pd.Timestamp.now()
+            else:
+                st.warning("No se identificaron oportunidades que cumplan los criterios")
+    
+    except Exception as e:
+        logger.error(f"Error en scanner: {str(e)}")
+        st.error("Error ejecutando scanner de mercado")
 
 def main():
+    # Configuración de página
     st.set_page_config(
         page_title="InversorIA Mini Pro",
         page_icon="📊",
         layout="wide"
     )
     
-    # Header Principal
+    # Header
     st.title("📊 InversorIA Mini Pro")
-    display_market_status()
     
-    # Navegación Principal
+    # Estado del mercado
+    market_status = get_market_status()
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Hora NY", market_status["time"])
+    with col2:
+        st.metric("Sesión", market_status["session"])
+    with col3:
+        st.metric("Próx. Update", market_status["next_update"])
+    
+    # Navegación principal
     tab1, tab2 = st.tabs(["🔍 Análisis Individual", "📡 Scanner de Mercado"])
     
     with tab1:
-        # Análisis Individual
+        # Selector de símbolo
         col1, col2 = st.columns(2)
         with col1:
             category = st.selectbox("Sector", list(SYMBOLS.keys()))
@@ -211,14 +246,19 @@ def main():
             st.session_state.current_symbol = symbol
             st.session_state.last_analysis = None
         
-        analyzer = TradingAnalyzer()
-        display_single_analysis(symbol, analyzer)
+        # Obtener datos cacheados si existen
+        cached_data = None
+        if st.session_state.market_scanner:
+            cached_data = st.session_state.market_scanner.get_cached_analysis(symbol)
         
+        # Mostrar análisis
+        display_technical_analysis(symbol, cached_data)
+    
     with tab2:
-        # Scanner de Mercado
         st.subheader("📡 Scanner de Mercado")
         
-        col1, col2, col3 = st.columns(3)
+        # Controles del scanner
+        col1, col2 = st.columns(2)
         with col1:
             scan_interval = st.selectbox(
                 "Intervalo",
@@ -231,22 +271,22 @@ def main():
                 ["Todas", "Alta", "Media"],
                 index=0
             )
-        with col3:
-            sector_filter = st.multiselect(
-                "Sectores",
-                list(SYMBOLS.keys()),
-                default=list(SYMBOLS.keys())
-            )
+        
+        selected_sectors = st.multiselect(
+            "Filtrar por Sectores",
+            list(SYMBOLS.keys()),
+            default=None,
+            help="Seleccione sectores específicos o deje vacío para analizar todos"
+        )
         
         if st.button("🔄 Actualizar Scanner"):
-            run_scanner(SYMBOLS)
+            run_market_scanner(selected_sectors if selected_sectors else None)
     
-    # Disclaimer profesional
+    # Disclaimer
     st.markdown("---")
     st.caption("""
-    **⚠️ Disclaimer Profesional:**
-    Este sistema provee análisis técnico cuantitativo y requiere validación profesional.
-    Las señales identificadas deben ser confirmadas con análisis adicional y gestión de riesgo apropiada.
+    **⚠️ Disclaimer:**
+    Este sistema proporciona análisis técnico cuantitativo y requiere validación profesional.
     Trading implica riesgo sustancial de pérdida. Realizar due diligence exhaustivo.
     """)
 
