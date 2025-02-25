@@ -11,7 +11,7 @@ import pytz
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Tuple
 
-# Configuración de logging mejorada
+# Configuración de logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -39,12 +39,12 @@ SYMBOLS = {
     "Inmobiliario": ["VNQ", "XLRE", "IYR", "REIT", "HST", "EQR", "AVB", "PLD", "SPG", "AMT"]
 }
 
-# Excepción personalizada para datos de mercado
+# Excepción personalizada
 class MarketDataError(Exception):
     """Excepción para errores en datos de mercado"""
     pass
 
-# Clase de caché para datos
+# Clase de caché
 class DataCache:
     """Sistema de caché con invalidación por tiempo"""
     
@@ -100,6 +100,204 @@ class DataCache:
             "misses": self.miss_counter
         }
 
+# Clase de parámetros de opciones
+class OptionsParameterManager:
+    """Gestiona parámetros para trading de opciones basados en categoría de activo"""
+    
+    def __init__(self):
+        self.options_params = {
+            # Índices
+            "SPY": {"costo_strike": "$0.25-$0.30", "volumen_min": "20M", "distance_spot_strike": "10 puntos"},
+            "QQQ": {"costo_strike": "$0.25-$0.30", "volumen_min": "20M", "distance_spot_strike": "10 puntos"},
+            "DIA": {"costo_strike": "$0.30-$0.40", "volumen_min": "5M", "distance_spot_strike": "8-12 puntos"},
+            "IWM": {"costo_strike": "$0.30-$0.40", "volumen_min": "5M", "distance_spot_strike": "5-8 puntos"},
+            "EFA": {"costo_strike": "$0.20-$0.30", "volumen_min": "3M", "distance_spot_strike": "3-5 puntos"},
+            "VWO": {"costo_strike": "$0.20-$0.30", "volumen_min": "2M", "distance_spot_strike": "2-4 puntos"},
+            "IYR": {"costo_strike": "$0.25-$0.35", "volumen_min": "2M", "distance_spot_strike": "3-5 puntos"},
+            "XLE": {"costo_strike": "$0.30-$0.40", "volumen_min": "3M", "distance_spot_strike": "4-6 puntos"},
+            "XLF": {"costo_strike": "$0.15-$0.25", "volumen_min": "5M", "distance_spot_strike": "2-3 puntos"},
+            "XLV": {"costo_strike": "$0.25-$0.35", "volumen_min": "3M", "distance_spot_strike": "3-5 puntos"},
+            
+            # Tecnología
+            "AAPL": {"costo_strike": "$0.45-$0.80", "volumen_min": "20-25M", "distance_spot_strike": "2-4 puntos"},
+            "MSFT": {"costo_strike": "$0.50-$0.85", "volumen_min": "15M", "distance_spot_strike": "3-5 puntos"},
+            "GOOGL": {"costo_strike": "$0.80-$1.20", "volumen_min": "10M", "distance_spot_strike": "15-20 puntos"},
+            "AMZN": {"costo_strike": "$0.60-$0.80", "volumen_min": "16M", "distance_spot_strike": "7-8 puntos"},
+            "TSLA": {"costo_strike": "$2.50", "volumen_min": "15M", "distance_spot_strike": "8-10 puntos"},
+            "NVDA": {"costo_strike": "$0.80-$1.20", "volumen_min": "12M", "distance_spot_strike": "10-15 puntos"},
+            "META": {"costo_strike": "$0.45-$0.80", "volumen_min": "3M", "distance_spot_strike": "20-25 puntos"},
+            "NFLX": {"costo_strike": "$1.50-$2.50", "volumen_min": "1M", "distance_spot_strike": "12-15 puntos"},
+            "PYPL": {"costo_strike": "$0.40-$0.60", "volumen_min": "3M", "distance_spot_strike": "5-8 puntos"},
+            "CRM": {"costo_strike": "$0.50-$0.70", "volumen_min": "2M", "distance_spot_strike": "8-12 puntos"},
+            
+            # Finanzas
+            "JPM": {"costo_strike": "$0.30-$0.50", "volumen_min": "8M", "distance_spot_strike": "3-5 puntos"},
+            "BAC": {"costo_strike": "$0.10-$0.20", "volumen_min": "10M", "distance_spot_strike": "1-2 puntos"},
+            "WFC": {"costo_strike": "$0.20-$0.35", "volumen_min": "5M", "distance_spot_strike": "2-3 puntos"},
+            "C": {"costo_strike": "$0.20-$0.35", "volumen_min": "5M", "distance_spot_strike": "2-3 puntos"},
+            "GS": {"costo_strike": "$0.80-$1.20", "volumen_min": "2M", "distance_spot_strike": "10-15 puntos"},
+            "MS": {"costo_strike": "$0.25-$0.40", "volumen_min": "3M", "distance_spot_strike": "2-4 puntos"},
+            "V": {"costo_strike": "$0.40-$0.60", "volumen_min": "4M", "distance_spot_strike": "4-6 puntos"},
+            "MA": {"costo_strike": "$0.50-$0.70", "volumen_min": "3M", "distance_spot_strike": "5-8 puntos"},
+            "AXP": {"costo_strike": "$0.40-$0.60", "volumen_min": "2M", "distance_spot_strike": "4-6 puntos"},
+            "BLK": {"costo_strike": "$1.00-$1.50", "volumen_min": "1M", "distance_spot_strike": "15-20 puntos"},
+            
+            # Materias Primas y ETFs
+            "GLD": {"costo_strike": "$0.60-$0.80", "volumen_min": "2M", "distance_spot_strike": "2-4 puntos"},
+            "SLV": {"costo_strike": "$0.10-$0.20", "volumen_min": "10M", "distance_spot_strike": "1-2 puntos"},
+            "USO": {"costo_strike": "$0.10-$0.20", "volumen_min": "1M", "distance_spot_strike": "2-3 puntos"},
+            "BITO": {"costo_strike": "$0.20-$0.30", "volumen_min": "2M", "distance_spot_strike": "2-3 puntos"},
+            "GBTC": {"costo_strike": "$0.15-$0.25", "volumen_min": "2M", "distance_spot_strike": "1-2 puntos"},
+            
+            # Energía
+            "XOM": {"costo_strike": "$0.60-$0.80", "volumen_min": "4M", "distance_spot_strike": "3-5 puntos"},
+            "CVX": {"costo_strike": "$0.60-$0.80", "volumen_min": "2M", "distance_spot_strike": "3-5 puntos"},
+            "SHEL": {"costo_strike": "$0.40-$0.60", "volumen_min": "2M", "distance_spot_strike": "3-4 puntos"},
+            "TTE": {"costo_strike": "$0.40-$0.60", "volumen_min": "1M", "distance_spot_strike": "3-4 puntos"},
+            "COP": {"costo_strike": "$0.35-$0.55", "volumen_min": "2M", "distance_spot_strike": "2-4 puntos"}
+        }
+        
+        # Recomendaciones generales
+        self.general_recommendations = {
+            "volumen": {
+                "alto": ">10M: Óptimo para day trading",
+                "medio": "3-10M: Aceptable para swing trading",
+                "bajo": "<3M: Requiere precaución"
+            },
+            "costo_strike": {
+                "bajo": "<$0.30: Ideal para estrategias de alta frecuencia",
+                "medio": "$0.30-$0.80: Balanced risk/reward",
+                "alto": ">$0.80: Requiere mayor capital, menor frecuencia"
+            },
+            "distance": {
+                "corta": "1-5 puntos: Mayor probabilidad, menor retorno",
+                "media": "5-10 puntos: Balance riesgo/retorno",
+                "larga": ">10 puntos: Mayor retorno potencial, menor probabilidad"
+            },
+            "volatilidad": {
+                "alta": "VIX > 25: Aumentar distance en 20%, considerar spreads",
+                "baja": "VIX < 15: Reducir distance en 10%, favorecer direccionales"
+            },
+            "risk_management": [
+                "Máximo 10% del capital por trade",
+                "Stop Loss en 50% del premium pagado",
+                "Take Profit en 100% del premium pagado",
+                "Evitar hold overnight sin hedge",
+                "Usar siempre options chain con mayor liquidez"
+            ]
+        }
+        
+        # Estrategias por timeframe
+        self.strategies_catalog = {
+            "alcistas": [
+                {
+                    "name": "Promedio Móvil de 40 (Horario)",
+                    "setup": "SMA(20) > SMA(40), tocar SMA(40), ruptura línea bajista",
+                    "timeframe": "Horario",
+                    "confirmacion": "Vela alcista, RSI>40, MACD cruzando al alza",
+                    "stop_loss": "Mínimo de vela de entrada"
+                },
+                {
+                    "name": "Caída Normal/Fuerte (Horario)",
+                    "setup": "Caída y ruptura de línea bajista",
+                    "timeframe": "Horario",
+                    "confirmacion": "Vela fuerte con volumen, ATR elevado",
+                    "stop_loss": "Por debajo del swing bajo previo"
+                },
+                {
+                    "name": "Gap Normal al Alza",
+                    "setup": "Gap alcista en pre-market, primeras velas verdes",
+                    "timeframe": "Horario",
+                    "confirmacion": "Velas 10-11AM verdes, volumen >150% promedio",
+                    "stop_loss": "Por debajo del VWAP"
+                },
+                {
+                    "name": "Piso Fuerte",
+                    "setup": "Rebote en SMA100/200 diario, ruptura línea bajista",
+                    "timeframe": "Diario+Horario",
+                    "confirmacion": "Vela verde diaria, volumen creciente",
+                    "stop_loss": "Por debajo del SMA testado"
+                }
+            ],
+            "bajistas": [
+                {
+                    "name": "Primera Vela Roja de Apertura",
+                    "setup": "Vela roja 10AM en zona de resistencia, RSI>70",
+                    "timeframe": "Horario",
+                    "confirmacion": "Volumen alto, MACD divergente",
+                    "stop_loss": "Por encima del high de apertura"
+                },
+                {
+                    "name": "Ruptura de Piso del Gap",
+                    "setup": "Gap identificado, ruptura con vela roja",
+                    "timeframe": "Horario",
+                    "confirmacion": "Confirmación con volumen",
+                    "stop_loss": "Por encima del gap high"
+                },
+                {
+                    "name": "Modelo 4 Pasos",
+                    "setup": "Canal bajista, techo, vela verde borrada, ruptura",
+                    "timeframe": "Horario",
+                    "confirmacion": "Vela fuerte con volumen",
+                    "stop_loss": "Por encima de la vela verde borrada"
+                },
+                {
+                    "name": "Hanger en Diario",
+                    "setup": "Hanger en zona de techo, SMA distantes",
+                    "timeframe": "Diario",
+                    "confirmacion": "Entrada 3:55-3:58PM",
+                    "stop_loss": "Por encima del high del Hanger"
+                }
+            ]
+        }
+    
+    def get_symbol_params(self, symbol: str) -> Dict:
+        """Obtiene parámetros específicos para un símbolo"""
+        return self.options_params.get(symbol.upper(), {})
+    
+    def get_strategy_recommendations(self, trend_direction: str) -> List[Dict]:
+        """Obtiene estrategias recomendadas según tendencia"""
+        if trend_direction == "ALCISTA":
+            return self.strategies_catalog["alcistas"]
+        elif trend_direction == "BAJISTA":
+            return self.strategies_catalog["bajistas"]
+        else:
+            # Para tendencia neutral o desconocida, devolver todas
+            return self.strategies_catalog["alcistas"] + self.strategies_catalog["bajistas"]
+    
+    def get_volatility_adjustments(self, vix_level: float) -> Dict:
+        """Obtiene ajustes recomendados según nivel de VIX"""
+        if vix_level > 25:
+            return {
+                "category": "alta",
+                "description": self.general_recommendations["volatilidad"]["alta"],
+                "adjustments": [
+                    "Aumentar Distance Spot-Strike en 20%",
+                    "Considerar spreads en lugar de opciones simples",
+                    "Reducir tamaño de posición"
+                ]
+            }
+        elif vix_level < 15:
+            return {
+                "category": "baja",
+                "description": self.general_recommendations["volatilidad"]["baja"],
+                "adjustments": [
+                    "Reducir Distance Spot-Strike en 10%",
+                    "Favorecer estrategias direccionales",
+                    "Aumentar duración de trades"
+                ]
+            }
+        else:
+            return {
+                "category": "normal",
+                "description": "Volatilidad en rango normal",
+                "adjustments": [
+                    "Parámetros estándar",
+                    "Balance entre opciones y spreads",
+                    "Tamaño de posición estándar"
+                ]
+            }
+
 # Proveedor de datos de mercado
 class MarketDataProvider:
     """Proveedor de datos de mercado con manejo de errores y limitación de tasa"""
@@ -123,7 +321,7 @@ class MarketDataProvider:
         now = datetime.now()
         time_since_last = (now - self.last_request).total_seconds()
         
-        # Reset counter cada minuto
+        # Reset contador cada minuto
         if time_since_last > 60:
             self.request_count = 0
         
@@ -359,6 +557,7 @@ class TechnicalAnalyzer:
     
     def __init__(self, data_provider: MarketDataProvider):
         self.data_provider = data_provider
+        self.options_manager = OptionsParameterManager()
     
     def get_market_data(self, symbol: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
         """Obtiene datos de mercado a través del proveedor"""
@@ -390,6 +589,9 @@ class TechnicalAnalyzer:
                 "volume": float(data["Volume"].iloc[-1])
             }
             
+            # Añadir parámetros de opciones si están disponibles
+            trend["options_params"] = self.options_manager.get_symbol_params(symbol)
+            
             return trend, data_with_indicators
             
         except Exception as e:
@@ -408,22 +610,23 @@ class TechnicalAnalyzer:
                     "sma200": 0,
                     "rsi": 50,
                     "volume": 0
-                }
+                },
+                "options_params": self.options_manager.get_symbol_params(symbol)
             }
             
             return empty_trend, pd.DataFrame()
     
     def _calculate_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Calcula indicadores técnicos con manejo seguro de errores"""
+        """Calcula indicadores técnicos con seguridad en asignaciones"""
         df = data.copy()
         
         try:
-            # Medias Móviles Simples - SMA
+            # Medias móviles
             for period in [20, 50, 200]:
                 if len(df) >= period:
                     df[f"SMA{period}"] = df["Close"].rolling(window=period).mean()
             
-            # RSI - Índice de Fuerza Relativa
+            # RSI
             if len(df) >= 14:
                 delta = df["Close"].diff()
                 gain = delta.where(delta > 0, 0)
@@ -432,19 +635,22 @@ class TechnicalAnalyzer:
                 avg_gain = gain.rolling(window=14).mean()
                 avg_loss = loss.rolling(window=14).mean()
                 
-                rs = avg_gain / avg_loss.replace(0, np.finfo(float).eps)  # Evitar división por cero
+                rs = avg_gain / avg_loss.replace(0, np.finfo(float).eps)
                 df["RSI"] = 100 - (100 / (1 + rs))
             
-            # Bandas de Bollinger - Corregido
+            # Corrección Bandas de Bollinger - AQUÍ ESTÁ EL ARREGLO CLAVE
             if len(df) >= 20:
+                # Calculamos la media primero
                 df["BB_Middle"] = df["Close"].rolling(window=20).mean()
                 rolling_std = df["Close"].rolling(window=20).std()
                 
-                # Asignar las bandas individualmente para evitar error de columnas múltiples
-                df["BB_Upper"] = df["BB_Middle"] + (rolling_std * 2)
-                df["BB_Lower"] = df["BB_Middle"] - (rolling_std * 2)
+                # Importante: Calcular y asignar cada banda por separado
+                # Esto evita el error "Cannot set a DataFrame with multiple columns..."
+                df["BB_Upper"] = df["BB_Middle"] + (2 * rolling_std)
+                df["BB_Lower"] = df["BB_Middle"] - (2 * rolling_std)
+                df["BB_Width"] = (df["BB_Upper"] - df["BB_Lower"]) / df["BB_Middle"]
             
-            # MACD - Moving Average Convergence Divergence
+            # MACD
             if len(df) >= 26:
                 ema12 = df["Close"].ewm(span=12, adjust=False).mean()
                 ema26 = df["Close"].ewm(span=26, adjust=False).mean()
@@ -452,7 +658,7 @@ class TechnicalAnalyzer:
                 df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
                 df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
             
-            # ATR - Average True Range
+            # ATR para volatilidad
             if len(df) >= 14:
                 high_low = df["High"] - df["Low"]
                 high_close = (df["High"] - df["Close"].shift()).abs()
@@ -461,24 +667,15 @@ class TechnicalAnalyzer:
                 tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
                 df["ATR"] = tr.rolling(window=14).mean()
             
-            # Volumen relativo
-            if len(df) >= 20:
-                df["Volume_SMA"] = df["Volume"].rolling(window=20).mean()
-                df["Volume_Ratio"] = df["Volume"] / df["Volume_SMA"].replace(0, 1)  # Evitar división por cero
-            
-            # Eliminar valores NaN
+            # Limpiar valores NaN
             df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
-            
-            # Añadir fecha para referencia
-            df["Date_Str"] = df.index.strftime('%Y-%m-%d')
             
             return df
             
         except Exception as e:
-            logger.error(f"Error calculando indicadores: {str(e)}")
-            
-            # En caso de error, retornar el dataframe original para evitar fallos en UI
-            return df
+            logger.error(f"Error en cálculo de indicadores: {str(e)}")
+            # En caso de error, se devuelve el dataframe original
+            return data
     
     def _determine_trend(self, data: pd.DataFrame) -> Dict:
         """Determina tendencia basada en indicadores con manejo seguro"""
@@ -605,96 +802,58 @@ class TechnicalAnalyzer:
             direction = trend["direction"]
             strength = trend["strength"]
             
+            # Obtener estrategias recomendadas según tendencia
+            recommended_strategies = self.options_manager.get_strategy_recommendations(direction)
             strategies = []
             
-            # Si los datos son sintéticos, no sugerir estrategias
+            # Si los datos son sintéticos, no sugerir estrategias específicas
             if hasattr(data, 'attrs') and data.attrs.get('synthetic', False):
                 return []
                 
-            # Estrategias según tendencia
-            if direction == "ALCISTA" and strength != "BAJA":
-                last_close = data["Close"].iloc[-1]
-                
-                # Estrategia de Pullback a SMA20 en tendencia alcista
-                if self._check_sma_pullback(data):
-                    strategies.append({
-                        "type": "CALL",
-                        "name": "Pullback a SMA20",
+            # Filtrar estrategias según condiciones actuales y añadir niveles
+            for strat_template in recommended_strategies:
+                if self._check_strategy_conditions(data, strat_template):
+                    last_close = data["Close"].iloc[-1]
+                    
+                    # Determinar niveles según el tipo de estrategia
+                    entry = last_close
+                    if strat_template["name"] == "Promedio Móvil de 40 (Horario)":
+                        stop = last_close * 0.985
+                        target = last_close * 1.03
+                    elif "Gap" in strat_template["name"]:
+                        stop = last_close * 0.98
+                        target = last_close * 1.04
+                    elif "Hanger" in strat_template["name"]:
+                        stop = last_close * 1.02
+                        target = last_close * 0.94
+                    elif strat_template["name"] == "Primera Vela Roja de Apertura":
+                        entry = last_close
+                        stop = last_close * 1.02
+                        target = last_close * 0.95
+                    else:
+                        # Valores por defecto
+                        stop = last_close * (0.97 if "CALL" in strat_template["name"] else 1.03)
+                        target = last_close * (1.05 if "CALL" in strat_template["name"] else 0.93)
+                    
+                    # Crear estrategia completa
+                    strategy = {
+                        "type": "CALL" if "alcista" in direction.lower() else "PUT",
+                        "name": strat_template["name"],
                         "confidence": "ALTA" if strength == "ALTA" else "MEDIA",
-                        "description": "Retroceso técnico a la media móvil de 20 períodos en tendencia alcista.",
+                        "description": strat_template["setup"],
                         "conditions": [
-                            "Precio tocando SMA20 desde arriba",
-                            "Tendencia general alcista",
-                            "Pullback con menor volumen"
+                            f"Tendencia: {direction}",
+                            f"Timeframe: {strat_template['timeframe']}",
+                            f"Confirmación: {strat_template['confirmacion']}"
                         ],
                         "levels": {
-                            "entry": last_close,
-                            "stop": last_close * 0.97,
-                            "target": last_close * 1.05
+                            "entry": entry,
+                            "stop": stop,
+                            "target": target
                         }
-                    })
-            
-            elif direction == "BAJISTA" and strength != "BAJA":
-                last_close = data["Close"].iloc[-1]
-                
-                # Estrategia de Rechazo en Resistencia
-                if self._check_resistance_rejection(data):
-                    strategies.append({
-                        "type": "PUT",
-                        "name": "Rechazo en Resistencia",
-                        "confidence": "ALTA" if strength == "ALTA" else "MEDIA",
-                        "description": "Precio rechazado en nivel de resistencia en tendencia bajista.",
-                        "conditions": [
-                            "Resistencia técnica confirmada",
-                            "Vela de rechazo formada",
-                            "Tendencia bajista dominante"
-                        ],
-                        "levels": {
-                            "entry": last_close,
-                            "stop": last_close * 1.03,
-                            "target": last_close * 0.93
-                        }
-                    })
-            
-            # Estrategias basadas en momentum (RSI)
-            if "RSI" in data.columns:
-                rsi = data["RSI"].iloc[-1]
-                last_close = data["Close"].iloc[-1]
-                
-                if rsi < 30 and direction != "BAJISTA":
-                    strategies.append({
-                        "type": "CALL",
-                        "name": "RSI Sobrevendido",
-                        "confidence": "MEDIA",
-                        "description": "RSI en zona de sobreventa sugiere posible rebote técnico.",
-                        "conditions": [
-                            f"RSI en {rsi:.1f} (zona de sobreventa)",
-                            "Posible reversión técnica",
-                            "Entrada contraria"
-                        ],
-                        "levels": {
-                            "entry": last_close,
-                            "stop": last_close * 0.97,
-                            "target": last_close * 1.05
-                        }
-                    })
-                elif rsi > 70 and direction != "ALCISTA":
-                    strategies.append({
-                        "type": "PUT",
-                        "name": "RSI Sobrecomprado",
-                        "confidence": "MEDIA",
-                        "description": "RSI en zona de sobrecompra sugiere posible corrección técnica.",
-                        "conditions": [
-                            f"RSI en {rsi:.1f} (zona de sobrecompra)",
-                            "Posible agotamiento alcista",
-                            "Entrada contraria"
-                        ],
-                        "levels": {
-                            "entry": last_close,
-                            "stop": last_close * 1.03,
-                            "target": last_close * 0.95
-                        }
-                    })
+                    }
+                    
+                    strategies.append(strategy)
             
             return strategies
             
@@ -702,49 +861,32 @@ class TechnicalAnalyzer:
             logger.error(f"Error identificando estrategias: {str(e)}")
             return []
     
-    def _check_sma_pullback(self, data: pd.DataFrame) -> bool:
-        """Verifica patrón de pullback a SMA20"""
+    def _check_strategy_conditions(self, data: pd.DataFrame, strategy: Dict) -> bool:
+        """Verifica si las condiciones de una estrategia se cumplen"""
         try:
-            if "SMA20" not in data.columns or len(data) < 20:
-                return False
+            # Verificación simplificada según nombre de estrategia
+            if "Promedio Móvil" in strategy["name"] and "SMA20" in data.columns and "SMA40" in data.columns:
+                sma20 = data["SMA20"].iloc[-1]
+                sma40 = data["SMA40"].iloc[-1] if "SMA40" in data.columns else data["SMA50"].iloc[-1]
+                return sma20 > sma40
                 
-            # Últimas barras
-            recent = data.iloc[-5:]
+            elif "Gap" in strategy["name"]:
+                # Verificar posible gap (diferencia entre open y close previo)
+                if len(data) >= 2:
+                    open_today = data["Open"].iloc[-1]
+                    close_yesterday = data["Close"].iloc[-2]
+                    return abs(open_today - close_yesterday) / close_yesterday > 0.005  # 0.5% gap
             
-            # Comprobar si el precio está cerca de la SMA20
-            last_close = recent["Close"].iloc[-1]
-            sma20 = recent["SMA20"].iloc[-1]
+            elif "RSI" in strategy["name"] and "RSI" in data.columns:
+                rsi = data["RSI"].iloc[-1]
+                if "sobrecompra" in strategy["name"].lower():
+                    return rsi > 70
+                elif "sobreventa" in strategy["name"].lower():
+                    return rsi < 30
             
-            # Cercanía dentro del 1%
-            is_near_sma = abs(last_close / sma20 - 1) < 0.01
-            
-            # Precio por encima de SMA20 en barras anteriores
-            was_above = data["Close"].iloc[-6:-2].mean() > data["SMA20"].iloc[-6:-2].mean()
-            
-            return is_near_sma and was_above
-        except Exception:
+            # Para estrategias sin verificación específica, retornar False
             return False
-    
-    def _check_resistance_rejection(self, data: pd.DataFrame) -> bool:
-        """Verifica rechazo en nivel de resistencia"""
-        try:
-            if len(data) < 20:
-                return False
-                
-            # Últimas barras
-            recent = data.iloc[-10:].copy()
             
-            # Buscar máximos recientes
-            high_max = recent["High"].max()
-            last_high = recent["High"].iloc[-1]
-            
-            # Verificar si el precio alcanzó máximo reciente
-            reached_high = last_high > high_max * 0.98
-            
-            # Comprobar patrón de rechazo (bajó desde máximo)
-            rejected = reached_high and recent["Close"].iloc[-1] < recent["Open"].iloc[-1]
-            
-            return rejected
         except Exception:
             return False
 
@@ -907,10 +1049,13 @@ def initialize_session_state():
             
         if 'scan_results' not in st.session_state:
             st.session_state.scan_results = pd.DataFrame()
+            
+        if 'options_manager' not in st.session_state:
+            st.session_state.options_manager = OptionsParameterManager()
     except Exception as e:
         logger.error(f"Error inicializando estado de sesión: {str(e)}")
 
-# Función principal
+# Interfaz unificada
 def main():
     # Configuración de página
     st.set_page_config(
@@ -925,7 +1070,6 @@ def main():
     # Obtener información de mercado para la barra superior
     market_status = get_market_status()
     
-    # Interfaz integrada en espacio único
     # Barra superior con métricas
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -942,9 +1086,9 @@ def main():
     # Título de la aplicación
     st.title("📊 InversorIA Mini Pro")
     
-    # Workspace unificado
-    # Selección de sectores y controles
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Panel de control unificado
+    # Selección de sectores y controles en el panel superior
+    col1, col2 = st.columns([3, 1])
     
     with col1:
         selected_sectors = st.multiselect(
@@ -955,31 +1099,33 @@ def main():
         )
     
     with col2:
-        filtro = st.selectbox(
-            "Filtro de Confianza",
-            ["Todas", "Alta", "Media"],
-            index=0
-        )
-    
-    with col3:
-        scan_col1, scan_col2 = st.columns(2)
-        with scan_col1:
+        button_col1, button_col2 = st.columns(2)
+        with button_col1:
             if st.button("🔍 Escanear", use_container_width=True):
                 with st.spinner("Escaneando mercado..."):
                     st.session_state.last_scan_sectors = selected_sectors
                     st.session_state.scan_results = st.session_state.scanner.scan_market(selected_sectors)
                     st.session_state.last_scan_time = datetime.now()
         
-        with scan_col2:
+        with button_col2:
             if st.button("🗑️ Limpiar", use_container_width=True):
                 st.session_state.data_cache.clear()
                 st.experimental_rerun()
     
-    # Tabs para navegar entre análisis
-    scanner_tab, analysis_tab = st.tabs(["📡 Scanner de Mercado", "🔬 Análisis Individual"])
+    # Panel principal con dos columnas
+    col1, col2 = st.columns([2, 1])
     
-    # Tab 1: Scanner de mercado
-    with scanner_tab:
+    # Columna 1: Scanner de Mercado y Resultados
+    with col1:
+        st.subheader("📡 Scanner de Mercado")
+        
+        # Filtro de confianza
+        filtro = st.selectbox(
+            "Filtro de Confianza",
+            ["Todas", "Alta", "Media"],
+            index=0
+        )
+        
         # Verificar si hay resultados
         if hasattr(st.session_state, 'scan_results') and not st.session_state.scan_results.empty:
             # Estadísticas de resultados
@@ -1021,31 +1167,6 @@ def main():
                     use_container_width=True,
                     height=400
                 )
-                
-                # Resumen por sector con distribución en columnas
-                st.markdown("##### Análisis por Sector")
-                sector_columns = st.columns(min(3, len(selected_sectors)))
-                
-                for i, sector in enumerate(selected_sectors):
-                    col = sector_columns[i % len(sector_columns)]
-                    with col:
-                        sector_data = filtered_results[filtered_results["Sector"] == sector]
-                        if not sector_data.empty:
-                            with st.expander(f"{sector} ({len(sector_data)} señales)"):
-                                calls = len(sector_data[sector_data["Estrategia"] == "CALL"])
-                                puts = len(sector_data[sector_data["Estrategia"] == "PUT"])
-                                high_conf = len(sector_data[sector_data["Confianza"] == "ALTA"])
-                                
-                                st.info(f"""
-                                **Distribución:**
-                                - CALL: {calls} ({calls/len(sector_data)*100:.0f}%)
-                                - PUT: {puts} ({puts/len(sector_data)*100:.0f}%)
-                                - Alta Confianza: {high_conf} ({high_conf/len(sector_data)*100:.0f}%)
-                                """)
-                                
-                                st.markdown(f"**Símbolos:** {', '.join(sector_data['Symbol'].unique())}")
-                        else:
-                            st.info(f"No hay señales para {sector}")
             else:
                 st.info("No hay resultados con este filtro de confianza.")
         else:
@@ -1058,13 +1179,15 @@ def main():
             3. Los resultados aparecerán en esta sección
             """)
     
-    # Tab 2: Análisis Individual
-    with analysis_tab:
+    # Columna 2: Análisis individual
+    with col2:
+        st.subheader("🔬 Análisis Individual")
+        
         # Selector de símbolo
-        col1, col2 = st.columns(2)
-        with col1:
+        symbol_col1, symbol_col2 = st.columns(2)
+        with symbol_col1:
             sector = st.selectbox("Sector", list(SYMBOLS.keys()))
-        with col2:
+        with symbol_col2:
             symbol = st.selectbox("Activo", SYMBOLS[sector])
         
         # Actualizar símbolo actual
@@ -1086,7 +1209,7 @@ def main():
                     strategies = st.session_state.analyzer.identify_strategy(data, trend)
                 
                 # Mostrar resultados
-                st.markdown(f"#### Análisis Técnico: {symbol}")
+                st.markdown(f"#### {symbol}")
                 
                 # Métricas principales
                 col1, col2, col3 = st.columns(3)
@@ -1119,6 +1242,16 @@ def main():
                         st.metric("Dist. SMA200", f"{dist:.1f}%")
                     except ZeroDivisionError:
                         st.metric("Dist. SMA200", "N/A")
+                
+                # Mostrar parámetros de opciones si están disponibles
+                if "options_params" in trend and trend["options_params"]:
+                    with st.expander("Parámetros de Opciones"):
+                        params = trend["options_params"]
+                        st.markdown(f"""
+                        **Strike recomendado:** {params.get('costo_strike', 'N/A')}  
+                        **Volumen mínimo:** {params.get('volumen_min', 'N/A')}  
+                        **Distancia spot-strike:** {params.get('distance_spot_strike', 'N/A')}
+                        """)
                 
                 # Mostrar estrategias
                 if strategies:
