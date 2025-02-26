@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import logging
+import traceback
 
 from market_utils import (
     fetch_market_data,
@@ -23,7 +24,8 @@ TIMEFRAMES = {
 def create_advanced_chart(data, timeframe="diario"):
     """Crea gráfico técnico avanzado con análisis institucional"""
     try:
-        if data is None:
+        if data is None or len(data) < 2:
+            logger.warning(f"Datos insuficientes para crear gráfico: {len(data) if data is not None else 0} registros")
             return None
 
         fig = make_subplots(
@@ -184,6 +186,7 @@ def create_advanced_chart(data, timeframe="diario"):
                 row=4, col=1
             )
 
+            # Solo agregar OBV si existe en los datos
             if 'OBV' in data.columns:
                 # Normalizar OBV para visualización
                 normalized_obv = data['OBV']/data['OBV'].max()*data['Volume'].max()
@@ -192,6 +195,21 @@ def create_advanced_chart(data, timeframe="diario"):
                         x=data.index,
                         y=normalized_obv,
                         name='OBV Norm',
+                        line=dict(color='#2196f3', width=1.5)
+                    ),
+                    row=4, col=1
+                )
+            else:
+                # Si no hay OBV, calculamos un volumen acumulado simple como alternativa
+                volume_change = np.where(data['Close'] > data['Open'], data['Volume'], -data['Volume'])
+                cum_vol = volume_change.cumsum()
+                # Normalizar para visualización
+                normalized_cum_vol = cum_vol/abs(cum_vol).max()*data['Volume'].max() if abs(cum_vol).max() > 0 else cum_vol
+                fig.add_trace(
+                    go.Scatter(
+                        x=data.index,
+                        y=normalized_cum_vol,
+                        name='Vol Acum',
                         line=dict(color='#2196f3', width=1.5)
                     ),
                     row=4, col=1
@@ -226,12 +244,16 @@ def create_advanced_chart(data, timeframe="diario"):
         return fig
 
     except Exception as e:
-        logger.error(f"Error en visualización avanzada: {str(e)}")
+        logger.error(f"Error en visualización avanzada: {str(e)}\n{traceback.format_exc()}")
         return None
 
 def render_technical_metrics(df_technical):
     """Renderiza métricas técnicas avanzadas e institucionales"""
     try:
+        if df_technical is None or len(df_technical) < 2:
+            st.warning("Datos insuficientes para calcular métricas técnicas")
+            return
+
         # Métricas principales
         col1, col2, col3, col4 = st.columns(4)
 
@@ -245,34 +267,46 @@ def render_technical_metrics(df_technical):
             )
 
         with col2:
-            rsi_value = df_technical['RSI'].iloc[-1]
-            rsi_status = (
-                "Sobrecomprado" if rsi_value > 70
-                else "Sobrevendido" if rsi_value < 30
-                else "Neutral"
-            )
-            st.metric(
-                "RSI",
-                f"{rsi_value:.1f}",
-                rsi_status
-            )
+            # Verificar si RSI existe
+            if 'RSI' in df_technical.columns:
+                rsi_value = df_technical['RSI'].iloc[-1]
+                rsi_status = (
+                    "Sobrecomprado" if rsi_value > 70
+                    else "Sobrevendido" if rsi_value < 30
+                    else "Neutral"
+                )
+                st.metric(
+                    "RSI",
+                    f"{rsi_value:.1f}",
+                    rsi_status
+                )
+            else:
+                st.metric("RSI", "N/A", "No disponible")
 
         with col3:
-            vol_ratio = df_technical['Volume'].iloc[-1] / df_technical['Volume'].mean()
-            st.metric(
-                "Vol Ratio",
-                f"{vol_ratio:.2f}x",
-                f"{(vol_ratio-1)*100:.1f}% vs Media"
-            )
+            # Verificar si Volume existe
+            if 'Volume' in df_technical.columns and df_technical['Volume'].mean() > 0:
+                vol_ratio = df_technical['Volume'].iloc[-1] / df_technical['Volume'].mean()
+                st.metric(
+                    "Vol Ratio",
+                    f"{vol_ratio:.2f}x",
+                    f"{(vol_ratio-1)*100:.1f}% vs Media"
+                )
+            else:
+                st.metric("Vol Ratio", "N/A", "No disponible")
 
         with col4:
-            bb_width = df_technical['BB_Width'].iloc[-1]
-            bb_avg = df_technical['BB_Width'].mean()
-            st.metric(
-                "BB Width",
-                f"{bb_width:.3f}",
-                f"{(bb_width/bb_avg-1)*100:.1f}% vs Media"
-            )
+            # Verificar si BB_Width existe
+            if 'BB_Width' in df_technical.columns and df_technical['BB_Width'].mean() > 0:
+                bb_width = df_technical['BB_Width'].iloc[-1]
+                bb_avg = df_technical['BB_Width'].mean()
+                st.metric(
+                    "BB Width",
+                    f"{bb_width:.3f}",
+                    f"{(bb_width/bb_avg-1)*100:.1f}% vs Media"
+                )
+            else:
+                st.metric("BB Width", "N/A", "No disponible")
 
         # Análisis institucional
         with st.expander("🔍 Análisis Institucional", expanded=True):
@@ -280,45 +314,98 @@ def render_technical_metrics(df_technical):
 
             with col1:
                 st.markdown("### Tendencia & Momentum")
+                
+                # Comprobamos la existencia de indicadores antes de usar
+                sma_trend = "Alcista" if ('SMA_20' in df_technical.columns and 
+                                         'SMA_50' in df_technical.columns and 
+                                         df_technical['SMA_20'].iloc[-1] > df_technical['SMA_50'].iloc[-1]) else "Bajista"
+                
+                macd_signal = "Alcista" if ('MACD' in df_technical.columns and 
+                                           'MACD_Signal' in df_technical.columns and 
+                                           df_technical['MACD'].iloc[-1] > df_technical['MACD_Signal'].iloc[-1]) else "Bajista"
+                
+                rsi_value = f"{df_technical['RSI'].iloc[-1]:.1f}" if 'RSI' in df_technical.columns else "N/A"
+                stoch_k = f"{df_technical.get('Stoch_K', pd.Series([0])).iloc[-1]:.1f}" if 'Stoch_K' in df_technical.columns else "N/A"
+                
                 st.markdown(f"""
-                - **Tendencia MA:** {'Alcista' if df_technical['SMA_20'].iloc[-1] > df_technical['SMA_50'].iloc[-1] else 'Bajista'}
-                - **MACD Signal:** {'Alcista' if df_technical['MACD'].iloc[-1] > df_technical['MACD_Signal'].iloc[-1] else 'Bajista'}
-                - **RSI:** {df_technical['RSI'].iloc[-1]:.1f}
-                - **Estocástico %K:** {df_technical.get('Stoch_K', pd.Series([0])).iloc[-1]:.1f}
+                - **Tendencia MA:** {sma_trend}
+                - **MACD Signal:** {macd_signal}
+                - **RSI:** {rsi_value}
+                - **Estocástico %K:** {stoch_k}
                 """)
 
             with col2:
                 st.markdown("### Volatilidad & Risk")
-                hist_vol = df_technical['Close'].pct_change().std() * np.sqrt(252) * 100
+                
+                # Calculamos métricas solo si existen los datos necesarios
+                if 'Close' in df_technical.columns and len(df_technical) > 1:
+                    hist_vol = df_technical['Close'].pct_change().std() * np.sqrt(252) * 100
+                else:
+                    hist_vol = 0
+                
+                bb_width = df_technical['BB_Width'].iloc[-1] if 'BB_Width' in df_technical.columns else 0
+                
+                atr_ratio = (df_technical['ATR'].iloc[-1]/df_technical['ATR'].mean() 
+                           if 'ATR' in df_technical.columns and df_technical['ATR'].mean() > 0 
+                           else 0)
+                
+                bb_percentile = ((df_technical['BB_Width'] <= bb_width).mean()*100 
+                               if 'BB_Width' in df_technical.columns 
+                               else 0)
+                
                 st.markdown(f"""
                 - **Vol Histórica:** {hist_vol:.1f}%
                 - **BB Width:** {bb_width:.3f}
-                - **ATR Ratio:** {df_technical['ATR'].iloc[-1]/df_technical['ATR'].mean():.2f}
-                - **Vol Percentil:** {(df_technical['BB_Width'] <= bb_width).mean()*100:.0f}%
+                - **ATR Ratio:** {atr_ratio:.2f}
+                - **Vol Percentil:** {bb_percentile:.0f}%
                 """)
 
             with col3:
                 st.markdown("### Volumen & Flujo")
+                
+                # Verificamos existencia de datos de volumen
+                if 'Volume' in df_technical.columns and df_technical['Volume'].mean() > 0:
+                    vol_ratio = df_technical['Volume'].iloc[-1] / df_technical['Volume'].mean()
+                else:
+                    vol_ratio = 0
+                
+                vwap_pos = ('Por encima' if 'VWAP' in df_technical.columns and 
+                           df_technical['Close'].iloc[-1] > df_technical['VWAP'].iloc[-1] 
+                           else 'Por debajo')
+                
+                obv_trend = ('Alcista' if 'OBV' in df_technical.columns and 
+                           len(df_technical) > 1 and 
+                           df_technical['OBV'].iloc[-1] > df_technical['OBV'].iloc[-2] 
+                           else 'Bajista')
+                
+                if all(x in df_technical.columns for x in ['High', 'Low', 'Close']):
+                    vol_spread = (df_technical['High'].iloc[-1] - df_technical['Low'].iloc[-1])/df_technical['Close'].iloc[-1]*100
+                else:
+                    vol_spread = 0
+                
                 st.markdown(f"""
                 - **Vol/Avg:** {vol_ratio:.2f}x
-                - **VWAP Pos:** {'Por encima' if df_technical['Close'].iloc[-1] > df_technical['VWAP'].iloc[-1] else 'Por debajo'}
-                - **OBV Trend:** {'Alcista' if df_technical['OBV'].iloc[-1] > df_technical['OBV'].iloc[-2] else 'Bajista'}
-                - **Vol Spread:** {(df_technical['High'].iloc[-1] - df_technical['Low'].iloc[-1])/df_technical['Close'].iloc[-1]*100:.2f}%
+                - **VWAP Pos:** {vwap_pos}
+                - **OBV Trend:** {obv_trend}
+                - **Vol Spread:** {vol_spread:.2f}%
                 """)
 
     except Exception as e:
-        logger.error(f"Error en métricas técnicas: {str(e)}")
-        st.error("Error calculando métricas")
+        logger.error(f"Error en métricas técnicas: {str(e)}\n{traceback.format_exc()}")
+        st.warning("No se pudieron calcular todas las métricas debido a datos insuficientes o errores")
 
 def render_technical_tab(symbol, timeframe, data):
     """Renderiza pestaña de análisis técnico avanzado"""
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        timeframe = st.selectbox(
+        selected_timeframe = st.selectbox(
             "Timeframe",
             [tf for group in TIMEFRAMES.values() for tf in group],
             index=4
         )
+        # Actualizar timeframe si cambia la selección
+        if selected_timeframe != timeframe:
+            timeframe = selected_timeframe
     with col2:
         chart_type = st.selectbox(
             "Tipo de Gráfico",
@@ -331,13 +418,70 @@ def render_technical_tab(symbol, timeframe, data):
             default=["Tendencia"]
         )
 
-    if data is not None:
-        analyzer = TechnicalAnalyzer(data)
-        df_technical = analyzer.calculate_indicators()
-        if df_technical is not None:
-            fig = create_advanced_chart(df_technical, timeframe)
-            st.plotly_chart(fig, use_container_width=True)
-            render_technical_metrics(df_technical)
+    # Mostrar mensaje de carga
+    with st.spinner("Cargando datos de mercado..."):
+        # Verificar si tenemos datos
+        if data is None:
+            st.warning(f"No se pudieron obtener datos para {symbol} en el timeframe {timeframe}")
+            # Mostrar mensaje para períodos mínimos requeridos
+            st.info("El análisis técnico requiere un mínimo de 20 períodos de datos. Considere:  \n"
+                    "1. Cambiar a un timeframe con más histórico disponible  \n"
+                    "2. Verificar que el símbolo seleccionado tenga datos suficientes  \n"
+                    "3. Seleccionar un período de tiempo más amplio")
+            return
+
+        try:
+            # Solo proceder si hay suficientes datos
+            if len(data) < 20:
+                st.warning(f"Datos insuficientes para {symbol} en timeframe {timeframe}: {len(data)} períodos disponibles (mínimo 20)")
+                # Mostrar los datos sin procesar si hay menos de 20 períodos
+                if len(data) > 0:
+                    st.subheader("Datos de Precio (Sin Indicadores)")
+                    fig_basic = go.Figure(data=[go.Candlestick(
+                        x=data.index,
+                        open=data['Open'],
+                        high=data['High'],
+                        low=data['Low'],
+                        close=data['Close'],
+                        increasing_line_color='#26a69a',
+                        decreasing_line_color='#ef5350'
+                    )])
+                    fig_basic.update_layout(title=f"{symbol} - Datos Limitados", 
+                                          xaxis_title="Fecha",
+                                          yaxis_title="Precio")
+                    st.plotly_chart(fig_basic, use_container_width=True)
+                return
+            
+            # Intentar crear el analizador técnico
+            try:
+                analyzer = TechnicalAnalyzer(data)
+                df_technical = analyzer.calculate_indicators()
+                
+                if df_technical is not None:
+                    fig = create_advanced_chart(df_technical, timeframe)
+                    if fig is not None:
+                        st.plotly_chart(fig, use_container_width=True)
+                        render_technical_metrics(df_technical)
+                    else:
+                        st.warning("No se pudo generar el gráfico técnico")
+                else:
+                    st.warning("Fallo al calcular indicadores técnicos")
+            
+            except ValueError as ve:
+                # Capturar específicamente el error de períodos insuficientes
+                if "Se requieren al menos 20 períodos" in str(ve):
+                    st.warning(f"Datos insuficientes: {str(ve)}")
+                    st.info("Pruebe con un timeframe diferente o un símbolo con más historia")
+                else:
+                    st.error(f"Error de validación: {str(ve)}")
+            
+            except Exception as e:
+                logger.error(f"Error en análisis técnico: {str(e)}\n{traceback.format_exc()}")
+                st.error("Error procesando análisis técnico")
+                
+        except Exception as e:
+            logger.error(f"Error renderizando tab técnico: {str(e)}\n{traceback.format_exc()}")
+            st.error(f"Error al procesar datos de {symbol}")
 
 def render_options_tab():
     """Análisis avanzado de opciones y volatilidad institucional"""
@@ -480,26 +624,36 @@ def render_options_tab():
 
 def render_multiframe_tab(symbol):
     """Análisis multi-timeframe institucional"""
-    timeframes = ["1d", "1wk", "1mo"]
-    analysis_multi = {}
+    try:
+        timeframes = ["1d", "1wk", "1mo"]
+        analysis_multi = {}
 
-    for tf in timeframes:
-        data = fetch_market_data(symbol, "1y", tf)
-        if data is not None:
-            analyzer = TechnicalAnalyzer(data)
-            df = analyzer.calculate_indicators()
-            if df is not None:
-                analysis_multi[tf] = analyzer.get_current_signals()
-
-    if analysis_multi:
-        # Vista consolidada
-        st.markdown("### Análisis Multi-Timeframe")
-
-        # Crear tabla de análisis
-        analysis_table = pd.DataFrame()
-
+        st.info("Calculando análisis multi-timeframe...")
+        
+        # Intentar obtener datos para cada timeframe
         for tf in timeframes:
-            if tf in analysis_multi:
+            try:
+                data = fetch_market_data(symbol, "1y", tf)
+                if data is not None and len(data) >= 20:
+                    analyzer = TechnicalAnalyzer(data)
+                    df = analyzer.calculate_indicators()
+                    if df is not None:
+                        analysis_multi[tf] = analyzer.get_current_signals()
+                else:
+                    # Documentar por qué no hay datos para este timeframe
+                    logger.warning(f"No hay datos suficientes para {symbol} en timeframe {tf}")
+            except Exception as e:
+                logger.error(f"Error analizando {symbol} en timeframe {tf}: {str(e)}")
+
+        # Verificar si tenemos algún análisis disponible
+        if analysis_multi:
+            # Vista consolidada
+            st.markdown("### Análisis Multi-Timeframe")
+
+            # Crear tabla de análisis
+            analysis_table = pd.DataFrame()
+
+            for tf in analysis_multi:
                 signals = analysis_multi[tf]
                 analysis_table.loc[tf, "Tendencia"] = signals["trend"]["sma_20_50"]
                 analysis_table.loc[tf, "RSI"] = f"{signals['momentum']['rsi']:.1f}"
@@ -507,25 +661,33 @@ def render_multiframe_tab(symbol):
                 analysis_table.loc[tf, "Volumen"] = signals["volume"]["trend"]
                 analysis_table.loc[tf, "Señal"] = signals["overall"]["signal"]
 
-        # Mostrar tabla estilizada
-        st.dataframe(
-            analysis_table.style.apply(lambda x: ['background-color: rgba(38,166,154,0.2)'
-                                               if v == "alcista" or v == "compra_fuerte"
-                                               else 'background-color: rgba(239,83,80,0.2)'
-                                               if v == "bajista" or v == "venta_fuerte"
-                                               else '' for v in x], axis=1),
-            height=200
-        )
+            # Mostrar tabla estilizada
+            st.dataframe(
+                analysis_table.style.apply(lambda x: ['background-color: rgba(38,166,154,0.2)'
+                                                   if v == "alcista" or v == "compra_fuerte"
+                                                   else 'background-color: rgba(239,83,80,0.2)'
+                                                   if v == "bajista" or v == "venta_fuerte"
+                                                   else '' for v in x], axis=1),
+                height=200
+            )
 
-        # Análisis de correlaciones
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### Convergencia/Divergencia")
-            # Aquí iría un gráfico de convergencia/divergencia
+            # Análisis de correlaciones
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("### Convergencia/Divergencia")
+                st.info("Análisis de convergencia/divergencia disponible en próxima versión")
 
-        with col2:
-            st.markdown("### Correlación Temporal")
-            # Aquí iría un gráfico de correlación temporal
+            with col2:
+                st.markdown("### Correlación Temporal")
+                st.info("Correlación temporal disponible en próxima versión")
+                
+        else:
+            st.warning(f"No hay suficientes datos para realizar análisis multi-timeframe de {symbol}")
+            st.info("El análisis requiere un mínimo de 20 períodos en cada timeframe.")
+    
+    except Exception as e:
+        logger.error(f"Error en análisis multi-timeframe: {str(e)}\n{traceback.format_exc()}")
+        st.error("Error calculando análisis multi-timeframe")
 
 def render_fundamental_tab():
     """Análisis fundamental y cuantitativo"""
@@ -673,8 +835,21 @@ def render_dashboard(symbol, timeframe):
             "⚠️ Risk Management"
         ])
 
-        # Cargar datos una sola vez
-        data = fetch_market_data(symbol, "1y", timeframe)
+        # Cargar datos con manejo de errores
+        try:
+            data = None
+            with st.spinner(f"Cargando datos de {symbol}..."):
+                data = fetch_market_data(symbol, "1y", timeframe)
+                
+            if data is None:
+                # Mensaje en consola
+                logger.warning(f"No se pudieron obtener datos para {symbol} en {timeframe}")
+                # En lugar de detener la ejecución, permitimos que continúe
+                # y cada pestaña manejará la falta de datos de manera apropiada
+        except Exception as e:
+            logger.error(f"Error obteniendo datos para {symbol}: {str(e)}")
+            st.warning(f"Error obteniendo datos de mercado para {symbol}")
+            data = None
 
         with tab1:
             render_technical_tab(symbol, timeframe, data)
@@ -695,5 +870,6 @@ def render_dashboard(symbol, timeframe):
             render_risk_tab()
 
     except Exception as e:
-        logger.error(f"Error renderizando dashboard: {str(e)}")
+        logger.error(f"Error renderizando dashboard: {str(e)}\n{traceback.format_exc()}")
         st.error("Error al cargar el dashboard institucional")
+        st.info("Detalles técnicos: verifique los logs para más información")
