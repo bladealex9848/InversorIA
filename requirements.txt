@@ -14,3 +14,4 @@ logging
 tenacity
 matplotlib
 seaborn
+statsmodels

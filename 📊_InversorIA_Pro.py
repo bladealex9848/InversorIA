@@ -1,45 +1,48 @@
 import os
 import time
 import streamlit as st
-import openai
-import logging
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import traceback
 import pytz
+import json
+import importlib
+import sys
+import requests
 
 # Importar componentes personalizados
-from market_utils import (
-    get_market_context,
-    fetch_market_data,
-    TechnicalAnalyzer,
-    OptionsParameterManager,
-    clear_cache,
-    get_vix_level,
-    logger
-)
+try:
+    from market_utils import (
+        fetch_market_data,
+        TechnicalAnalyzer,
+        OptionsParameterManager,
+        get_market_context,
+        get_vix_level,
+        clear_cache,
+    )
+except Exception as e:
+    st.error(f"Error importando market_utils: {str(e)}")
 
-from trading_dashboard import (
-    render_dashboard,
-    render_technical_tab,
-    render_options_tab,
-    render_multi_timeframe_tab,
-    render_fundamental_tab,
-    render_report_tab,
-    render_risk_tab,
-    TIMEFRAMES,
-    COLORS
-)
+try:
+    from trading_dashboard import (
+        render_dashboard,
+        render_technical_tab,
+        render_options_tab,
+        render_multiframe_tab,
+        render_fundamental_tab,
+        render_report_tab,
+        render_risk_tab,
+        TIMEFRAMES,
+    )
+except Exception as e:
+    st.error(f"Error importando trading_dashboard: {str(e)}")
 
-from authenticator import check_password, validate_session, clear_session
-
-# Configuración de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
-)
+# Importar sistema de autenticación
+try:
+    from authenticator import check_password, validate_session, clear_session
+except Exception as e:
+    st.error(f"Error importando authenticator: {str(e)}")
 
 # Configuración de la página
 st.set_page_config(
@@ -47,510 +50,567 @@ st.set_page_config(
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://www.example.com/support',
-        'Report a bug': 'https://www.example.com/bug',
-        'About': "InversorIA Pro: Plataforma avanzada de trading institucional con IA"
-    }
 )
 
 # Universo de Trading
 SYMBOLS = {
     "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
-    "Tecnología": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "PYPL", "CRM"],
+    "Tecnología": [
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "AMZN",
+        "TSLA",
+        "NVDA",
+        "META",
+        "NFLX",
+        "PYPL",
+        "CRM",
+    ],
     "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"],
-    "Salud": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "AMGN", "BMY", "GILD", "TMO"],
     "Energía": ["XOM", "CVX", "SHEL", "TTE", "COP", "EOG", "PXD", "DVN", "MPC", "PSX"],
-    "Consumo": ["MCD", "SBUX", "NKE", "TGT", "HD", "LOW", "TJX", "ROST", "CMG", "DHI"],
-    "Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
-    "Cripto ETFs": ["BITO", "GBTC", "ETHE", "ARKW", "BLOK"],
-    "Materias Primas": ["GLD", "SLV", "USO", "UNG", "CORN", "SOYB", "WEAT"],
-    "Bonos": ["AGG", "BND", "IEF", "TLT", "LQD", "HYG", "JNK", "TIP", "MUB", "SHY"],
-    "Inmobiliario": ["VNQ", "XLRE", "IYR", "REIT", "HST", "EQR", "AVB", "PLD", "SPG", "AMT"]
 }
 
-#=================================================
-# FUNCIONES DE OPENAI Y ASISTENTE
-#=================================================
+# =================================================
+# VERIFICACIÓN DE APIS Y LIBRERÍAS
+# =================================================
 
-def setup_openai():
-    """Configura credenciales de OpenAI"""
-    try:
-        API_KEY = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-        ASSISTANT_ID = os.environ.get("ASSISTANT_ID") or st.secrets.get("ASSISTANT_ID")
-        
-        if not API_KEY or not ASSISTANT_ID:
-            st.error("⚠️ Se requieren credenciales de OpenAI. Configure OPENAI_API_KEY y ASSISTANT_ID en secrets o variables de entorno.")
-            st.stop()
-            
-        openai.api_key = API_KEY
-        return ASSISTANT_ID
-        
-    except Exception as e:
-        logger.error(f"Error configurando OpenAI: {str(e)}")
-        st.error("Error al configurar OpenAI. Verifique las credenciales.")
-        st.stop()
 
-def process_tool_calls(tool_calls, symbol):
-    """Procesa llamadas a herramientas desde OpenAI Assistant"""
-    try:
-        responses = []
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            try:
-                arguments = tool_call.function.arguments
-                if isinstance(arguments, str):
-                    import json
-                    arguments = json.loads(arguments)
-                else:
-                    arguments = arguments
-                
-                if function_name == "analyze_technical":
-                    response = analyze_technical(arguments.get("symbol") or symbol)
-                elif function_name == "get_multi_timeframe_analysis":
-                    response = get_multi_timeframe_analysis(arguments.get("symbol") or symbol)
-                elif function_name == "analyze_options_strategy":
-                    response = analyze_options_strategy(
-                        arguments.get("symbol") or symbol,
-                        arguments.get("direction"),
-                        arguments.get("option_type")
+def check_api_keys():
+    """Verifica las API keys disponibles en secret.toml o env vars"""
+    apis_status = {}
+
+    # Verificar API keys comunes para datos financieros
+    keys_to_check = [
+        "alpha_vantage_api_key",
+        "finnhub_api_key",
+        "marketstack_api_key",
+        "openai_api_key",
+        "assistant_id",
+    ]
+
+    for key in keys_to_check:
+        # Intentar obtener desde Streamlit secrets
+        try:
+            value = st.secrets.get(key, os.environ.get(key.upper(), ""))
+            is_present = bool(value)
+
+            # Mostrar solo una indicación de si está presente, no el valor real
+            apis_status[key] = {
+                "status": "✅ Disponible" if is_present else "❌ No configurada",
+                "source": (
+                    "Streamlit secrets"
+                    if key in st.secrets
+                    else (
+                        "Variables de entorno"
+                        if key.upper() in os.environ
+                        else "No encontrada"
                     )
-                else:
-                    response = {"status": "error", "message": f"Función {function_name} no implementada"}
-                
-                responses.append({
-                    "tool_call_id": tool_call.id,
-                    "output": json.dumps(response)
-                })
-                
-            except Exception as func_error:
-                logger.error(f"Error procesando función {function_name}: {str(func_error)}")
-                responses.append({
-                    "tool_call_id": tool_call.id,
-                    "output": json.dumps({"status": "error", "message": str(func_error)})
-                })
-        
-        return responses
-        
-    except Exception as e:
-        logger.error(f"Error en process_tool_calls: {str(e)}")
-        return []
+                ),
+            }
+        except Exception as e:
+            apis_status[key] = {
+                "status": "❌ Error accediendo",
+                "source": f"Error: {str(e)}",
+            }
 
-def analyze_technical(symbol):
-    """Obtiene análisis técnico actualizado"""
-    try:
-        context = get_market_context(symbol)
-        if context and "error" not in context:
-            return {
-                "status": "success",
-                "data": {
-                    "last_price": context["last_price"],
-                    "change": context["change"],
-                    "change_percent": context["change_percent"],
-                    "signals": context["signals"],
-                    "patterns": context["candle_patterns"],
-                    "support_resistance": context["support_resistance"],
-                    "updated_at": context["updated_at"]
-                }
-            }
-        return {"status": "error", "message": context.get("error", "Error obteniendo contexto del mercado")}
-    except Exception as e:
-        logger.error(f"Error en analyze_technical: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-def get_multi_timeframe_analysis(symbol):
-    """Análisis en múltiples timeframes"""
-    try:
-        context = get_market_context(symbol)
-        if context and "error" not in context and "multi_timeframe" in context:
-            return {
-                "status": "success",
-                "data": context["multi_timeframe"]
-            }
-        return {"status": "error", "message": context.get("error", "Error obteniendo análisis multi-timeframe")}
-    except Exception as e:
-        logger.error(f"Error en get_multi_timeframe_analysis: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-def analyze_options_strategy(symbol, direction=None, option_type=None):
-    """Analiza estrategia de opciones para un símbolo"""
-    try:
-        context = get_market_context(symbol)
-        if context and "error" not in context:
-            # Obtener recomendación si no se especificó dirección
-            if not direction and "signals" in context and "options" in context["signals"]:
-                direction = context["signals"]["options"]["direction"]
-                
-            # Obtener datos relevantes
-            price = context["last_price"]
-            vix = context["vix_level"]
-            options_params = context["options_params"]
-            
-            # Determinar tipo de opción
-            if not option_type:
-                option_type = "CALL" if direction == "CALL" else "PUT"
-                
-            # Calcular strike recomendado
-            strike = None
-            if options_params and "distance_spot_strike" in options_params:
-                import re
-                distance_values = re.findall(r'(\d+(?:\.\d+)?)', options_params["distance_spot_strike"])
-                if distance_values:
-                    distance = float(distance_values[0])
-                    distance_pct = distance / 100
-                    
-                    if option_type == "CALL":
-                        strike = price * (1 + distance_pct)
-                    else:
-                        strike = price * (1 - distance_pct)
-            
-            # Si no se pudo calcular, usar valor por defecto
-            if not strike:
-                strike = price * 1.05 if option_type == "CALL" else price * 0.95
-                
-            # Adaptar por volatilidad
-            if vix > 25:  # Alta volatilidad
-                strike = price * (1 + distance_pct * 1.2) if option_type == "CALL" else price * (1 - distance_pct * 1.2)
-            elif vix < 15:  # Baja volatilidad
-                strike = price * (1 + distance_pct * 0.9) if option_type == "CALL" else price * (1 - distance_pct * 0.9)
-                
-            # Calcular fechas de expiración estimadas
-            current_date = datetime.now()
-            short_exp = (current_date + timedelta(days=14)).strftime("%Y-%m-%d")
-            medium_exp = (current_date + timedelta(days=30)).strftime("%Y-%m-%d")
-            long_exp = (current_date + timedelta(days=60)).strftime("%Y-%m-%d")
-            
-            # Generar recomendaciones
-            strategy = None
-            if "signals" in context and "options" in context["signals"]:
-                strategy = context["signals"]["options"]["strategy"]
-            
-            return {
-                "status": "success",
-                "data": {
-                    "symbol": symbol,
-                    "current_price": price,
-                    "option_type": option_type,
-                    "recommended_strike": round(strike, 2),
-                    "expirations": {
-                        "short": short_exp,
-                        "medium": medium_exp,
-                        "long": long_exp
-                    },
-                    "vix_level": vix,
-                    "strategy": strategy,
-                    "options_params": options_params
-                }
-            }
-        
-        return {"status": "error", "message": context.get("error", "Error analizando opciones")}
-        
-    except Exception as e:
-        logger.error(f"Error en analyze_options_strategy: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-# Definición de herramientas
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "analyze_technical",
-            "description": "Obtiene análisis técnico actualizado de un símbolo",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Símbolo a analizar (ej: AAPL, SPY, MSFT)"
-                    }
-                },
-                "required": ["symbol"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_multi_timeframe_analysis",
-            "description": "Análisis en múltiples timeframes de un símbolo",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Símbolo a analizar (ej: AAPL, SPY, MSFT)"
-                    }
-                },
-                "required": ["symbol"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "analyze_options_strategy",
-            "description": "Analiza estrategia de opciones para un símbolo",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "symbol": {
-                        "type": "string",
-                        "description": "Símbolo a analizar (ej: AAPL, SPY, MSFT)"
-                    },
-                    "direction": {
-                        "type": "string",
-                        "enum": ["CALL", "PUT", "NEUTRAL"],
-                        "description": "Dirección de la estrategia"
-                    },
-                    "option_type": {
-                        "type": "string",
-                        "enum": ["CALL", "PUT", "SPREAD", "IRON_CONDOR", "BUTTERFLY", "CALENDAR"],
-                        "description": "Tipo de opción o estrategia"
-                    }
-                },
-                "required": ["symbol"]
-            }
-        }
+    # Verificar si se puede acceder a APIs externas
+    api_endpoints = {
+        "Alpha Vantage": "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=demo",
+        "Yahoo Finance": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d",
+        "Finnhub": "https://finnhub.io/api/v1/quote?symbol=AAPL&token=demo",
     }
-]
 
-def process_chat_input(prompt, ASSISTANT_ID, symbol=None):
-    """Procesa la entrada del chat con contexto institucional"""
-    try:
-        if not symbol:
-            symbol = st.session_state.current_symbol
-            
-        if symbol:
-            # Obtener datos de contexto
-            with st.spinner("Analizando contexto de mercado..."):
-                context = get_market_context(symbol)
-            
-            # Crear un prompt enriquecido si tenemos contexto
-            if context and "error" not in context:
-                price = context.get("last_price", 0)
-                change = context.get("change", 0)
-                change_pct = context.get("change_percent", 0)
-                
-                # Extraer señal general
-                signal = "NEUTRAL"
-                confidence = "BAJA"
-                
-                if "signals" in context and "overall" in context["signals"]:
-                    signal = context["signals"]["overall"]["signal"].upper()
-                    confidence = context["signals"]["overall"]["confidence"].upper()
-                    
-                # Extraer señal de opciones
-                option_signal = "NEUTRAL"
-                strategy = "N/A"
-                    
-                if "signals" in context and "options" in context["signals"]:
-                    option_signal = context["signals"]["options"]["direction"]
-                    strategy = context["signals"]["options"]["strategy"]
-                
-                # Construir prompt con contexto
-                context_prompt = f"""
-                Consulta sobre {symbol} a ${price:.2f} ({'+' if change > 0 else ''}{change_pct:.2f}%):
-                
-                Señales técnicas actuales:
-                - Señal general: {signal} (Confianza: {confidence})
-                - Opciones: {option_signal} ({strategy})
-                - VIX: {context.get('vix_level', 'N/A')}
-                
-                Consulta del usuario: {prompt}
-                
-                Proporciona un análisis profesional y detallado, incluyendo:
-                1. Análisis técnico relevante
-                2. Estrategia de opciones si es apropiado
-                3. Gestión de riesgo personalizada
-                4. Timeframes recomendados
-                
-                Si compartes niveles específicos (entradas, stops, objetivos), asegúrate de que sean precisos y actualizados.
-                """
-            else:
-                # Sin contexto, usar prompt original
-                context_prompt = prompt
-        else:
-            # Sin símbolo seleccionado
-            context_prompt = prompt
+    for name, url in api_endpoints.items():
+        try:
+            response = requests.get(url, timeout=5)
+            status_code = response.status_code
+            apis_status[name] = {
+                "status": (
+                    "✅ Accesible" if status_code == 200 else f"⚠️ Error {status_code}"
+                ),
+                "response_time": f"{response.elapsed.total_seconds():.2f}s",
+            }
+        except Exception as e:
+            apis_status[name] = {"status": "❌ No accesible", "error": str(e)}
 
-        # Crear mensaje en el thread
-        thread_messages = openai.beta.threads.messages.create(
-            thread_id=st.session_state.thread_id,
-            role="user",
-            content=context_prompt
-        )
+    return apis_status
 
-        # Ejecutar con herramientas
-        run = openai.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id,
-            assistant_id=ASSISTANT_ID,
-            tools=tools
-        )
-        
-        # Monitorear la ejecución
-        with st.spinner("Analizando mercado y generando respuesta..."):
-            while True:
-                run = openai.beta.threads.runs.retrieve(
-                    thread_id=st.session_state.thread_id,
-                    run_id=run.id
-                )
-                
-                # Verificar estado de ejecución
-                if run.status == "completed":
-                    break
-                elif run.status == "requires_action":
-                    # Procesar llamadas a herramientas
-                    tool_outputs = process_tool_calls(
-                        run.required_action.submit_tool_outputs.tool_calls,
-                        symbol
-                    )
-                    
-                    # Enviar resultados
-                    run = openai.beta.threads.runs.submit_tool_outputs(
-                        thread_id=st.session_state.thread_id,
-                        run_id=run.id,
-                        tool_outputs=tool_outputs
-                    )
-                elif run.status in ["failed", "cancelled", "expired"]:
-                    return f"Error en la ejecución: {run.status}"
-                    
-                # Pequeña pausa para no sobrecargar la API
-                time.sleep(0.5)
-            
-            # Obtener mensajes actualizados
-            messages = openai.beta.threads.messages.list(
-                thread_id=st.session_state.thread_id
+
+def check_libraries():
+    """Verifica la disponibilidad de las bibliotecas necesarias"""
+    libraries = {
+        "pandas": "Análisis de datos",
+        "numpy": "Operaciones numéricas",
+        "yfinance": "Datos de Yahoo Finance",
+        "plotly": "Visualización",
+        "streamlit": "Interfaz de usuario",
+        "ta": "Indicadores técnicos",
+        "sklearn": "Machine Learning",
+        "scipy": "Cálculos científicos",
+        "statsmodels": "Análisis estadístico",
+        "requests": "API HTTP",
+        "pytz": "Zonas horarias",
+    }
+
+    libraries_status = {}
+
+    for lib, description in libraries.items():
+        try:
+            # Intentar importar la biblioteca
+            module = importlib.import_module(lib)
+            version = getattr(module, "__version__", "versión desconocida")
+            libraries_status[lib] = {
+                "status": "✅ Instalada",
+                "version": version,
+                "description": description,
+            }
+        except ImportError:
+            libraries_status[lib] = {
+                "status": "❌ No instalada",
+                "description": description,
+            }
+        except Exception as e:
+            libraries_status[lib] = {
+                "status": "⚠️ Error",
+                "error": str(e),
+                "description": description,
+            }
+
+    return libraries_status
+
+
+def display_system_status():
+    """Muestra el estado del sistema, APIs y librerías"""
+    st.header("🛠️ Estado del Sistema")
+
+    # Información del sistema
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Información del Sistema")
+        st.write(f"**Python versión:** {sys.version.split(' ')[0]}")
+        st.write(f"**Streamlit versión:** {st.__version__}")
+        st.write(f"**Fecha y hora:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    with col2:
+        st.subheader("Estado de la Caché")
+        try:
+            from market_utils import _data_cache
+
+            cache_stats = _data_cache.get_stats()
+            st.write(f"**Entradas en caché:** {cache_stats.get('entradas', 'N/A')}")
+            st.write(f"**Hit rate:** {cache_stats.get('hit_rate', 'N/A')}")
+            st.write(
+                f"**Hits/Misses:** {cache_stats.get('hits', 0)}/{cache_stats.get('misses', 0)}"
             )
-            
-            # Encontrar respuesta del asistente
-            for message in messages:
-                if message.run_id == run.id and message.role == "assistant":
-                    # Extraer texto de la respuesta
-                    if hasattr(message.content[0], 'text'):
-                        return message.content[0].text.value
-                    else:
-                        return "Error: Formato de respuesta no reconocido"
-                    
-        return "No se pudo obtener una respuesta del asistente."
-        
-    except Exception as e:
-        logger.error(f"Error procesando análisis: {str(e)}\n{traceback.format_exc()}")
-        return f"Error procesando la consulta: {str(e)}"
+        except Exception as e:
+            st.write("**Error accediendo a estadísticas de caché:**", str(e))
 
-#=================================================
-# FUNCIONES DE AUTENTICACIÓN Y SESIÓN
-#=================================================
+    # Estado de APIs
+    st.subheader("Estado de APIs")
+    apis_status = check_api_keys()
+
+    # Crear tabla de estados de API
+    api_data = []
+    for api, details in apis_status.items():
+        row = {"API/Key": api}
+        row.update(details)
+        api_data.append(row)
+
+    # Mostrar como dataframe
+    if api_data:
+        api_df = pd.DataFrame(api_data)
+        st.dataframe(api_df, use_container_width=True)
+    else:
+        st.warning("No se pudo obtener información de APIs")
+
+    # Estado de librerías
+    st.subheader("Estado de Librerías")
+    libraries_status = check_libraries()
+
+    # Crear tabla de estados de librerías
+    lib_data = []
+    for lib, details in libraries_status.items():
+        row = {"Librería": lib}
+        row.update(details)
+        lib_data.append(row)
+
+    # Mostrar como dataframe
+    if lib_data:
+        lib_df = pd.DataFrame(lib_data)
+        st.dataframe(lib_df, use_container_width=True)
+    else:
+        st.warning("No se pudo obtener información de librerías")
+
+    # Prueba de conexión a datos
+    st.subheader("Prueba de Datos")
+    try:
+        with st.spinner("Probando acceso a datos de mercado..."):
+            test_data = fetch_market_data("SPY", "2d")
+            if test_data is not None and not test_data.empty:
+                st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
+                st.dataframe(test_data.tail(3), use_container_width=True)
+            else:
+                st.error("❌ No se pudieron obtener datos para SPY")
+    except Exception as e:
+        st.error(f"❌ Error en prueba de datos: {str(e)}")
+
+
+# =================================================
+# FUNCIONES DE AUTENTICACIÓN Y SEGURIDAD
+# =================================================
+
 
 def check_authentication():
     """Verifica autenticación del usuario"""
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
-        
+
     if not st.session_state.authenticated:
-        st.title("🔒 InversorIA Pro - Acceso Institucional")
-        
-        st.markdown("""
+        st.title("🔒 InversorIA Pro - Terminal Institucional")
+
+        st.markdown(
+            """
         ### Plataforma Profesional de Trading
         
-        InversorIA Pro es una suite avanzada de trading que ofrece:
+        InversorIA Pro es una terminal avanzada de trading que ofrece:
         
         - 📊 Análisis técnico multi-timeframe
-        - 🎯 Trading de opciones y volatilidad
-        - 🤖 Estrategias sistemáticas
-        - ⚠️ Gestión de riesgo profesional
-        - 📈 Análisis cuantitativo
-        - 💹 Market making algorítmico
+        - 🎯 Estrategias de volatilidad y opciones
+        - 📈 Surface analytics y volatilidad implícita
+        - ⚠️ Gestión de riesgo institucional
+        - 🤖 Trading algorítmico
         
         #### Acceso Restringido
         Esta plataforma está diseñada para uso institucional y requiere autenticación.
-        """)
-        
+        """
+        )
+
         password = st.text_input("Ingrese su contraseña de acceso", type="password")
-        
+
         if st.button("Acceder"):
             if check_password(password):
                 st.session_state.authenticated = True
+                st.session_state.show_system_status = (
+                    True  # Mostrar status de sistema al iniciar sesión
+                )
                 st.rerun()
-            
+
         st.markdown("---")
-        st.markdown("© 2025 InversorIA Pro | Sistema de Trading Institucional")
-        
+        st.markdown("© 2025 InversorIA Pro | Plataforma Institucional de Trading")
+
         return False
-        
+
     if not validate_session():
         clear_session()
         st.rerun()
-        
+
     return True
+
+
+# =================================================
+# FUNCIONES DE ASISTENTE
+# =================================================
+
+
+def analyze_symbol(symbol, question=None):
+    """Analiza un símbolo y genera respuesta basada en datos"""
+    try:
+        context = get_market_context(symbol)
+        if context and "error" not in context:
+            # Extraer información relevante
+            price = context.get("last_price", 0)
+            change = context.get("change_percent", 0)
+            signals = context.get("signals", {})
+
+            # Determinar señal general
+            overall_signal = "NEUTRAL"
+            if "overall" in signals:
+                signal = signals["overall"]["signal"]
+                if signal in ["compra", "compra_fuerte"]:
+                    overall_signal = "ALCISTA"
+                elif signal in ["venta", "venta_fuerte"]:
+                    overall_signal = "BAJISTA"
+
+            # Determinar recomendación de opciones
+            option_signal = "NEUTRAL"
+            option_strategy = "N/A"
+            if "options" in signals:
+                option_signal = signals["options"]["direction"]
+                option_strategy = signals["options"]["strategy"]
+
+            # Analizar niveles clave
+            support_resistance = context.get("support_resistance", {})
+
+            # Construir respuesta
+            response = f"## Análisis de {symbol} a ${price:.2f} ({change:+.2f}%)\n\n"
+
+            # Señal general
+            response += f"### Señal General: {overall_signal}\n"
+            if "overall" in signals:
+                confidence = signals["overall"]["confidence"]
+                response += f"Confianza: {confidence}\n\n"
+
+            # Opciones
+            response += f"### Recomendación de Opciones: {option_signal}\n"
+            response += f"Estrategia: {option_strategy}\n\n"
+
+            # Niveles clave (primeros 2)
+            response += "### Niveles Clave\n"
+            if (
+                "resistances" in support_resistance
+                and support_resistance["resistances"]
+            ):
+                resistances = sorted(support_resistance["resistances"])[:2]
+                response += "**Resistencias:**\n"
+                for i, level in enumerate(resistances):
+                    distance = ((level / price) - 1) * 100
+                    response += f"- R{i+1}: ${level:.2f} ({distance:+.2f}%)\n"
+
+            if "supports" in support_resistance and support_resistance["supports"]:
+                supports = sorted(support_resistance["supports"], reverse=True)[:2]
+                response += "**Soportes:**\n"
+                for i, level in enumerate(supports):
+                    distance = ((level / price) - 1) * 100
+                    response += f"- S{i+1}: ${level:.2f} ({distance:+.2f}%)\n"
+
+            # Análisis de timeframes
+            response += "\n### Análisis Multi-Timeframe\n"
+            if (
+                "multi_timeframe" in context
+                and "consolidated" in context["multi_timeframe"]
+            ):
+                consolidated = context["multi_timeframe"]["consolidated"]
+                response += (
+                    f"Alineación: {consolidated.get('timeframe_alignment', 'N/A')}\n"
+                )
+                response += f"Dirección: {consolidated.get('options_recommendation', 'NEUTRAL')}\n\n"
+
+            # Responder a la pregunta específica si existe
+            if question:
+                response += f"\n### Respuesta a tu pregunta\n"
+
+                # Analizar pregunta para determinar respuesta
+                question_lower = question.lower()
+
+                if "tendencia" in question_lower or "dirección" in question_lower:
+                    response += (
+                        f"La tendencia actual de {symbol} es {overall_signal}.\n"
+                    )
+
+                    # Añadir detalle sobre la tendencia
+                    if "trend" in signals:
+                        trend = signals["trend"]
+                        response += f"- SMA 20-50: {trend.get('sma_20_50', 'N/A')}\n"
+                        response += f"- MACD: {trend.get('macd', 'N/A')}\n"
+                        response += (
+                            f"- Posición vs SMA 200: {trend.get('sma_200', 'N/A')}\n"
+                        )
+
+                elif (
+                    "opciones" in question_lower
+                    or "call" in question_lower
+                    or "put" in question_lower
+                ):
+                    response += f"Para {symbol}, se recomienda estrategia de **{option_signal}**.\n"
+
+                    # Detalles de la estrategia
+                    if "options" in signals:
+                        options = signals["options"]
+                        response += f"- Estrategia: {options.get('strategy', 'N/A')}\n"
+                        response += f"- Confianza: {options.get('confidence', 'N/A')}\n"
+                        response += f"- Timeframe: {options.get('timeframe', 'N/A')}\n"
+
+                    # Agregar parámetros específicos
+                    if "options_params" in context:
+                        params = context["options_params"]
+                        response += "\n**Parámetros recomendados:**\n"
+                        for param, value in params.items():
+                            response += f"- {param}: {value}\n"
+
+                elif "rsi" in question_lower or "momentum" in question_lower:
+                    if "momentum" in signals:
+                        momentum = signals["momentum"]
+                        rsi = momentum.get("rsi", 0)
+                        condition = momentum.get("rsi_condition", "N/A")
+
+                        response += f"El RSI actual de {symbol} es **{rsi:.1f}** ({condition}).\n"
+                        response += (
+                            f"Tendencia RSI: {momentum.get('rsi_trend', 'N/A')}\n"
+                        )
+
+                        if "stoch_k" in momentum and "stoch_d" in momentum:
+                            response += f"Estocástico: %K={momentum['stoch_k']:.1f}, %D={momentum['stoch_d']:.1f}\n"
+
+                elif (
+                    "soporte" in question_lower
+                    or "resistencia" in question_lower
+                    or "nivel" in question_lower
+                ):
+                    response += "**Niveles de soporte y resistencia principales:**\n\n"
+
+                    if (
+                        "resistances" in support_resistance
+                        and support_resistance["resistances"]
+                    ):
+                        resistances = sorted(support_resistance["resistances"])
+                        response += "Resistencias:\n"
+                        for i, level in enumerate(resistances):
+                            distance = ((level / price) - 1) * 100
+                            response += f"- R{i+1}: ${level:.2f} ({distance:+.2f}%)\n"
+
+                    if (
+                        "supports" in support_resistance
+                        and support_resistance["supports"]
+                    ):
+                        supports = sorted(support_resistance["supports"], reverse=True)
+                        response += "\nSoportes:\n"
+                        for i, level in enumerate(supports):
+                            distance = ((level / price) - 1) * 100
+                            response += f"- S{i+1}: ${level:.2f} ({distance:+.2f}%)\n"
+
+                elif "volatilidad" in question_lower or "vix" in question_lower:
+                    vix = context.get("vix_level", 0)
+                    vol_state = "ALTA" if vix > 25 else "BAJA" if vix < 15 else "NORMAL"
+
+                    response += (
+                        f"El VIX actual es **{vix:.2f}** (Volatilidad {vol_state}).\n\n"
+                    )
+
+                    if "volatility" in signals:
+                        volatility = signals["volatility"]
+                        response += f"- Estado de volatilidad: {volatility.get('volatility_state', 'N/A')}\n"
+                        response += f"- BB Width: {volatility.get('bb_width', 0):.3f}\n"
+                        response += f"- ATR: {volatility.get('atr', 0):.3f}\n"
+                        response += f"- Posición del precio: {volatility.get('price_position', 'N/A')}\n"
+
+                    # Añadir recomendaciones de ajuste para opciones
+                    if "volatility_adjustments" in context:
+                        adj = context["volatility_adjustments"]
+                        response += "\n**Ajustes recomendados:**\n"
+                        for adjustment in adj.get("adjustments", []):
+                            response += f"- {adjustment}\n"
+
+                else:
+                    # Respuesta general
+                    response += f"El análisis de {symbol} muestra una tendencia {overall_signal} con una señal de {option_signal} para opciones.\n\n"
+                    response += "Consulta las secciones anteriores para más detalles sobre el análisis técnico, niveles clave y estrategias recomendadas.\n"
+                    response += "Si necesitas información específica, puedes preguntar sobre tendencia, opciones, RSI, volatilidad o niveles de soporte/resistencia."
+
+            return response
+
+        else:
+            error_msg = (
+                context.get("error", "Error desconocido")
+                if context
+                else "No hay datos disponibles"
+            )
+            return f"❌ No se pudo analizar {symbol}: {error_msg}"
+
+    except Exception as e:
+        return f"❌ Error analizando {symbol}: {str(e)}"
+
+
+def process_chat_input(prompt, symbol=None):
+    """Procesa la entrada del chat con análisis para el símbolo actual"""
+    try:
+        if not symbol:
+            # Buscar si hay un ticker mencionado en el mensaje
+            words = prompt.split()
+            for word in words:
+                word = word.strip(",.?!").upper()
+                for category, symbols in SYMBOLS.items():
+                    if word in symbols:
+                        symbol = word
+                        break
+
+            if not symbol:
+                # Usar símbolo actual si existe
+                symbol = st.session_state.get("current_symbol", "SPY")
+
+        # Generar respuesta basada en el análisis
+        response = analyze_symbol(symbol, prompt)
+        return response
+
+    except Exception as e:
+        return f"Error procesando consulta: {str(e)}"
+
+
+# =================================================
+# FUNCIONES DE SESIÓN
+# =================================================
+
 
 def initialize_session_state():
     """Inicializa el estado de la sesión"""
-    # Estado para chat de OpenAI
-    if "thread_id" not in st.session_state:
-        thread = openai.beta.threads.create()
-        st.session_state.thread_id = thread.id
-
+    # Estado para chat
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     # Estado para activos seleccionados
     if "current_symbol" not in st.session_state:
         st.session_state.current_symbol = "SPY"
-        
+
     if "current_timeframe" not in st.session_state:
         st.session_state.current_timeframe = "1d"
-        
-    # Estado para escaneo de mercado
-    if "last_scan_time" not in st.session_state:
-        st.session_state.last_scan_time = datetime.now() - timedelta(hours=1)
-            
-    if "last_scan_sectors" not in st.session_state:
-        st.session_state.last_scan_sectors = ["Índices", "Tecnología"]
-            
-    if "scan_results" not in st.session_state:
-        st.session_state.scan_results = pd.DataFrame()
+
+    # Estado para sesión de usuario
+    if "session_start" not in st.session_state:
+        st.session_state.session_start = datetime.now()
+
+    # Comprobar APIs una sola vez al iniciar
+    if "show_system_status" not in st.session_state:
+        st.session_state.show_system_status = True
+
 
 def render_sidebar():
-    """Renderiza el panel de información profesional"""
+    """Renderiza el panel lateral con información profesional"""
     with st.sidebar:
         st.title("🧑‍💻 Trading Specialist Pro")
+
+        st.markdown(
+            """
+        ## Perfil Profesional
+        Analista técnico y estratega de mercados con especialización en derivados financieros y más de 8 años de experiencia en trading institucional. Experto en el desarrollo e implementación de estrategias cuantitativas, análisis de volatilidad y gestión de riesgo algorítmica.
+
+        ## Áreas de Especialización Principal
+        - Estrategias avanzadas de opciones y volatilidad
+        - Trading sistemático y algorítmico
+        - Análisis técnico y cuantitativo
+        - Gestión de riesgo dinámica
+        - Market Making y liquidez
+
+        ## Competencias Técnicas Avanzadas
+        - Modelado de volatilidad y superficies
+        - Análisis de flujo de opciones y order flow
+        - Desarrollo de indicadores propietarios
+        - Machine Learning aplicado a trading
+        - Análisis de microestructura de mercado
         
-        st.markdown("""
-        ### Especialidades:
-        - 📊 Análisis técnico avanzado
-        - 📈 Estrategias de volatilidad
-        - 🤖 Trading sistemático
-        - 🎯 Market making
-        - ⚠️ Risk management
-        
-        ### Certificaciones:
+        ## Certificaciones Profesionales
         - Chartered Market Technician (CMT)
         - Financial Risk Manager (FRM)
         - Chartered Financial Analyst (CFA)
-        
-        ### Tecnologías:
-        - Bloomberg Terminal
-        - Interactive Brokers TWS
-        - Python Quant Suite
-        - ML Trading Systems
-        """)
-        
+        - Series 7, 63, & 3 Licensed
+        """
+        )
+
         st.markdown("---")
-        
+
         # Información de mercado
         try:
             st.subheader("📊 Estado del Mercado")
-            
+
             # Obtener VIX
             vix_level = get_vix_level()
-            
+
             # Determinar sesión de mercado
-            ny_tz = pytz.timezone('America/New_York')
-            now = datetime.now(ny_tz)
-            
+            now = datetime.now()
+
             hour = now.hour
             weekday = now.weekday()
-            
+
             if weekday >= 5:  # Fin de semana
                 session = "CERRADO"
             elif 4 <= hour < 9:
@@ -561,357 +621,273 @@ def render_sidebar():
                 session = "AFTER-HOURS"
             else:
                 session = "CERRADO"
-                
+
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("VIX", f"{vix_level:.2f}", 
-                         delta="Volatilidad Alta" if vix_level > 25 else "Volatilidad Baja" if vix_level < 15 else "Normal",
-                         delta_color="inverse" if vix_level > 25 else "normal" if vix_level < 15 else "off")
+                st.metric(
+                    "VIX",
+                    f"{vix_level:.2f}",
+                    delta=(
+                        "Volatilidad Alta"
+                        if vix_level > 25
+                        else "Volatilidad Baja" if vix_level < 15 else "Normal"
+                    ),
+                    delta_color=(
+                        "inverse"
+                        if vix_level > 25
+                        else "normal" if vix_level < 15 else "off"
+                    ),
+                )
             with col2:
-                st.metric("Sesión NY", session, now.strftime("%H:%M:%S"))
-                
+                st.metric("Sesión", session, now.strftime("%H:%M:%S"))
+
             # Mercados principales como referencia
             try:
                 spy_data = fetch_market_data("SPY", "2d")
                 qqq_data = fetch_market_data("QQQ", "2d")
-                
+
                 if not spy_data.empty and not qqq_data.empty:
-                    spy_change = ((spy_data['Close'].iloc[-1] / spy_data['Close'].iloc[-2]) - 1) * 100
-                    qqq_change = ((qqq_data['Close'].iloc[-1] / qqq_data['Close'].iloc[-2]) - 1) * 100
-                    
+                    spy_change = (
+                        (spy_data["Close"].iloc[-1] / spy_data["Close"].iloc[-2]) - 1
+                    ) * 100
+                    qqq_change = (
+                        (qqq_data["Close"].iloc[-1] / qqq_data["Close"].iloc[-2]) - 1
+                    ) * 100
+
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric("S&P 500", f"${spy_data['Close'].iloc[-1]:.2f}", f"{spy_change:.2f}%",
-                                 delta_color="normal" if spy_change >= 0 else "inverse")
+                        st.metric(
+                            "S&P 500",
+                            f"${spy_data['Close'].iloc[-1]:.2f}",
+                            f"{spy_change:.2f}%",
+                            delta_color="normal" if spy_change >= 0 else "inverse",
+                        )
                     with col2:
-                        st.metric("NASDAQ", f"${qqq_data['Close'].iloc[-1]:.2f}", f"{qqq_change:.2f}%",
-                                 delta_color="normal" if qqq_change >= 0 else "inverse")
+                        st.metric(
+                            "NASDAQ",
+                            f"${qqq_data['Close'].iloc[-1]:.2f}",
+                            f"{qqq_change:.2f}%",
+                            delta_color="normal" if qqq_change >= 0 else "inverse",
+                        )
             except Exception as e:
-                st.warning("No se pudieron cargar datos de mercado de referencia")
-                
+                st.warning("No se pudieron cargar datos de referencia")
+
         except Exception as ex:
             st.warning("No se pudo obtener información de mercado")
-            
+
         st.markdown("---")
-        
-        # Acciones rápidas de sistema
-        st.subheader("⚙️ Acciones del Sistema")
-        
+
+        # Acciones rápidas
+        st.subheader("⚙️ Acciones")
+
         col1, col2 = st.columns(2)
+
         with col1:
-            if st.button("🔄 Limpiar Caché", help="Limpiar caché de datos para obtener información fresca", use_container_width=True):
+            if st.button(
+                "🔄 Limpiar Caché",
+                help="Limpiar caché de datos para obtener información actualizada",
+                use_container_width=True,
+            ):
                 cleared = clear_cache()
                 st.success(f"Caché limpiado: {cleared} entradas eliminadas")
                 time.sleep(1)
                 st.rerun()
-                
+
+            if st.button(
+                "🖥️ Estado Sistema",
+                help="Mostrar estado del sistema, APIs y librerías",
+                use_container_width=True,
+            ):
+                st.session_state.show_system_status = True
+                st.rerun()
+
         with col2:
-            if st.button("🔒 Cerrar Sesión", help="Cerrar sesión actual", use_container_width=True):
+            if st.button(
+                "🧹 Limpiar Chat",
+                help="Borrar historial de chat",
+                use_container_width=True,
+            ):
+                st.session_state.messages = []
+                st.rerun()
+
+            # Botón de cierre de sesión
+            if st.button(
+                "🔒 Cerrar Sesión",
+                help="Cerrar sesión actual",
+                use_container_width=True,
+            ):
                 clear_session()
                 st.rerun()
-                
+
+        # Información de sesión
         st.markdown("---")
-        st.caption("InversorIA Pro v2.0 | © 2025")
+        if "session_start" in st.session_state:
+            session_duration = datetime.now() - st.session_state.session_start
+            hours, remainder = divmod(session_duration.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            st.caption(f"Sesión activa: {hours}h {minutes}m {seconds}s")
 
-def get_market_status():
-    """Obtiene el estado actual del mercado"""
-    try:
-        # Determinar sesión de mercado
-        ny_tz = pytz.timezone('America/New_York')
-        now = datetime.now(ny_tz)
-        
-        hour = now.hour
-        weekday = now.weekday()
-        
-        if weekday >= 5:  # Fin de semana
-            session = "CERRADO"
-        elif 4 <= hour < 9:
-            session = "PRE-MARKET"
-        elif 9 <= hour < 16:
-            session = "REGULAR"
-        elif 16 <= hour < 20:
-            session = "AFTER-HOURS"
-        else:
-            session = "CERRADO"
-            
-        # Calcular próxima actualización
-        next_update = "N/A"
-        if hasattr(st.session_state, 'last_scan_time') and st.session_state.last_scan_time is not None:
-            next_update = (st.session_state.last_scan_time + timedelta(minutes=5)).strftime("%H:%M:%S")
-            
-        return {
-            "time": now.strftime("%H:%M:%S"),
-            "session": session,
-            "day": now.strftime("%d/%m/%Y"),
-            "next_update": next_update
-        }
-        
-    except Exception as e:
-        logger.error(f"Error obteniendo estado del mercado: {str(e)}")
-        return {
-            "time": datetime.now().strftime("%H:%M:%S"),
-            "session": "ERROR",
-            "day": datetime.now().strftime("%d/%m/%Y"),
-            "next_update": "N/A"
-        }
+        st.caption("InversorIA Pro v1.0 | © 2025")
 
-#=================================================
+
+# =================================================
 # FUNCIÓN PRINCIPAL
-#=================================================
+# =================================================
+
 
 def main():
     """Función principal de la aplicación"""
     try:
-        # 1. Verificar autenticación
+        # Verificar autenticación primero
         if not check_authentication():
             return
-            
-        # 2. Inicialización de componentes
+
+        # Inicialización para usuario autenticado
         initialize_session_state()
-        ASSISTANT_ID = setup_openai()
+
+        # Mostrar el estado del sistema al iniciar sesión y luego desactivarlo
+        if st.session_state.get("show_system_status", False):
+            display_system_status()
+            # Botón para cerrar el panel de estado
+            if st.button("Continuar al Dashboard", use_container_width=True):
+                st.session_state.show_system_status = False
+                st.rerun()
+            return
+
+        # Renderizar sidebar después de mostrar el estado del sistema
         render_sidebar()
 
-        # 3. Panel superior: Trading Dashboard
+        # Panel principal
+        st.title("💹 Análisis Profesional de Trading")
+
+        # Selección de activo
+        col_cat, col_sym, col_tf = st.columns([1, 1, 1])
+        with col_cat:
+            category = st.selectbox(
+                "Sector", list(SYMBOLS.keys()), key="category_selector"
+            )
+        with col_sym:
+            symbol = st.selectbox("Activo", SYMBOLS[category], key="symbol_selector")
+        with col_tf:
+            timeframe = st.selectbox(
+                "Timeframe",
+                ["1d", "1wk", "1mo"],
+                key="timeframe_selector",
+                index=["1d", "1wk", "1mo"].index(st.session_state.current_timeframe),
+            )
+
+        # Actualizar símbolo actual si cambia
+        if symbol != st.session_state.current_symbol:
+            st.session_state.current_symbol = symbol
+
+        # Actualizar timeframe si cambia
+        if timeframe != st.session_state.current_timeframe:
+            st.session_state.current_timeframe = timeframe
+
+        # Panel de Contenido y Chat
         col1, col2 = st.columns([2, 1])
-        
+
+        # Panel de Dashboard en columna 1
         with col1:
-            st.title("💹 Professional Trading Suite")
+            # Pestañas para diferentes vistas
+            tab1, tab2, tab3 = st.tabs(
+                ["📈 Análisis Técnico", "🎯 Opciones", "⏱️ Multi-Timeframe"]
+            )
 
-            # Selección de activo
-            col_cat, col_sym = st.columns(2)
-            with col_cat:
-                category = st.selectbox("Sector", list(SYMBOLS.keys()), key="category_selector")
-            with col_sym:
-                symbol = st.selectbox("Activo", SYMBOLS[category], key="symbol_selector")
+            with tab1:
+                render_technical_tab(symbol, timeframe)
 
-            # Actualizar símbolo actual si cambia
-            if symbol != st.session_state.current_symbol:
-                st.session_state.current_symbol = symbol
-                
-                # Limpiar mensajes anteriores si cambia el símbolo
-                if "messages" in st.session_state:
-                    st.session_state.messages = []
-                
-                # Crear nuevo thread
-                thread = openai.beta.threads.create()
-                st.session_state.thread_id = thread.id
+            with tab2:
+                render_options_tab(symbol)
 
-            # Renderizar dashboard principal
-            render_dashboard(symbol, st.session_state.current_timeframe)
+            with tab3:
+                render_multiframe_tab(symbol)
 
-        # 4. Panel lateral: Asistente de Trading
+        # Panel de Chat en columna 2
         with col2:
-            st.title("💬 Trading Specialist")
-            
-            # 4.1 Panel de contexto actual
-            if st.session_state.current_symbol:
-                # Información actual del activo
-                try:
-                    with st.spinner(f"Obteniendo datos actualizados de {st.session_state.current_symbol}..."):
-                        context = get_market_context(st.session_state.current_symbol)
-                    
-                    if context and "error" not in context:
-                        # Extraer información clave
-                        price = context.get("last_price", 0)
-                        change = context.get("change", 0)
-                        change_pct = context.get("change_percent", 0)
-                        vix = context.get("vix_level", 0)
-                        
-                        # Mostrar tarjeta de información
-                        st.markdown(f"""
-                        <div style="
-                            background-color: rgba(100, 100, 100, 0.2);
-                            border-radius: 10px;
-                            padding: 15px;
-                            margin-bottom: 20px;">
-                            <h3 style="margin-top: 0;">{st.session_state.current_symbol}</h3>
-                            <h2 style="margin: 5px 0;">${price:.2f} <span style="color: {'green' if change >= 0 else 'red'}">
-                                {'+' if change >= 0 else ''}{change_pct:.2f}%
-                            </span></h2>
-                            <p style="margin: 5px 0;">VIX: {vix:.2f} | Volatilidad: {
-                                '<span style="color: red;">ALTA</span>' if vix > 25 else 
-                                '<span style="color: green;">BAJA</span>' if vix < 15 else
-                                '<span style="color: yellow;">NORMAL</span>'
-                            }</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Mostrar señal principal
-                        if "signals" in context and "options" in context["signals"]:
-                            options_signal = context["signals"]["options"]
-                            direction = options_signal["direction"]
-                            confidence = options_signal["confidence"]
-                            strategy = options_signal["strategy"]
-                            
-                            # Color según dirección
-                            bg_color = "rgba(38, 166, 154, 0.2)" if direction == "CALL" else \
-                                      "rgba(239, 83, 80, 0.2)" if direction == "PUT" else \
-                                      "rgba(255, 255, 255, 0.1)"
-                            
-                            st.markdown(f"""
-                            <div style="
-                                background-color: {bg_color};
-                                border-radius: 10px;
-                                padding: 15px;
-                                margin-bottom: 20px;
-                                text-align: center;">
-                                <h3 style="margin: 0;">Señal: {direction}</h3>
-                                <p style="margin: 5px 0;">
-                                    <strong>Confianza:</strong> {confidence}<br>
-                                    <strong>Estrategia:</strong> {strategy}
-                                </p>
-                            </div>
-                            """, unsafe_allow_html=True)
-                    else:
-                        st.warning(f"No se pudieron obtener datos para {st.session_state.current_symbol}")
-                        
-                except Exception as e:
-                    st.error(f"Error procesando datos: {str(e)}")
-                
-                # Panel de capacidades del asistente
-                with st.expander("ℹ️ Capacidades del Asistente", expanded=False):
-                    st.markdown("""
-                    ### Capacidades del Trading Specialist
-                    
-                    - **Análisis Técnico**: Patrones avanzados, indicadores, niveles clave
-                    - **Estrategias de Opciones**: Recomendaciones CALL/PUT, estrategias multi-pata
-                    - **Multi-Timeframe**: Análisis de timeframes múltiples y divergencias
-                    - **Gestión de Riesgo**: Tamaño de posición, R:R, escenarios
-                    - **Trading Cuantitativo**: Volatilidad, Greeks, backtesting
-                    
-                    ### Ejemplos de Consultas:
-                    
-                    - "¿Cuál es el análisis técnico actual para AAPL?"
-                    - "Recomienda una estrategia de opciones para TSLA"
-                    - "Análisis multi-timeframe para SPY"
-                    - "Calcula el tamaño de posición para un trade con 2% de riesgo"
-                    - "Explica el patrón de velas japonesas en este gráfico"
-                    """)
-            
-            # 4.2 Chat con el asistente
-            chat_container = st.container(height=400, border=False)
-            
+            st.header("💬 Trading Specialist")
+
+            # Mostrar tarjeta de contexto
+            from market_utils import get_market_context
+
+            context = get_market_context(symbol)
+
+            if context and "error" not in context:
+                price = context.get("last_price", 0)
+                change = context.get("change_percent", 0)
+                signals = context.get("signals", {})
+
+                # Determinar señal de opciones
+                option_signal = "NEUTRAL"
+                option_strategy = "N/A"
+                if "options" in signals:
+                    option_signal = signals["options"]["direction"]
+                    option_strategy = signals["options"]["strategy"]
+
+                # Colores dinámicos según señal
+                signal_color = "gray"
+                if option_signal == "CALL":
+                    signal_color = "green"
+                elif option_signal == "PUT":
+                    signal_color = "red"
+
+                # Mostrar tarjeta con contexto actual
+                st.markdown(
+                    f"""
+                <div style="background-color:rgba(70,70,70,0.2);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
+                <h3 style="margin-top:0">{symbol} ${price:.2f} <span style="color:{'green' if change >= 0 else 'red'}">{change:+.2f}%</span></h3>
+                <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
+                <p><strong>VIX:</strong> {context.get('vix_level', 'N/A')} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
+            # Contenedor para mensajes de chat
+            chat_container = st.container(height=500)
+
             with chat_container:
+                # Mostrar mensajes existentes
                 for message in st.session_state.messages:
                     with st.chat_message(message["role"]):
                         st.markdown(message["content"])
 
-                if prompt := st.chat_input("¿Qué deseas analizar?"):
-                    st.session_state.messages.append({"role": "user", "content": prompt})
+                # Campo de entrada para nuevos mensajes
+                if prompt := st.chat_input("Pregunta sobre análisis o trading..."):
+                    # Agregar mensaje del usuario
+                    st.session_state.messages.append(
+                        {"role": "user", "content": prompt}
+                    )
+
                     with st.chat_message("user"):
                         st.markdown(prompt)
 
+                    # Generar y mostrar respuesta
                     with st.spinner("Analizando..."):
-                        response = process_chat_input(prompt, ASSISTANT_ID)
-                        
-                    if response:
-                        st.session_state.messages.append({"role": "assistant", "content": response})
-                        with st.chat_message("assistant"):
-                            st.markdown(response)
-            
-            # 4.3 Acciones de chat
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🗑️ Limpiar Chat", use_container_width=True):
-                    # Crear nuevo thread
-                    thread = openai.beta.threads.create()
-                    st.session_state.thread_id = thread.id
-                    
-                    # Limpiar mensajes
-                    st.session_state.messages = []
-                    st.rerun()
-            
-            with col2:
-                if st.button("📋 Exportar Análisis", use_container_width=True):
-                    try:
-                        # Crear contenido de exportación
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"analisis_{st.session_state.current_symbol}_{timestamp}.txt"
-                        
-                        export_content = []
-                        export_content.append(f"=== ANÁLISIS DE {st.session_state.current_symbol} ===")
-                        export_content.append(f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                        export_content.append("")
-                        
-                        # Añadir contexto actual
-                        try:
-                            context = get_market_context(st.session_state.current_symbol)
-                            if context and "error" not in context:
-                                export_content.append(f"Precio: ${context['last_price']:.2f}")
-                                export_content.append(f"Cambio: {context['change_percent']:.2f}%")
-                                export_content.append(f"VIX: {context['vix_level']:.2f}")
-                                export_content.append("")
-                                
-                                # Añadir señales
-                                if "signals" in context and "overall" in context["signals"]:
-                                    overall = context["signals"]["overall"]
-                                    export_content.append(f"Señal General: {overall['signal']} (Confianza: {overall['confidence']})")
-                                
-                                if "signals" in context and "options" in context["signals"]:
-                                    options = context["signals"]["options"]
-                                    export_content.append(f"Señal Opciones: {options['direction']} (Estrategia: {options['strategy']})")
-                                    
-                                export_content.append("")
-                        except Exception as ex:
-                            export_content.append("Error obteniendo contexto de mercado")
-                            
-                        # Añadir conversación
-                        export_content.append("=== CONVERSACIÓN ===")
-                        for msg in st.session_state.messages:
-                            export_content.append(f"[{msg['role'].upper()}]")
-                            export_content.append(msg["content"])
-                            export_content.append("")
-                            
-                        # Añadir disclaimer
-                        export_content.append("=== DISCLAIMER ===")
-                        export_content.append("Este análisis es generado automáticamente y no constituye asesoramiento financiero.")
-                        export_content.append("Los datos son solo para fines informativos y educativos.")
-                        export_content.append("Trading conlleva riesgo de pérdida. Realice su propia investigación.")
-                        
-                        # Unir todo el contenido
-                        full_content = "\n".join(export_content)
-                        
-                        # Crear botón de descarga
-                        st.download_button(
-                            label="📥 Descargar",
-                            data=full_content,
-                            file_name=filename,
-                            mime="text/plain",
-                            use_container_width=True
-                        )
-                        
-                    except Exception as e:
-                        st.error(f"Error exportando análisis: {str(e)}")
-            
-            # 4.4 Pie de página
+                        response = process_chat_input(prompt, symbol)
+
+                    # Agregar respuesta del asistente
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": response}
+                    )
+
+                    with st.chat_message("assistant"):
+                        st.markdown(response)
+
+            # Disclaimer
             st.markdown("---")
-            st.caption("""
-            **⚠️ Disclaimer:** Este sistema proporciona análisis técnico y asistencia de trading
-            para fines informativos únicamente. No constituye asesoramiento financiero ni garantiza
-            resultados específicos. El trading conlleva riesgo de pérdida sustancial.
-            """)
+            st.caption(
+                """
+            **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
+            para fines informativos únicamente. No constituye asesoramiento financiero 
+            ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
+            """
+            )
 
     except Exception as e:
-        logger.error(f"Error en aplicación principal: {str(e)}\n{traceback.format_exc()}")
-        st.error(f"""
-        ⚠️ Error en la aplicación: {str(e)}
-        
-        Por favor, intente lo siguiente:
-        1. Recargar la página
-        2. Limpiar la caché (botón en el panel lateral)
-        3. Cerrar sesión y volver a iniciar
-        
-        Si el problema persiste, contacte al soporte técnico.
-        """)
+        st.error(f"Error en la aplicación: {str(e)}")
+        st.error(traceback.format_exc())
+
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.error(f"Error crítico: {str(e)}\n{traceback.format_exc()}")
-        st.error(f"""
-        ⚠️ Error crítico: {str(e)}
-        
-        La aplicación ha encontrado un error inesperado.
-        Por favor, recargue la página o contacte al soporte técnico.
-        """)
+    main()
