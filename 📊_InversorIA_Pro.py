@@ -2897,7 +2897,6 @@ def analyze_market_data(symbol, timeframe="1d", period="6mo", indicators=True):
         logger.error(f"Error general analizando datos de mercado para {symbol}: {str(e)}")
         return None
 
-
 def render_enhanced_dashboard(symbol, timeframe="1d"):
     """Renderiza un dashboard mejorado con análisis técnico avanzado y manejo de fallos"""
     # Obtener información del activo (nombre completo, sector, etc.)
@@ -2971,83 +2970,99 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         # Mostrar detalles de indicadores
         with st.expander("📊 Detalles de Indicadores"):
             if data is not None and not data.empty and len(data) > 0:
-                last_row = data.iloc[-1]
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown("#### Momentum")
-                    if "RSI" in data.columns and last_row["RSI"] is not None:
-                        rsi = last_row["RSI"]
-                        rsi_status = "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral"
-                        st.metric("RSI", f"{rsi:.2f}", rsi_status)
-                    else:
-                        st.metric("RSI", "N/A", "Sin datos")
+                try:
+                    last_row = data.iloc[-1]
                     
-                    if "STOCH_K" in data.columns and "STOCH_D" in data.columns and last_row["STOCH_K"] is not None and last_row["STOCH_D"] is not None:
-                        st.metric("Estocástico", 
-                                f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
-                    else:
-                        st.metric("Estocástico", "N/A")
+                    col1, col2, col3 = st.columns(3)
                     
-                    if "CCI" in data.columns and last_row["CCI"] is not None:
-                        st.metric("CCI", f"{last_row['CCI']:.2f}")
-                    else:
-                        st.metric("CCI", "N/A")
-                
-                with col2:
-                    st.markdown("#### Tendencia")
-                    if ("SMA_20" in data.columns and "SMA_50" in data.columns and 
-                        last_row["SMA_20"] is not None and last_row["SMA_50"] is not None):
-                        sma_20 = last_row["SMA_20"]
-                        sma_50 = last_row["SMA_50"]
-                        sma_diff = ((sma_20 / sma_50) - 1) * 100
-                        st.metric("SMA 20/50", f"{sma_diff:+.2f}%", 
-                                "Alcista" if sma_diff > 0 else "Bajista")
-                    else:
-                        st.metric("SMA 20/50", "N/A")
-                    
-                    if ("MACD" in data.columns and "MACD_Signal" in data.columns and 
-                        last_row["MACD"] is not None and last_row["MACD_Signal"] is not None):
-                        macd = last_row["MACD"]
-                        macd_signal = last_row["MACD_Signal"]
-                        macd_hist = macd - macd_signal
-                        st.metric("MACD Hist", f"{macd_hist:.3f}", 
-                                "Alcista" if macd_hist > 0 else "Bajista")
-                    else:
-                        st.metric("MACD Hist", "N/A")
-                    
-                    if "SMA_200" in data.columns and "Close" in data.columns and last_row["SMA_200"] is not None:
-                        price = last_row["Close"]
-                        sma_200 = last_row["SMA_200"]
-                        price_vs_sma = ((price / sma_200) - 1) * 100
-                        st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
-                                "Por encima" if price_vs_sma > 0 else "Por debajo")
-                    else:
-                        st.metric("Precio vs SMA200", "N/A")
-                
-                with col3:
-                    st.markdown("#### Volatilidad")
-                    if "BB_Width" in data.columns and last_row["BB_Width"] is not None:
-                        st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
-                    else:
-                        st.metric("Ancho BB", "N/A")
-                    
-                    if "ATR" in data.columns and last_row["ATR"] is not None:
-                        st.metric("ATR", f"{last_row['ATR']:.3f}")
-                    else:
-                        st.metric("ATR", "N/A")
+                    with col1:
+                        st.markdown("#### Momentum")
+                        # Verificar que RSI existe y no es None antes de formatear
+                        if "RSI" in data.columns and last_row["RSI"] is not None:
+                            rsi = last_row["RSI"]
+                            rsi_status = "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral"
+                            st.metric("RSI", f"{rsi:.2f}", rsi_status)
+                        else:
+                            st.metric("RSI", "N/A", "Sin datos")
                         
-                    # ATR como porcentaje del precio
-                    if ("ATR" in data.columns and "Close" in data.columns and 
-                        last_row["ATR"] is not None and last_row["Close"] is not None and last_row["Close"] > 0):
-                        atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
-                        st.metric("ATR %", f"{atr_pct:.2f}%")
-                    else:
-                        st.metric("ATR %", "N/A")
+                        # Manejar valores nulos para estocástico
+                        if ("STOCH_K" in data.columns and "STOCH_D" in data.columns and 
+                            last_row["STOCH_K"] is not None and last_row["STOCH_D"] is not None):
+                            st.metric("Estocástico", 
+                                    f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
+                        else:
+                            st.metric("Estocástico", "N/A")
+                        
+                        # Manejar valores nulos para CCI
+                        if "CCI" in data.columns and last_row["CCI"] is not None:
+                            st.metric("CCI", f"{last_row['CCI']:.2f}")
+                        else:
+                            st.metric("CCI", "N/A")
+                    
+                    with col2:
+                        st.markdown("#### Tendencia")
+                        # Verificar valores nulos para SMA
+                        if ("SMA_20" in data.columns and "SMA_50" in data.columns and 
+                            last_row["SMA_20"] is not None and last_row["SMA_50"] is not None):
+                            sma_20 = last_row["SMA_20"]
+                            sma_50 = last_row["SMA_50"]
+                            sma_diff = ((sma_20 / sma_50) - 1) * 100
+                            st.metric("SMA 20/50", f"{sma_diff:+.2f}%", 
+                                    "Alcista" if sma_diff > 0 else "Bajista")
+                        else:
+                            st.metric("SMA 20/50", "N/A")
+                        
+                        # Verificar valores nulos para MACD
+                        if ("MACD" in data.columns and "MACD_Signal" in data.columns and 
+                            last_row["MACD"] is not None and last_row["MACD_Signal"] is not None):
+                            macd = last_row["MACD"]
+                            macd_signal = last_row["MACD_Signal"]
+                            macd_hist = macd - macd_signal
+                            st.metric("MACD Hist", f"{macd_hist:.3f}", 
+                                    "Alcista" if macd_hist > 0 else "Bajista")
+                        else:
+                            st.metric("MACD Hist", "N/A")
+                        
+                        # Verificar valores nulos para SMA_200
+                        if ("SMA_200" in data.columns and "Close" in data.columns and 
+                            last_row["SMA_200"] is not None and last_row["Close"] is not None):
+                            price = last_row["Close"]
+                            sma_200 = last_row["SMA_200"]
+                            price_vs_sma = ((price / sma_200) - 1) * 100
+                            st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
+                                    "Por encima" if price_vs_sma > 0 else "Por debajo")
+                        else:
+                            st.metric("Precio vs SMA200", "N/A")
+                    
+                    with col3:
+                        st.markdown("#### Volatilidad")
+                        # Verificar valores nulos para BB_Width
+                        if "BB_Width" in data.columns and last_row["BB_Width"] is not None:
+                            st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
+                        else:
+                            st.metric("Ancho BB", "N/A")
+                        
+                        # Verificar valores nulos para ATR
+                        if "ATR" in data.columns and last_row["ATR"] is not None:
+                            st.metric("ATR", f"{last_row['ATR']:.3f}")
+                        else:
+                            st.metric("ATR", "N/A")
+                            
+                        # Verificar valores nulos para ATR como porcentaje
+                        if ("ATR" in data.columns and "Close" in data.columns and 
+                            last_row["ATR"] is not None and last_row["Close"] is not None and 
+                            last_row["Close"] > 0):
+                            atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
+                            st.metric("ATR %", f"{atr_pct:.2f}%")
+                        else:
+                            st.metric("ATR %", "N/A")
+                except Exception as e:
+                    logger.error(f"Error mostrando detalles de indicadores: {str(e)}")
+                    st.error(f"Error al mostrar indicadores técnicos: {str(e)}")
             else:
                 st.info("No hay datos disponibles para mostrar indicadores técnicos.")    
 
+    # Código para la pestaña de opciones
     with tab2:
         # Obtener datos de opciones
         option_data = context.get("options", {}) if context and "error" not in context else {}
@@ -3065,13 +3080,18 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         # Mostrar análisis de opciones
         display_options_analysis(symbol, combined_options)
 
-        # Mostrar superficie de volatilidad
-        st.markdown("### 📊 Superficie de Volatilidad")
-
-        # Datos de ejemplo para la superficie de volatilidad
         try:
-            # Crear datos para la superficie
-            price = last_row["Close"] if data is not None and not data.empty else 100
+            # Mostrar superficie de volatilidad
+            st.markdown("### 📊 Superficie de Volatilidad")
+
+            # Datos de ejemplo para la superficie de volatilidad
+            if data is not None and not data.empty:
+                # Asegurarse de que last_row existe y tiene Close
+                last_row = data.iloc[-1] if not data.empty else None
+                price = last_row["Close"] if last_row is not None and "Close" in last_row else 100
+            else:
+                price = 100  # Valor por defecto si no hay datos
+
             strikes = np.linspace(price * 0.8, price * 1.2, 11)
             expirations = [30, 60, 90, 180, 270]
 
@@ -3114,6 +3134,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
 
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
+            logger.error(f"Error creando superficie de volatilidad: {str(e)}")
             st.warning(f"No se pudo generar la superficie de volatilidad: {str(e)}")
 
         # Mostrar estrategias de opciones
@@ -3231,16 +3252,20 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
 
             with col2:
                 st.markdown("#### Strikes")
-                if data is not None and not data.empty:
-                    current_price = data["Close"].iloc[-1]
-                    if recommendation == "CALL":
-                        strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 1.05:.2f} (5% OTM)"
-                    elif recommendation == "PUT":
-                        strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 0.95:.2f} (5% OTM)"
+                try:
+                    if data is not None and not data.empty:
+                        current_price = data["Close"].iloc[-1]
+                        if recommendation == "CALL":
+                            strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 1.05:.2f} (5% OTM)"
+                        elif recommendation == "PUT":
+                            strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 0.95:.2f} (5% OTM)"
+                        else:
+                            strikes = f"Put spread: ${current_price * 0.90:.2f}-${current_price * 0.95:.2f}\nCall spread: ${current_price * 1.05:.2f}-${current_price * 1.10:.2f}"
                     else:
-                        strikes = f"Put spread: ${current_price * 0.90:.2f}-${current_price * 0.95:.2f}\nCall spread: ${current_price * 1.05:.2f}-${current_price * 1.10:.2f}"
-                else:
-                    strikes = "No se pueden calcular sin precio actual"
+                        strikes = "No se pueden calcular sin precio actual"
+                except Exception as e:
+                    logger.error(f"Error calculando strikes: {str(e)}")
+                    strikes = "Error calculando strikes"
 
                 st.info("Recomendados:")
                 st.text(strikes)
@@ -3250,6 +3275,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 st.info("Tamaño de posición: 2-3% del capital")
                 st.text(f"Stop loss: -50% del valor de la posición\nTake profit: 25-30% del beneficio máximo potencial")
 
+    # Código para la pestaña Multi-Timeframe
     with tab3:
         st.markdown("### ⚙️ Análisis Multi-Timeframe")
 
@@ -3262,79 +3288,89 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         multi_timeframe_data = {}
 
         for i, (tf, label) in enumerate(zip(timeframes, labels)):
-            # Obtener datos para este timeframe
-            tf_data = analyze_market_data(symbol, tf, "1y")
-            multi_timeframe_data[tf] = tf_data
+            try:
+                # Obtener datos para este timeframe
+                tf_data = analyze_market_data(symbol, tf, "1y")
+                multi_timeframe_data[tf] = tf_data
 
-            if tf_data is not None and not tf_data.empty:
-                last_row = tf_data.iloc[-1]
+                if tf_data is not None and not tf_data.empty:
+                    last_row = tf_data.iloc[-1]
 
-                # Determinar señal basada en indicadores
-                rsi = last_row.get("RSI")
-                macd = last_row.get("MACD")
-                macd_signal = last_row.get("MACD_Signal")
-                sma_20 = last_row.get("SMA_20")
-                sma_50 = last_row.get("SMA_50")
+                    # Determinar señal basada en indicadores
+                    rsi = last_row.get("RSI")
+                    macd = last_row.get("MACD")
+                    macd_signal = last_row.get("MACD_Signal")
+                    sma_20 = last_row.get("SMA_20")
+                    sma_50 = last_row.get("SMA_50")
 
-                # Inicializar señales
-                momentum = "Neutral"
-                trend = "Neutral"
+                    # Inicializar señales
+                    momentum = "Neutral"
+                    trend = "Neutral"
 
-                # Determinar momentum
-                if rsi is not None:
-                    if rsi > 70:
-                        momentum = "Sobrecompra"
-                    elif rsi < 30:
-                        momentum = "Sobreventa"
+                    # Determinar momentum
+                    if rsi is not None:
+                        if rsi > 70:
+                            momentum = "Sobrecompra"
+                        elif rsi < 30:
+                            momentum = "Sobreventa"
 
-                # Determinar tendencia
-                if macd is not None and macd_signal is not None:
-                    trend = "Alcista" if macd > macd_signal else "Bajista"
+                    # Determinar tendencia
+                    if macd is not None and macd_signal is not None:
+                        trend = "Alcista" if macd > macd_signal else "Bajista"
 
-                # Determinar señal general
-                if sma_20 is not None and sma_50 is not None:
-                    sma_cross = "Alcista" if sma_20 > sma_50 else "Bajista"
-                else:
-                    sma_cross = "N/A"
-
-                # Mostrar en columna
-                with [col1, col2, col3][i]:
-                    st.markdown(f"#### {label}")
-
-                    # Color para la señal general
-                    if trend == "Alcista" and momentum != "Sobrecompra":
-                        signal_color = "#4CAF50"  # Verde
-                        signal = "ALCISTA"
-                    elif trend == "Bajista" and momentum != "Sobreventa":
-                        signal_color = "#F44336"  # Rojo
-                        signal = "BAJISTA"
+                    # Determinar señal general
+                    if sma_20 is not None and sma_50 is not None:
+                        sma_cross = "Alcista" if sma_20 > sma_50 else "Bajista"
                     else:
-                        signal_color = "#9E9E9E"  # Gris
-                        signal = "NEUTRAL"
+                        sma_cross = "N/A"
 
-                    # Mostrar señal principal
-                    st.markdown(
-                        f"""
-                        <div style="background-color: {signal_color}33; padding: 0.5rem; border-radius: 0.5rem; text-align: center; margin-bottom: 0.5rem;">
-                            <div style="font-size: 1.25rem; font-weight: 700; color: {signal_color};">{signal}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    # Mostrar en columna
+                    with [col1, col2, col3][i]:
+                        st.markdown(f"#### {label}")
 
-                    # Mostrar indicadores
-                    st.markdown(f"**RSI:** {rsi:.1f} ({momentum})")
-                    st.markdown(f"**MACD:** {trend}")
-                    st.markdown(f"**SMA Cross:** {sma_cross}")
+                        # Color para la señal general
+                        if trend == "Alcista" and momentum != "Sobrecompra":
+                            signal_color = "#4CAF50"  # Verde
+                            signal = "ALCISTA"
+                        elif trend == "Bajista" and momentum != "Sobreventa":
+                            signal_color = "#F44336"  # Rojo
+                            signal = "BAJISTA"
+                        else:
+                            signal_color = "#9E9E9E"  # Gris
+                            signal = "NEUTRAL"
 
-                    # Mostrar botón para ver gráfico
-                    if st.button(f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}"):
-                        st.session_state.current_timeframe = tf
-                        st.rerun()
-            else:
+                        # Mostrar señal principal
+                        st.markdown(
+                            f"""
+                            <div style="background-color: {signal_color}33; padding: 0.5rem; border-radius: 0.5rem; text-align: center; margin-bottom: 0.5rem;">
+                                <div style="font-size: 1.25rem; font-weight: 700; color: {signal_color};">{signal}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+                        # Mostrar indicadores con manejo seguro de valores nulos
+                        if rsi is not None:
+                            st.markdown(f"**RSI:** {rsi:.1f} ({momentum})")
+                        else:
+                            st.markdown("**RSI:** N/A")
+                            
+                        st.markdown(f"**MACD:** {trend}")
+                        st.markdown(f"**SMA Cross:** {sma_cross}")
+
+                        # Mostrar botón para ver gráfico
+                        if st.button(f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}"):
+                            st.session_state.current_timeframe = tf
+                            st.rerun()
+                else:
+                    with [col1, col2, col3][i]:
+                        st.markdown(f"#### {label}")
+                        st.warning(f"No hay datos disponibles para {tf}")
+            except Exception as e:
+                logger.error(f"Error procesando timeframe {tf}: {str(e)}")
                 with [col1, col2, col3][i]:
                     st.markdown(f"#### {label}")
-                    st.warning(f"No hay datos disponibles para {tf}")
+                    st.error(f"Error procesando datos: {str(e)}")
 
         # Mostrar alineación de timeframes
         st.markdown("### 📊 Alineación de Timeframes")
@@ -3343,18 +3379,26 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         weekly = multi_timeframe_data.get("1wk")
         monthly = multi_timeframe_data.get("1mo")
 
-        if daily is not None and weekly is not None and monthly is not None:
-            # Extraer señales de cada timeframe
-            try:
+        try:
+            if daily is not None and weekly is not None and monthly is not None and not daily.empty and not weekly.empty and not monthly.empty:
+                # Extraer señales de cada timeframe
                 # Obtener último valor de cada dataframe
                 daily_last = daily.iloc[-1]
                 weekly_last = weekly.iloc[-1]
                 monthly_last = monthly.iloc[-1]
 
-                # Determinar tendencia basada en MACD y SMAs
-                daily_trend = "alcista" if daily_last.get("MACD", 0) > daily_last.get("MACD_Signal", 0) else "bajista"
-                weekly_trend = "alcista" if weekly_last.get("MACD", 0) > weekly_last.get("MACD_Signal", 0) else "bajista"
-                monthly_trend = "alcista" if monthly_last.get("MACD", 0) > monthly_last.get("MACD_Signal", 0) else "bajista"
+                # Manejar valores nulos para MACD
+                daily_trend = "alcista" if (daily_last.get("MACD", 0) is not None and 
+                                           daily_last.get("MACD_Signal", 0) is not None and
+                                           daily_last.get("MACD", 0) > daily_last.get("MACD_Signal", 0)) else "bajista"
+                
+                weekly_trend = "alcista" if (weekly_last.get("MACD", 0) is not None and 
+                                            weekly_last.get("MACD_Signal", 0) is not None and
+                                            weekly_last.get("MACD", 0) > weekly_last.get("MACD_Signal", 0)) else "bajista"
+                
+                monthly_trend = "alcista" if (monthly_last.get("MACD", 0) is not None and 
+                                             monthly_last.get("MACD_Signal", 0) is not None and
+                                             monthly_last.get("MACD", 0) > monthly_last.get("MACD_Signal", 0)) else "bajista"
 
                 # Determinar alineación
                 if daily_trend == weekly_trend == monthly_trend:
@@ -3366,6 +3410,23 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 else:
                     alignment = "DÉBIL"
                     alignment_color = "#9E9E9E"
+
+                # Obtener valores de RSI y BB_Width con manejo de nulos
+                daily_rsi = daily_last.get('RSI', 50)
+                daily_rsi_condition = 'Neutral'
+                if daily_rsi is not None:
+                    if daily_rsi > 70:
+                        daily_rsi_condition = 'Sobrecompra'
+                    elif daily_rsi < 30:
+                        daily_rsi_condition = 'Sobreventa'
+                
+                monthly_bb_width = monthly_last.get('BB_Width', 0.04)
+                volatility_condition = 'Normal'
+                if monthly_bb_width is not None:
+                    if monthly_bb_width > 0.05:
+                        volatility_condition = 'Alta'
+                    elif monthly_bb_width < 0.03:
+                        volatility_condition = 'Baja'
 
                 # Mostrar matriz de alineación
                 st.markdown(
@@ -3382,8 +3443,8 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                             <tr>
                                 <td><strong>Diario</strong></td>
                                 <td style="color: {'green' if daily_trend == 'alcista' else 'red'};">{daily_trend.upper()}</td>
-                                <td>{('Neutral' if 30 <= daily_last.get('RSI', 50) <= 70 else 'Sobrecompra' if daily_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>                                
-                                <td>{('Alta' if monthly_last.get('BB_Width', 0) > 0.05 else 'Baja' if monthly_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
+                                <td>{daily_rsi_condition}</td>                                
+                                <td>{volatility_condition}</td>
                             </tr>
                         </table>
                     </div>
@@ -3436,11 +3497,13 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         **Estrategia recomendada:** Estrategias neutrales como Iron Condors o Calendar Spreads. Evitar posiciones direccionales agresivas y reducir tamaño de posición.
                         """
                     )
-            except Exception as e:
-                st.warning(f"No se pudo calcular la alineación de timeframes: {str(e)}")
-        else:
-            st.warning("No hay datos suficientes para calcular la alineación de timeframes")
+            else:
+                st.warning("No hay datos suficientes para calcular la alineación de timeframes")
+        except Exception as e:
+            logger.error(f"Error calculando alineación de timeframes: {str(e)}")
+            st.warning(f"No se pudo calcular la alineación de timeframes: {str(e)}")
 
+    # Código para la pestaña Análisis Experto
     with tab4:
         st.markdown("### 🧠 Análisis del Experto")
         
@@ -3449,48 +3512,59 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             # Verificar si OpenAI está configurado
             if st.session_state.get("openai_configured"):
                 with st.spinner("Consultando al experto de trading..."):
-                    # Obtener análisis experto
-                    expert_analysis = process_expert_analysis(
-                        openai, 
-                        st.session_state.assistant_id, 
-                        symbol, 
-                        context if context and "error" not in context else {"last_price": price, "change_percent": change}
-                    )
-                    
-                    # Guardar el análisis en el estado de la sesión
-                    if expert_analysis:
-                        st.session_state.last_expert_analysis[symbol] = {
-                            "analysis": expert_analysis,
-                            "timestamp": datetime.now().isoformat(),
-                            "price": price if price is not None else (data["Close"].iloc[-1] if data is not None and not data.empty else 0),
-                            "change": change if change is not None else 0
-                        }
+                    try:
+                        # Obtener análisis experto
+                        expert_analysis = process_expert_analysis(
+                            openai, 
+                            st.session_state.assistant_id, 
+                            symbol, 
+                            context if context and "error" not in context else {"last_price": price, "change_percent": change}
+                        )
+                        
+                        # Guardar el análisis en el estado de la sesión
+                        if expert_analysis:
+                            st.session_state.last_expert_analysis[symbol] = {
+                                "analysis": expert_analysis,
+                                "timestamp": datetime.now().isoformat(),
+                                "price": price if price is not None else (data["Close"].iloc[-1] if data is not None and not data.empty else 0),
+                                "change": change if change is not None else 0
+                            }
+                    except Exception as e:
+                        logger.error(f"Error obteniendo análisis experto: {str(e)}")
+                        st.error(f"Error consultando al experto: {str(e)}")
             else:
                 st.error("OpenAI no está configurado. No se puede generar análisis experto.")
         
         # Mostrar análisis guardado si existe
         if symbol in st.session_state.last_expert_analysis:
-            expert_data = st.session_state.last_expert_analysis[symbol]
-            
-            # Calcular tiempo transcurrido
-            analysis_time = datetime.fromisoformat(expert_data["timestamp"])
-            elapsed = datetime.now() - analysis_time
-            
-            # Mostrar información del análisis
-            st.markdown(
-                f"""
-                <div style="background-color: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                    <p style="margin: 0; font-size: 0.8rem; color: #666;">
-                        Análisis generado hace {elapsed.seconds // 60} minutos
-                        | Precio: ${expert_data["price"]:.2f} ({expert_data["change"]:+.2f}%)
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            
-            # Mostrar el análisis
-            display_expert_opinion(expert_data["analysis"])
+            try:
+                expert_data = st.session_state.last_expert_analysis[symbol]
+                
+                # Calcular tiempo transcurrido
+                analysis_time = datetime.fromisoformat(expert_data["timestamp"])
+                elapsed = datetime.now() - analysis_time
+                
+                # Mostrar información del análisis
+                st.markdown(
+                    f"""
+                    <div style="background-color: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                        <p style="margin: 0; font-size: 0.8rem; color: #666;">
+                            Análisis generado hace {elapsed.seconds // 60} minutos
+                            | Precio: ${expert_data["price"]:.2f} ({expert_data["change"]:+.2f}%)
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                
+                # Mostrar el análisis
+                display_expert_opinion(expert_data["analysis"])
+            except Exception as e:
+                logger.error(f"Error mostrando análisis guardado: {str(e)}")
+                st.error(f"Error al mostrar análisis guardado: {str(e)}")
+                # Si hay error mostrando el análisis guardado, eliminarlo para evitar errores futuros
+                if symbol in st.session_state.last_expert_analysis:
+                    del st.session_state.last_expert_analysis[symbol]
         else:
             st.info("Solicita un nuevo análisis usando el botón superior")
         
@@ -3501,16 +3575,20 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             if st.button("Preguntar", key="ask_specific"):
                 if question and st.session_state.get("openai_configured"):
                     with st.spinner("Consultando al experto..."):
-                        answer = process_chat_input_with_openai(
-                            question,
-                            symbol,
-                            st.session_state.openai_api_key,
-                            st.session_state.assistant_id,
-                            context
-                        )
-                        
-                        st.markdown(f"**Respuesta del experto:**")
-                        st.markdown(answer)
+                        try:
+                            answer = process_chat_input_with_openai(
+                                question,
+                                symbol,
+                                st.session_state.openai_api_key,
+                                st.session_state.assistant_id,
+                                context
+                            )
+                            
+                            st.markdown(f"**Respuesta del experto:**")
+                            st.markdown(answer)
+                        except Exception as e:
+                            logger.error(f"Error procesando pregunta específica: {str(e)}")
+                            st.error(f"Error al procesar tu pregunta: {str(e)}")
                 else:
                     st.warning("Por favor, ingresa una pregunta y asegúrate de que OpenAI esté configurado.")
 
