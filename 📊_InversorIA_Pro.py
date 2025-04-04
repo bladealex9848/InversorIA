@@ -2970,59 +2970,83 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
 
         # Mostrar detalles de indicadores
         with st.expander("📊 Detalles de Indicadores"):
-            last_row = data.iloc[-1]
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.markdown("#### Momentum")
-                if "RSI" in data.columns:
-                    rsi = last_row["RSI"]
-                    st.metric("RSI", f"{rsi:.2f}",
-                              "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral")
-
-                if "STOCH_K" in data.columns and "STOCH_D" in data.columns:
-                    st.metric("Estocástico",
-                              f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
-
-                if "CCI" in data.columns:
-                    st.metric("CCI", f"{last_row['CCI']:.2f}")
-
-            with col2:
-                st.markdown("#### Tendencia")
-                if "SMA_20" in data.columns and "SMA_50" in data.columns:
-                    sma_20 = last_row["SMA_20"]
-                    sma_50 = last_row["SMA_50"]
-                    sma_diff = ((sma_20 / sma_50) - 1) * 100
-                    st.metric("SMA 20/50", f"{sma_diff:+.2f}%",
-                              "Alcista" if sma_diff > 0 else "Bajista")
-
-                if "MACD" in data.columns and "MACD_Signal" in data.columns:
-                    macd = last_row["MACD"]
-                    macd_signal = last_row["MACD_Signal"]
-                    macd_hist = macd - macd_signal
-                    st.metric("MACD Hist", f"{macd_hist:.3f}",
-                              "Alcista" if macd_hist > 0 else "Bajista")
-
-                if "SMA_200" in data.columns:
-                    price = last_row["Close"]
-                    sma_200 = last_row["SMA_200"]
-                    price_vs_sma = ((price / sma_200) - 1) * 100
-                    st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
-                              "Por encima" if price_vs_sma > 0 else "Por debajo")
-
-            with col3:
-                st.markdown("#### Volatilidad")
-                if "BB_Width" in data.columns:
-                    st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
-
-                if "ATR" in data.columns:
-                    st.metric("ATR", f"{last_row['ATR']:.3f}")
-
-                # ATR como porcentaje del precio
-                if "ATR" in data.columns and "Close" in data.columns:
-                    atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
-                    st.metric("ATR %", f"{atr_pct:.2f}%")
+            if data is not None and not data.empty and len(data) > 0:
+                last_row = data.iloc[-1]
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("#### Momentum")
+                    if "RSI" in data.columns and last_row["RSI"] is not None:
+                        rsi = last_row["RSI"]
+                        rsi_status = "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral"
+                        st.metric("RSI", f"{rsi:.2f}", rsi_status)
+                    else:
+                        st.metric("RSI", "N/A", "Sin datos")
+                    
+                    if "STOCH_K" in data.columns and "STOCH_D" in data.columns and last_row["STOCH_K"] is not None and last_row["STOCH_D"] is not None:
+                        st.metric("Estocástico", 
+                                f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
+                    else:
+                        st.metric("Estocástico", "N/A")
+                    
+                    if "CCI" in data.columns and last_row["CCI"] is not None:
+                        st.metric("CCI", f"{last_row['CCI']:.2f}")
+                    else:
+                        st.metric("CCI", "N/A")
+                
+                with col2:
+                    st.markdown("#### Tendencia")
+                    if ("SMA_20" in data.columns and "SMA_50" in data.columns and 
+                        last_row["SMA_20"] is not None and last_row["SMA_50"] is not None):
+                        sma_20 = last_row["SMA_20"]
+                        sma_50 = last_row["SMA_50"]
+                        sma_diff = ((sma_20 / sma_50) - 1) * 100
+                        st.metric("SMA 20/50", f"{sma_diff:+.2f}%", 
+                                "Alcista" if sma_diff > 0 else "Bajista")
+                    else:
+                        st.metric("SMA 20/50", "N/A")
+                    
+                    if ("MACD" in data.columns and "MACD_Signal" in data.columns and 
+                        last_row["MACD"] is not None and last_row["MACD_Signal"] is not None):
+                        macd = last_row["MACD"]
+                        macd_signal = last_row["MACD_Signal"]
+                        macd_hist = macd - macd_signal
+                        st.metric("MACD Hist", f"{macd_hist:.3f}", 
+                                "Alcista" if macd_hist > 0 else "Bajista")
+                    else:
+                        st.metric("MACD Hist", "N/A")
+                    
+                    if "SMA_200" in data.columns and "Close" in data.columns and last_row["SMA_200"] is not None:
+                        price = last_row["Close"]
+                        sma_200 = last_row["SMA_200"]
+                        price_vs_sma = ((price / sma_200) - 1) * 100
+                        st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
+                                "Por encima" if price_vs_sma > 0 else "Por debajo")
+                    else:
+                        st.metric("Precio vs SMA200", "N/A")
+                
+                with col3:
+                    st.markdown("#### Volatilidad")
+                    if "BB_Width" in data.columns and last_row["BB_Width"] is not None:
+                        st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
+                    else:
+                        st.metric("Ancho BB", "N/A")
+                    
+                    if "ATR" in data.columns and last_row["ATR"] is not None:
+                        st.metric("ATR", f"{last_row['ATR']:.3f}")
+                    else:
+                        st.metric("ATR", "N/A")
+                        
+                    # ATR como porcentaje del precio
+                    if ("ATR" in data.columns and "Close" in data.columns and 
+                        last_row["ATR"] is not None and last_row["Close"] is not None and last_row["Close"] > 0):
+                        atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
+                        st.metric("ATR %", f"{atr_pct:.2f}%")
+                    else:
+                        st.metric("ATR %", "N/A")
+            else:
+                st.info("No hay datos disponibles para mostrar indicadores técnicos.")    
 
     with tab2:
         # Obtener datos de opciones
