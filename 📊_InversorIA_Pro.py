@@ -989,7 +989,7 @@ def check_authentication():
                         st.error("Contraseña incorrecta. Intente nuevamente.")
 
         # Imagen o gráfico de muestra
-        st.image("https://placehold.co/1200x400/1E88E5/ffffff?text=Terminal+Profesional+de+Trading", use_column_width=True)
+        st.image("https://placehold.co/1200x400/1E88E5/ffffff?text=Terminal+Profesional+de+Trading", use_container_width=True)
 
         st.markdown("---")
         st.markdown(
