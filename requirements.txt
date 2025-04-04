@@ -29,3 +29,7 @@ logging
 tenacity
 seaborn
 statsmodels
+beautifulsoup4>=4.11.0
+duckduckgo-search>=2.8.0
+tavily-python
+tqdm>=4.64.0
