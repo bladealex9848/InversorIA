@@ -1,16 +1,43 @@
+"""
+InversorIA Pro - Terminal Institucional de Trading
+--------------------------------------------------
+Plataforma profesional que integra análisis técnico avanzado, estrategias de
+opciones, análisis multiframe y asistencia IA para traders institucionales.
+
+Características:
+- Autenticación y permisos para usuarios institucionales
+- Dashboard interactivo con múltiples módulos de análisis
+- Detección avanzada de patrones técnicos y niveles clave
+- Análisis de opciones con estrategias personalizadas
+- Asistente IA con contexto de mercado en tiempo real
+- Análisis de sentimiento, noticias y datos fundamentales
+"""
+
 import os
 import time
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-import traceback
 import pytz
 import json
 import importlib
 import sys
 import requests
 import openai
+import traceback
+import logging
+from typing import Dict, List, Tuple, Any, Optional
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 # Importar componentes personalizados
 try:
@@ -21,6 +48,7 @@ try:
         get_market_context,
         get_vix_level,
         clear_cache,
+        _data_cache,
     )
 except Exception as e:
     st.error(f"Error importando market_utils: {str(e)}")
@@ -39,17 +67,25 @@ try:
 except Exception as e:
     st.error(f"Error importando trading_dashboard: {str(e)}")
 
-# Importar sistema de autenticación
 try:
     from authenticator import check_password, validate_session, clear_session
 except Exception as e:
     st.error(f"Error importando authenticator: {str(e)}")
 
-# Importar utilidades de OpenAI
 try:
     from openai_utils import process_tool_calls, tools
 except Exception as e:
     st.error(f"Error importando openai_utils: {str(e)}")
+
+try:
+    from technical_analysis import (
+        detect_support_resistance,
+        detect_trend_lines,
+        detect_channels,
+        detect_candle_patterns,
+    )
+except Exception as e:
+    st.error(f"Error importando technical_analysis: {str(e)}")
 
 # Configuración de la página
 st.set_page_config(
@@ -58,6 +94,31 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Clase para manejar la codificación JSON
+class NumpyEncoder(json.JSONEncoder):
+    """Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas"""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif pd.isna(obj):
+            return None
+        elif isinstance(obj, pd.Timestamp):
+            return obj.isoformat()
+        elif isinstance(obj, pd.Series):
+            return obj.to_dict()
+        elif isinstance(obj, pd.DataFrame):
+            return obj.to_dict(orient="records")
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        return super(NumpyEncoder, self).default(obj)
 
 # Universo de Trading
 SYMBOLS = {
@@ -106,34 +167,380 @@ SYMBOLS = {
     ],
 }
 
+# Estilos personalizados
+st.markdown(
+    """
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1E88E5;
+        margin-bottom: 1rem;
+    }
+    
+    .sub-header {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #333;
+        margin-top: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        text-align: center;
+    }
+    
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+    
+    .metric-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .call-badge {
+        background-color: rgba(0, 200, 0, 0.2);
+        color: #006400;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+    }
+    
+    .put-badge {
+        background-color: rgba(200, 0, 0, 0.2);
+        color: #8B0000;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+    }
+    
+    .neutral-badge {
+        background-color: rgba(128, 128, 128, 0.2);
+        color: #696969;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+    }
+    
+    .news-card {
+        border-left: 3px solid #1E88E5;
+        padding-left: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .news-date {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .confidence-high {
+        color: #28a745;
+        font-weight: 600;
+    }
+    
+    .confidence-medium {
+        color: #ffc107;
+        font-weight: 600;
+    }
+    
+    .confidence-low {
+        color: #6c757d;
+        font-weight: 600;
+    }
+    
+    /* Estilos para indicadores de análisis institucional */
+    .institutional-insight {
+        border-left: 4px solid #9C27B0;
+        background-color: rgba(156, 39, 176, 0.05);
+        padding: 0.5rem 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0 0.25rem 0.25rem 0;
+    }
+    
+    .risk-low {
+        color: #4CAF50;
+        font-weight: 600;
+    }
+    
+    .risk-medium {
+        color: #FF9800;
+        font-weight: 600;
+    }
+    
+    .risk-high {
+        color: #F44336;
+        font-weight: 600;
+    }
+    
+    .pro-trading-tip {
+        background-color: rgba(33, 150, 243, 0.1);
+        border: 1px solid rgba(33, 150, 243, 0.3);
+        border-radius: 0.25rem;
+        padding: 0.75rem;
+        margin: 1rem 0;
+    }
+    
+    .strategy-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .strategy-card:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        border-color: #bbdefb;
+    }
+    
+    /* Estilos adicionales para el análisis del experto */
+    .expert-container {
+        border: 1px solid #EEEEEE;
+        border-radius: 10px;
+        padding: 1rem;
+        background-color: #FAFAFA;
+        margin-top: 2rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .expert-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #EEEEEE;
+        padding-bottom: 0.5rem;
+    }
+    
+    .expert-avatar {
+        background-color: #1E88E5;
+        color: white;
+        font-weight: bold;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+    }
+    
+    .expert-title {
+        font-weight: 600;
+        font-size: 1.2rem;
+        color: #1E88E5;
+    }
+    
+    .expert-content {
+        line-height: 1.6;
+    }
+    
+    .expert-footer {
+        margin-top: 1rem;
+        font-size: 0.8rem;
+        color: #9E9E9E;
+        text-align: right;
+        border-top: 1px solid #EEEEEE;
+        padding-top: 0.5rem;
+    }
+    
+    /* Estilos para chat mejorado */
+    .chat-container {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        height: 500px;
+        overflow-y: auto;
+        background-color: #f9f9f9;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .chat-message {
+        margin-bottom: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        max-width: 85%;
+    }
+    
+    .chat-message-user {
+        background-color: #DCF8C6;
+        margin-left: auto;
+        margin-right: 0;
+    }
+    
+    .chat-message-assistant {
+        background-color: #FFFFFF;
+        margin-left: 0;
+        margin-right: auto;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .chat-input {
+        display: flex;
+    }
+    
+    /* Estilos para el dashboard */
+    .dashboard-card {
+        background-color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    .dashboard-header {
+        border-bottom: 1px solid #e0e0e0;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+    
+    /* Estilos para pestañas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 1rem;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+    }
+    
+    /* Estilos para sidebar mejorada */
+    .sidebar-profile {
+        padding: 1rem;
+        background-color: rgba(30, 136, 229, 0.1);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .sidebar-profile h2 {
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+        color: #1E88E5;
+    }
+    
+    .sidebar-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .sidebar-section-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #424242;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 # =================================================
 # CONFIGURACIÓN DE OPENAI
 # =================================================
 
 
 def setup_openai():
-    """Configura credenciales de OpenAI"""
+    """Configura credenciales de OpenAI con manejo mejorado de errores"""
     try:
-        API_KEY = os.environ.get("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-        ASSISTANT_ID = os.environ.get("ASSISTANT_ID") or st.secrets.get("ASSISTANT_ID")
+        # Estrategia de búsqueda de credenciales en múltiples ubicaciones
+        credential_sources = [
+            # Nivel principal
+            {
+                "container": st.secrets if hasattr(st, "secrets") else {},
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": st.secrets if hasattr(st, "secrets") else {},
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+            # Variables de entorno
+            {
+                "container": os.environ,
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": os.environ,
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+            # Sección api_keys en secrets
+            {
+                "container": st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {},
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {},
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+        ]
+
+        # Nombres alternativos
+        api_key_alternatives = ["openai_api_key", "OpenAIAPIKey", "OPENAI_KEY"]
+        assistant_id_alternatives = ["assistant_id", "AssistantID", "ASSISTANT"]
+
+        API_KEY = None
+        ASSISTANT_ID = None
+
+        # Buscar en todas las posibles ubicaciones
+        for source in credential_sources:
+            container = source["container"]
+            key = source["key"]
+            target = source["target"]
+
+            if key in container:
+                if target == "OPENAI_API_KEY":
+                    API_KEY = container[key]
+                    logger.info(f"✅ OPENAI_API_KEY encontrada en {key}")
+                elif target == "ASSISTANT_ID":
+                    ASSISTANT_ID = container[key]
+                    logger.info(f"✅ ASSISTANT_ID encontrado en {key}")
+
+        # Buscar nombres alternativos si aún no encontramos las credenciales
+        if not API_KEY and hasattr(st, "secrets"):
+            for alt_key in api_key_alternatives:
+                if alt_key in st.secrets:
+                    API_KEY = st.secrets[alt_key]
+                    logger.info(f"✅ API Key encontrada como {alt_key}")
+                    break
+                elif "api_keys" in st.secrets and alt_key in st.secrets["api_keys"]:
+                    API_KEY = st.secrets["api_keys"][alt_key]
+                    logger.info(f"✅ API Key encontrada en api_keys.{alt_key}")
+                    break
+
+        if not ASSISTANT_ID and hasattr(st, "secrets"):
+            for alt_id in assistant_id_alternatives:
+                if alt_id in st.secrets:
+                    ASSISTANT_ID = st.secrets[alt_id]
+                    logger.info(f"✅ Assistant ID encontrado como {alt_id}")
+                    break
+                elif "api_keys" in st.secrets and alt_id in st.secrets["api_keys"]:
+                    ASSISTANT_ID = st.secrets["api_keys"][alt_id]
+                    logger.info(f"✅ Assistant ID encontrado en api_keys.{alt_id}")
+                    break
 
         if not API_KEY:
-            st.warning(
-                "⚠️ La API key de OpenAI no está configurada. El chat funcionará en modo limitado."
-            )
+            logger.warning("⚠️ No se encontró OPENAI_API_KEY en ninguna ubicación")
             return None, None
 
         if not ASSISTANT_ID:
-            st.warning(
-                "⚠️ El ID del asistente no está configurado. El chat funcionará en modo limitado."
-            )
+            logger.warning("⚠️ No se encontró ASSISTANT_ID en ninguna ubicación")
             return API_KEY, None
 
         openai.api_key = API_KEY
         return API_KEY, ASSISTANT_ID
 
     except Exception as e:
-        st.error(f"Error configurando OpenAI: {str(e)}")
+        logger.error(f"Error configurando OpenAI: {str(e)}")
         return None, None
 
 
@@ -153,26 +560,38 @@ def check_api_keys():
         "marketstack_api_key",
         "openai_api_key",
         "assistant_id",
+        "you_api_key",
+        "tavily_api_key",
     ]
 
     for key in keys_to_check:
-        # Intentar obtener desde Streamlit secrets
+        # Intentar obtener desde Streamlit secrets o variables de entorno
         try:
-            value = st.secrets.get(key, os.environ.get(key.upper(), ""))
+            # Primero verificar en streamlit secrets
+            if hasattr(st, "secrets"):
+                value = st.secrets.get(key, None)
+                if value is None and "api_keys" in st.secrets:
+                    value = st.secrets["api_keys"].get(key, None)
+                
+            # Si no se encuentra en secrets, verificar variables de entorno
+            if value is None:
+                env_key = key.upper()
+                value = os.environ.get(env_key, "")
+                
             is_present = bool(value)
 
             # Mostrar solo una indicación de si está presente, no el valor real
+            source = "No encontrada"
+            if hasattr(st, "secrets") and key in st.secrets:
+                source = "Streamlit secrets"
+            elif hasattr(st, "secrets") and "api_keys" in st.secrets and key in st.secrets["api_keys"]:
+                source = "Streamlit secrets (api_keys)"
+            elif key.upper() in os.environ:
+                source = "Variables de entorno"
+                
             apis_status[key] = {
                 "status": "✅ Disponible" if is_present else "❌ No configurada",
-                "source": (
-                    "Streamlit secrets"
-                    if key in st.secrets
-                    else (
-                        "Variables de entorno"
-                        if key.upper() in os.environ
-                        else "No encontrada"
-                    )
-                ),
+                "source": source,
             }
         except Exception as e:
             apis_status[key] = {
@@ -218,6 +637,8 @@ def check_libraries():
         "requests": "API HTTP",
         "pytz": "Zonas horarias",
         "openai": "Inteligencia artificial",
+        "beautifulsoup4": "Web scraping",
+        "tavily_python": "Búsqueda web",
     }
 
     libraries_status = {}
@@ -225,8 +646,16 @@ def check_libraries():
     for lib, description in libraries.items():
         try:
             # Intentar importar la biblioteca
-            module = importlib.import_module(lib)
-            version = getattr(module, "__version__", "versión desconocida")
+            if lib == "tavily_python":
+                try:
+                    from tavily import TavilyClient
+                    version = "Instalada"
+                except ImportError:
+                    raise ImportError("No instalada")
+            else:
+                module = importlib.import_module(lib)
+                version = getattr(module, "__version__", "versión desconocida")
+                
             libraries_status[lib] = {
                 "status": "✅ Instalada",
                 "version": version,
@@ -248,34 +677,72 @@ def check_libraries():
 
 
 def display_system_status():
-    """Muestra el estado del sistema, APIs y librerías"""
-    st.header("🛠️ Estado del Sistema")
+    """Muestra el estado del sistema, APIs y librerías con diseño mejorado"""
+    st.markdown('<h1 class="main-header">🛠️ Estado del Sistema</h1>', unsafe_allow_html=True)
 
-    # Información del sistema
+    # Información del sistema en tarjeta
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Información del Sistema</div>
+            <div style="display: flex; flex-wrap: wrap;">
+        """,
+        unsafe_allow_html=True
+    )
+    
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Información del Sistema")
+        st.subheader("Información Técnica")
         st.write(f"**Python versión:** {sys.version.split(' ')[0]}")
         st.write(f"**Streamlit versión:** {st.__version__}")
         st.write(f"**Fecha y hora:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"**Zona horaria:** {time.tzname[0]}")
+        st.write(f"**Sistema operativo:** {os.name.upper()}")
 
     with col2:
         st.subheader("Estado de la Caché")
         try:
-            from market_utils import _data_cache
-
             cache_stats = _data_cache.get_stats()
             st.write(f"**Entradas en caché:** {cache_stats.get('entradas', 'N/A')}")
             st.write(f"**Hit rate:** {cache_stats.get('hit_rate', 'N/A')}")
             st.write(
                 f"**Hits/Misses:** {cache_stats.get('hits', 0)}/{cache_stats.get('misses', 0)}"
             )
+            
+            # Mostrar gráfico de uso de caché
+            if cache_stats.get('hits', 0) > 0 or cache_stats.get('misses', 0) > 0:
+                labels = ['Hits', 'Misses']
+                values = [cache_stats.get('hits', 0), cache_stats.get('misses', 0)]
+                
+                fig = go.Figure(data=[go.Pie(
+                    labels=labels,
+                    values=values,
+                    hole=.3,
+                    marker_colors=['#4CAF50', '#F44336']
+                )])
+                
+                fig.update_layout(
+                    title="Eficiencia de Caché",
+                    height=300,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.write("**Error accediendo a estadísticas de caché:**", str(e))
 
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
     # Estado de APIs
-    st.subheader("Estado de APIs")
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Estado de APIs</div>
+        """,
+        unsafe_allow_html=True
+    )
+    
     apis_status = check_api_keys()
 
     # Crear tabla de estados de API
@@ -291,9 +758,18 @@ def display_system_status():
         st.dataframe(api_df, use_container_width=True)
     else:
         st.warning("No se pudo obtener información de APIs")
+        
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Estado de librerías
-    st.subheader("Estado de Librerías")
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Estado de Librerías</div>
+        """,
+        unsafe_allow_html=True
+    )
+    
     libraries_status = check_libraries()
 
     # Crear tabla de estados de librerías
@@ -309,19 +785,61 @@ def display_system_status():
         st.dataframe(lib_df, use_container_width=True)
     else:
         st.warning("No se pudo obtener información de librerías")
+        
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # Prueba de conexión a datos
-    st.subheader("Prueba de Datos")
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Prueba de Datos</div>
+        """,
+        unsafe_allow_html=True
+    )
+    
     try:
         with st.spinner("Probando acceso a datos de mercado..."):
             test_data = fetch_market_data("SPY", "2d")
             if test_data is not None and not test_data.empty:
                 st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
+                
+                # Mostrar datos recientes
                 st.dataframe(test_data.tail(3), use_container_width=True)
+                
+                # Crear un gráfico rápido para visualizar
+                fig = go.Figure()
+                
+                fig.add_trace(
+                    go.Candlestick(
+                        x=test_data.index if isinstance(test_data.index, pd.DatetimeIndex) else test_data['Date'],
+                        open=test_data['Open'],
+                        high=test_data['High'],
+                        low=test_data['Low'],
+                        close=test_data['Close'],
+                        name="OHLC"
+                    )
+                )
+                
+                fig.update_layout(
+                    title="Prueba de Datos SPY",
+                    xaxis_title="Fecha",
+                    yaxis_title="Precio",
+                    height=400,
+                    xaxis_rangeslider_visible=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.error("❌ No se pudieron obtener datos para SPY")
     except Exception as e:
         st.error(f"❌ Error en prueba de datos: {str(e)}")
+        
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Botón para continuar
+    if st.button("Continuar al Dashboard", type="primary", use_container_width=True):
+        st.session_state.show_system_status = False
+        st.rerun()
 
 
 # =================================================
@@ -330,42 +848,70 @@ def display_system_status():
 
 
 def check_authentication():
-    """Verifica autenticación del usuario"""
+    """Verifica autenticación del usuario con interfaz mejorada"""
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
-        st.title("🔒 InversorIA Pro - Terminal Institucional")
+        st.markdown('<h1 class="main-header">🔒 InversorIA Pro - Terminal Institucional</h1>', unsafe_allow_html=True)
 
-        st.markdown(
-            """
-        ### Plataforma Profesional de Trading
+        # Mostrar información del producto en columnas
+        col1, col2 = st.columns([3, 2])
         
-        InversorIA Pro es una terminal avanzada de trading que ofrece:
+        with col1:
+            st.markdown(
+                """
+                ### Plataforma Profesional de Trading
+                
+                InversorIA Pro es una terminal avanzada de trading que ofrece:
+                
+                - 📊 Análisis técnico multi-timeframe con detección de patrones
+                - 🎯 Estrategias de volatilidad y opciones con modelos avanzados
+                - 📈 Surface analytics y volatilidad implícita institucional
+                - ⚠️ Gestión de riesgo con métricas profesionales
+                - 🤖 Trading algorítmico y asistente IA especializado
+                - 📰 Análisis de sentimiento de mercado y noticias
+                """
+            )
         
-        - 📊 Análisis técnico multi-timeframe
-        - 🎯 Estrategias de volatilidad y opciones
-        - 📈 Surface analytics y volatilidad implícita
-        - ⚠️ Gestión de riesgo institucional
-        - 🤖 Trading algorítmico
-        
-        #### Acceso Restringido
-        Esta plataforma está diseñada para uso institucional y requiere autenticación.
-        """
-        )
+        with col2:
+            # Usar un contenedor con estilo para el formulario de login
+            st.markdown(
+                """
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #1E88E5;">Acceso Restringido</h3>
+                    <p>Esta plataforma está diseñada para uso institucional y requiere autenticación.</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
+            # Formulario de login
+            with st.form("login_form"):
+                password = st.text_input("Contraseña de acceso", type="password")
+                submitted = st.form_submit_button("Acceder", use_container_width=True)
+                
+                if submitted:
+                    if check_password(password):
+                        st.session_state.authenticated = True
+                        st.session_state.show_system_status = True
+                        st.rerun()
+                    else:
+                        st.error("Contraseña incorrecta. Intente nuevamente.")
 
-        password = st.text_input("Ingrese su contraseña de acceso", type="password")
-
-        if st.button("Acceder"):
-            if check_password(password):
-                st.session_state.authenticated = True
-                st.session_state.show_system_status = (
-                    True  # Mostrar status de sistema al iniciar sesión
-                )
-                st.rerun()
+        # Imagen o gráfico de muestra
+        st.image("https://dummyimage.com/1200x400/1E88E5/ffffff&text=Terminal+Profesional+de+Trading", use_column_width=True)
 
         st.markdown("---")
-        st.markdown("© 2025 InversorIA Pro | Plataforma Institucional de Trading")
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: space-between; color: #6c757d; font-size: 0.8rem;">
+                <span>© 2025 InversorIA Pro | Plataforma Institucional de Trading</span>
+                <span>v2.0.3</span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
 
         return False
 
@@ -377,12 +923,860 @@ def check_authentication():
 
 
 # =================================================
+# FUNCIONES DE VISUALIZACIÓN AVANZADA
+# =================================================
+
+def create_technical_chart(data, symbol):
+    """Crea gráfico técnico avanzado con indicadores y patrones técnicos"""
+    # Verificación adecuada de DataFrame vacío
+    if (
+        data is None
+        or (isinstance(data, pd.DataFrame) and data.empty)
+        or (isinstance(data, list) and (len(data) < 20))
+    ):
+        return None
+
+    # Convertir a DataFrame si es necesario
+    if isinstance(data, list):
+        df = pd.DataFrame(data)
+    else:
+        df = data.copy()
+
+    # Crear figura con subplots
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
+        row_heights=[0.6, 0.2, 0.2],
+        subplot_titles=(f"{symbol} - OHLC con Medias Móviles y Bandas Bollinger", "MACD", "RSI"),
+    )
+
+    # Determinar los datos del eje X
+    if "Date" in df.columns:
+        x_data = df["Date"]
+        x_first = x_data.iloc[0] if len(x_data) > 0 else None
+        x_last = x_data.iloc[-1] if len(x_data) > 0 else None
+    else:
+        x_data = df.index
+        x_first = x_data[0] if len(x_data) > 0 else None
+        x_last = x_data[-1] if len(x_data) > 0 else None
+
+    # Añadir Candlestick
+    fig.add_trace(
+        go.Candlestick(
+            x=x_data,
+            open=df["Open"],
+            high=df["High"],
+            low=df["Low"],
+            close=df["Close"],
+            name="OHLC",
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Añadir volumen como barras en la misma subplot que el precio, pero con eje y secundario
+    if "Volume" in df.columns:
+        # Normalizar volumen para mostrarlo en la misma escala
+        max_price = df["High"].max()
+        max_volume = df["Volume"].max()
+        scale_factor = max_price / max_volume * 0.2  # Ajustar para que el volumen ocupe ~20% del gráfico
+        
+        # Crear colores para el volumen (verde si el precio subió, rojo si bajó)
+        colors = ['rgba(0, 150, 0, 0.3)' if row['Close'] >= row['Open'] else 'rgba(255, 0, 0, 0.3)' 
+                  for _, row in df.iterrows()]
+        
+        fig.add_trace(
+            go.Bar(
+                x=x_data,
+                y=df["Volume"] * scale_factor,
+                name="Volumen",
+                marker={'color': colors},
+                opacity=0.3,
+                showlegend=True,
+                hovertemplate="Volumen: %{y:.0f}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+    # Añadir Medias Móviles
+    for ma, color in [
+        ("SMA_20", "rgba(13, 71, 161, 0.7)"),
+        ("SMA_50", "rgba(141, 110, 99, 0.7)"),
+        ("SMA_200", "rgba(183, 28, 28, 0.7)"),
+    ]:
+        if ma in df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=x_data,
+                    y=df[ma],
+                    name=ma,
+                    line=dict(color=color, width=1.5),
+                ),
+                row=1,
+                col=1,
+            )
+
+    # Añadir Bandas Bollinger
+    for bb, color, fill in [
+        ("BB_Upper", "rgba(0, 150, 136, 0.3)", None),
+        ("BB_MA20", "rgba(0, 150, 136, 0.7)", None),
+        ("BB_Lower", "rgba(0, 150, 136, 0.3)", "tonexty"),
+    ]:
+        if bb in df.columns or (bb == "BB_MA20" and "SMA_20" in df.columns):
+            y_data = df[bb] if bb in df.columns else df["SMA_20"]
+            fig.add_trace(
+                go.Scatter(
+                    x=x_data,
+                    y=y_data,
+                    name=bb,
+                    line=dict(color=color, width=1),
+                    fill=fill,
+                ),
+                row=1,
+                col=1,
+            )
+
+    # Añadir MACD
+    if "MACD" in df.columns and "MACD_Signal" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=x_data,
+                y=df["MACD"],
+                name="MACD",
+                line=dict(color="rgba(33, 150, 243, 0.7)", width=1.5),
+            ),
+            row=2,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x_data,
+                y=df["MACD_Signal"],
+                name="Señal MACD",
+                line=dict(color="rgba(255, 87, 34, 0.7)", width=1.5),
+            ),
+            row=2,
+            col=1,
+        )
+
+        # Añadir histograma MACD
+        colors = [
+            "rgba(33, 150, 243, 0.7)" if val >= 0 else "rgba(255, 87, 34, 0.7)"
+            for val in (df["MACD"] - df["MACD_Signal"])
+        ]
+
+        fig.add_trace(
+            go.Bar(
+                x=x_data,
+                y=df["MACD"] - df["MACD_Signal"],
+                name="Histograma MACD",
+                marker_color=colors,
+            ),
+            row=2,
+            col=1,
+        )
+
+    # Añadir RSI
+    if "RSI" in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=x_data,
+                y=df["RSI"],
+                name="RSI",
+                line=dict(color="rgba(156, 39, 176, 0.7)", width=1.5),
+            ),
+            row=3,
+            col=1,
+        )
+
+        # Líneas de referencia RSI
+        for level, color in [
+            (30, "rgba(76, 175, 80, 0.5)"),
+            (50, "rgba(158, 158, 158, 0.5)"),
+            (70, "rgba(255, 87, 34, 0.5)"),
+        ]:
+            fig.add_shape(
+                type="line",
+                x0=x_first,
+                x1=x_last,
+                y0=level,
+                y1=level,
+                line=dict(color=color, width=1, dash="dash"),
+                row=3,
+                col=1,
+            )
+
+    # Detectar soportes y resistencias
+    try:
+        supports, resistances = detect_support_resistance(df)
+
+        # Añadir líneas de soporte
+        for level in supports:
+            fig.add_shape(
+                type="line",
+                x0=x_first,
+                x1=x_last,
+                y0=level,
+                y1=level,
+                line=dict(color="rgba(0, 128, 0, 0.7)", width=1, dash="dot"),
+                row=1,
+                col=1,
+            )
+
+            # Añadir etiqueta
+            fig.add_annotation(
+                x=x_last,
+                y=level,
+                text=f"S: {level:.2f}",
+                showarrow=False,
+                xshift=10,
+                font=dict(color="rgba(0, 128, 0, 1)"),
+                row=1,
+                col=1,
+            )
+
+        # Añadir líneas de resistencia
+        for level in resistances:
+            fig.add_shape(
+                type="line",
+                x0=x_first,
+                x1=x_last,
+                y0=level,
+                y1=level,
+                line=dict(color="rgba(255, 0, 0, 0.7)", width=1, dash="dot"),
+                row=1,
+                col=1,
+            )
+
+            # Añadir etiqueta
+            fig.add_annotation(
+                x=x_last,
+                y=level,
+                text=f"R: {level:.2f}",
+                showarrow=False,
+                xshift=10,
+                font=dict(color="rgba(255, 0, 0, 1)"),
+                row=1,
+                col=1,
+            )
+    except Exception as e:
+        logger.warning(f"No se pudieron detectar niveles de soporte/resistencia: {str(e)}")
+
+    # Detectar líneas de tendencia
+    try:
+        if "Date" in df.columns:
+            # Si hay fechas, convertir a índices numéricos para cálculos de tendencia
+            df_idx = df.copy()
+            df_idx["idx"] = range(len(df))
+            bullish_lines, bearish_lines = detect_trend_lines(df_idx)
+
+            # Convertir índices de vuelta a fechas
+            bullish_lines_dates = [
+                (df["Date"].iloc[x1], y1, df["Date"].iloc[x2], y2)
+                for x1, y1, x2, y2 in bullish_lines
+                if x1 < len(df) and x2 < len(df)
+            ]
+
+            bearish_lines_dates = [
+                (df["Date"].iloc[x1], y1, df["Date"].iloc[x2], y2)
+                for x1, y1, x2, y2 in bearish_lines
+                if x1 < len(df) and x2 < len(df)
+            ]
+        else:
+            # Usar índices directamente
+            bullish_lines, bearish_lines = detect_trend_lines(df)
+            bullish_lines_dates = [
+                (df.index[x1], y1, df.index[x2], y2)
+                for x1, y1, x2, y2 in bullish_lines
+                if x1 < len(df) and x2 < len(df)
+            ]
+
+            bearish_lines_dates = [
+                (df.index[x1], y1, df.index[x2], y2)
+                for x1, y1, x2, y2 in bearish_lines
+                if x1 < len(df) and x2 < len(df)
+            ]
+
+        # Añadir líneas de tendencia alcistas
+        for i, (x1, y1, x2, y2) in enumerate(bullish_lines_dates):
+            fig.add_shape(
+                type="line",
+                x0=x1,
+                y0=y1,
+                x1=x2,
+                y1=y2,
+                line=dict(color="rgba(0, 128, 0, 0.7)", width=2),
+                row=1,
+                col=1,
+            )
+
+            # Añadir etiqueta solo para la primera línea (para no saturar)
+            if i == 0:
+                fig.add_annotation(
+                    x=x2,
+                    y=y2,
+                    text=f"Tendencia Alcista",
+                    showarrow=True,
+                    arrowhead=1,
+                    ax=20,
+                    ay=-30,
+                    font=dict(color="rgba(0, 128, 0, 1)"),
+                    row=1,
+                    col=1,
+                )
+
+        # Añadir líneas de tendencia bajistas
+        for i, (x1, y1, x2, y2) in enumerate(bearish_lines_dates):
+            fig.add_shape(
+                type="line",
+                x0=x1,
+                y0=y1,
+                x1=x2,
+                y1=y2,
+                line=dict(color="rgba(255, 0, 0, 0.7)", width=2),
+                row=1,
+                col=1,
+            )
+
+            # Añadir etiqueta solo para la primera línea
+            if i == 0:
+                fig.add_annotation(
+                    x=x2,
+                    y=y2,
+                    text=f"Tendencia Bajista",
+                    showarrow=True,
+                    arrowhead=1,
+                    ax=20,
+                    ay=30,
+                    font=dict(color="rgba(255, 0, 0, 1)"),
+                    row=1,
+                    col=1,
+                )
+    except Exception as e:
+        logger.warning(f"No se pudieron detectar líneas de tendencia: {str(e)}")
+
+    # Añadir patrones de velas japonesas
+    try:
+        candle_patterns = detect_candle_patterns(df.tail(20))
+        
+        # Mostrar solo los 3 patrones más recientes para no saturar el gráfico
+        for i, pattern in enumerate(candle_patterns[:3]):
+            pattern_idx = pattern.get("idx", -1)
+            if pattern_idx >= 0 and pattern_idx < len(df):
+                # Determinar color según tipo de patrón
+                if pattern["type"] == "bullish":
+                    color = "rgba(0, 128, 0, 0.7)"
+                    arrow = "⬆"
+                else:
+                    color = "rgba(255, 0, 0, 0.7)"
+                    arrow = "⬇"
+                
+                # Obtener la posición X
+                x_pos = df["Date"].iloc[pattern_idx] if "Date" in df.columns else df.index[pattern_idx]
+                
+                # Obtener la posición Y (depende del tipo de patrón)
+                if pattern["type"] == "bullish":
+                    y_pos = df["Low"].iloc[pattern_idx] * 0.995  # Ligeramente por debajo
+                else:
+                    y_pos = df["High"].iloc[pattern_idx] * 1.005  # Ligeramente por encima
+                
+                # Añadir anotación
+                fig.add_annotation(
+                    x=x_pos,
+                    y=y_pos,
+                    text=f"{arrow} {pattern['pattern']}",
+                    showarrow=True,
+                    arrowhead=1,
+                    ax=0,
+                    ay=30 if pattern["type"] == "bullish" else -30,
+                    font=dict(color=color, size=10),
+                    bgcolor="rgba(255, 255, 255, 0.7)",
+                    bordercolor=color,
+                    borderwidth=1,
+                    borderpad=4,
+                    row=1,
+                    col=1,
+                )
+    except Exception as e:
+        logger.warning(f"No se pudieron detectar patrones de velas: {str(e)}")
+
+    # Ajustar layout
+    fig.update_layout(
+        height=800,
+        xaxis_rangeslider_visible=False,
+        title=f"Análisis Técnico de {symbol}",
+        template="plotly_white",
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Arial"
+        ),
+    )
+
+    # Configuración de ejes y rangos
+    fig.update_yaxes(title_text="Precio", row=1, col=1)
+    fig.update_yaxes(title_text="MACD", row=2, col=1)
+    fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
+    
+    # Añadir crosshair
+    fig.update_layout(
+        xaxis=dict(
+            showspikes=True,
+            spikethickness=1,
+            spikedash="solid",
+            spikecolor="gray",
+            spikemode="across"
+        ),
+        yaxis=dict(
+            showspikes=True,
+            spikethickness=1,
+            spikedash="solid",
+            spikecolor="gray",
+            spikemode="across"
+        )
+    )
+
+    return fig
+
+
+def display_technical_summary(symbol, technical_data):
+    """Muestra resumen técnico en un formato mejorado"""
+    st.markdown("### 📊 Resumen Técnico")
+    
+    # Crear columnas para mostrar datos clave
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # Extraer últimos valores
+    if isinstance(technical_data, pd.DataFrame) and not technical_data.empty:
+        last_row = technical_data.iloc[-1]
+        last_price = last_row["Close"]
+        
+        # Calcular cambio porcentual
+        if len(technical_data) > 1:
+            prev_close = technical_data.iloc[-2]["Close"]
+            change_pct = (last_price - prev_close) / prev_close * 100
+        else:
+            change_pct = 0
+        
+        # Extraer RSI y MA values si están disponibles
+        rsi = last_row.get("RSI", None)
+        sma20 = last_row.get("SMA_20", None)
+        sma50 = last_row.get("SMA_50", None)
+        sma200 = last_row.get("SMA_200", None)
+        
+        # Determinar condiciones de tendencia
+        above_sma20 = last_price > sma20 if sma20 is not None else None
+        above_sma50 = last_price > sma50 if sma50 is not None else None
+        above_sma200 = last_price > sma200 if sma200 is not None else None
+        
+        # Métricas en columnas
+        with col1:
+            st.metric(
+                label=f"{symbol} - Último",
+                value=f"${last_price:.2f}",
+                delta=f"{change_pct:+.2f}%"
+            )
+        
+        with col2:
+            if rsi is not None:
+                rsi_status = "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral"
+                st.metric(
+                    label="RSI",
+                    value=f"{rsi:.1f}",
+                    delta=rsi_status,
+                    delta_color="off"
+                )
+            else:
+                st.metric(label="RSI", value="N/A")
+        
+        with col3:
+            if sma20 is not None and sma50 is not None:
+                ma_cross = "Alcista" if sma20 > sma50 else "Bajista" if sma20 < sma50 else "Neutral"
+                st.metric(
+                    label="Cruce MA20/50",
+                    value=ma_cross,
+                    delta=f"MA20: ${sma20:.2f}",
+                    delta_color="off"
+                )
+            else:
+                st.metric(label="Cruce MA", value="N/A")
+        
+        with col4:
+            if above_sma200 is not None:
+                trend = "Alcista LP" if above_sma200 else "Bajista LP"
+                st.metric(
+                    label="Tendencia LP",
+                    value=trend,
+                    delta=f"MA200: ${sma200:.2f}" if sma200 is not None else "N/A",
+                    delta_color="normal" if above_sma200 else "inverse"
+                )
+            else:
+                st.metric(label="Tendencia LP", value="N/A")
+    else:
+        st.warning(f"No hay datos técnicos disponibles para {symbol}")
+
+
+def display_options_analysis(symbol, options_data):
+    """Muestra análisis de opciones en formato mejorado"""
+    st.markdown("### 🎯 Análisis de Opciones")
+    
+    if options_data is None or not options_data:
+        st.warning(f"No hay datos de opciones disponibles para {symbol}")
+        return
+    
+    # Extraer datos clave
+    recommendation = options_data.get("recommendation", "NEUTRAL")
+    confidence = options_data.get("confidence", "baja")
+    strategy = options_data.get("strategy", "N/A")
+    implied_vol = options_data.get("implied_volatility", 0)
+    
+    # Crear columnas para mostrar métricas clave
+    col1, col2, col3 = st.columns(3)
+    
+    # Determinar clases CSS
+    badge_class = (
+        "call-badge"
+        if recommendation == "CALL"
+        else "put-badge" if recommendation == "PUT" else "neutral-badge"
+    )
+    confidence_class = f"confidence-{'high' if confidence == 'alta' else 'medium' if confidence == 'media' else 'low'}"
+    
+    with col1:
+        st.markdown(
+            f"""
+        <div class="metric-card">
+            <div class="metric-value"><span class="{badge_class}">{recommendation}</span></div>
+            <div class="metric-label">Recomendación</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    
+    with col2:
+        st.markdown(
+            f"""
+        <div class="metric-card">
+            <div class="metric-value"><span class="{confidence_class}">{confidence.upper()}</span></div>
+            <div class="metric-label">Confianza</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    
+    with col3:
+        st.markdown(
+            f"""
+        <div class="metric-card">
+            <div class="metric-value">{implied_vol:.2f}%</div>
+            <div class="metric-label">Volatilidad Implícita</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    
+    # Mostrar estrategias recomendadas
+    st.markdown("#### Estrategias Recomendadas")
+    
+    if recommendation == "CALL":
+        st.markdown(
+            """
+            <div class="strategy-card">
+                <h4>Call Debit Spread</h4>
+                <p><strong>Descripción:</strong> Compra un CALL ATM y vende un CALL OTM con el mismo vencimiento.</p>
+                <p><strong>Beneficio máximo:</strong> Limitado al diferencial entre strikes menos la prima pagada.</p>
+                <p><strong>Pérdida máxima:</strong> Limitada a la prima neta pagada.</p>
+                <p><strong>Volatilidad:</strong> Favorable en entorno de volatilidad baja a moderada.</p>
+                <p><strong>Horizonte:</strong> 2-4 semanas.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif recommendation == "PUT":
+        st.markdown(
+            """
+            <div class="strategy-card">
+                <h4>Put Debit Spread</h4>
+                <p><strong>Descripción:</strong> Compra un PUT ATM y vende un PUT OTM con el mismo vencimiento.</p>
+                <p><strong>Beneficio máximo:</strong> Limitado al diferencial entre strikes menos la prima pagada.</p>
+                <p><strong>Pérdida máxima:</strong> Limitada a la prima neta pagada.</p>
+                <p><strong>Volatilidad:</strong> Favorable en entorno de volatilidad baja a moderada.</p>
+                <p><strong>Horizonte:</strong> 2-4 semanas.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div class="strategy-card">
+                <h4>Iron Condor</h4>
+                <p><strong>Descripción:</strong> Combinación de un Bull Put Spread y un Bear Call Spread.</p>
+                <p><strong>Beneficio máximo:</strong> Limitado a la prima neta recibida.</p>
+                <p><strong>Pérdida máxima:</strong> Diferencia entre strikes del mismo lado menos prima recibida.</p>
+                <p><strong>Volatilidad:</strong> Ideal para entornos de baja volatilidad y consolidación.</p>
+                <p><strong>Horizonte:</strong> 2-5 semanas.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def process_expert_analysis(client, assistant_id, symbol, context):
+    """Procesa análisis experto con OpenAI"""
+    if not client or not assistant_id:
+        return None
+        
+    # Formatear prompt para el asistente
+    price = context.get("last_price", 0)
+    change = context.get("change_percent", 0)
+    vix_level = context.get("vix_level", "N/A")
+    signals = context.get("signals", {})
+    
+    # Obtener señal general
+    overall_signal = "NEUTRAL"
+    if "overall" in signals:
+        signal = signals["overall"]["signal"]
+        if signal in ["compra", "compra_fuerte"]:
+            overall_signal = "ALCISTA"
+        elif signal in ["venta", "venta_fuerte"]:
+            overall_signal = "BAJISTA"
+
+    # Obtener señal de opciones
+    option_signal = "NEUTRAL"
+    if "options" in signals:
+        option_signal = signals["options"]["direction"]
+        
+    # Crear contenido del prompt
+    prompt = f"""
+    Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional del siguiente activo:
+    
+    SÍMBOLO: {symbol}
+    
+    DATOS DE MERCADO:
+    - Precio actual: ${price:.2f} ({'+' if change > 0 else ''}{change:.2f}%)
+    - VIX: {vix_level}
+    - Señal técnica: {overall_signal}
+    - Señal de opciones: {option_signal}
+    
+    INSTRUCCIONES ESPECÍFICAS:
+    1. Proporciona una evaluación integral basada en el contexto técnico y de mercado actual.
+    2. Identifica los niveles de soporte y resistencia clave.
+    3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
+    4. Sugiere estrategias específicas para traders institucionales.
+    5. Indica riesgos clave y niveles de stop loss recomendados.
+    6. Concluye con una proyección de movimiento con rangos de precio.
+    
+    El análisis debe ser conciso, directo y con información accionable específica para un trader profesional.
+    """
+    
+    try:
+        # Enviar mensaje al thread
+        client.beta.threads.messages.create(
+            thread_id=st.session_state.thread_id, role="user", content=prompt
+        )
+
+        # Crear una ejecución para el thread
+        run = client.beta.threads.runs.create(
+            thread_id=st.session_state.thread_id, 
+            assistant_id=assistant_id
+        )
+
+        # Mostrar progreso
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        # Esperar a que se complete la ejecución con timeout
+        start_time = time.time()
+        timeout = 45  # 45 segundos máximo
+
+        while run.status not in ["completed", "failed", "cancelled", "expired"]:
+            elapsed = time.time() - start_time
+            if elapsed > timeout:
+                status_text.error(
+                    "El análisis del experto está tardando demasiado. Por favor, inténtalo de nuevo."
+                )
+                return "Error: Timeout en la consulta al experto"
+
+            # Actualizar progreso
+            progress = min(0.9, elapsed / timeout)
+            progress_bar.progress(progress)
+            status_text.text(f"El experto está analizando {symbol}... ({run.status})")
+
+            # Esperar antes de verificar de nuevo
+            time.sleep(1)
+            run = client.beta.threads.runs.retrieve(
+                thread_id=st.session_state.thread_id, run_id=run.id
+            )
+
+        # Completar barra de progreso
+        progress_bar.progress(1.0)
+        status_text.empty()
+
+        if run.status != "completed":
+            return f"Error: La consulta al experto falló con estado {run.status}"
+
+        # Recuperar mensajes
+        messages = client.beta.threads.messages.list(
+            thread_id=st.session_state.thread_id
+        )
+
+        # Obtener respuesta
+        for message in messages:
+            if message.run_id == run.id and message.role == "assistant":
+                # Extraer texto del mensaje
+                if hasattr(message, "content") and len(message.content) > 0:
+                    message_content = message.content[0]
+                    if hasattr(message_content, "text"):
+                        nested_text = message_content.text
+                        if hasattr(nested_text, "value"):
+                            return nested_text.value
+                        elif isinstance(nested_text, str):
+                            return nested_text
+                
+                return "No se pudo procesar la respuesta del asistente"
+
+        return "No se recibió respuesta del experto."
+
+    except Exception as e:
+        logger.error(f"Error al consultar al experto: {str(e)}")
+        return f"Error al consultar al experto: {str(e)}"
+
+
+def display_expert_opinion(expert_opinion):
+    """Muestra la opinión del experto IA con formato mejorado"""
+    if not expert_opinion:
+        return
+
+    st.markdown("## 🧠 Análisis del Experto")
+
+    # Procesamiento mejorado del texto: buscar secciones clave
+    sections = {
+        "evaluación": "",
+        "soporte": "",
+        "indicadores": "",
+        "estrategias": "",
+        "riesgos": "",
+        "proyección": "",
+    }
+
+    current_section = None
+
+    try:
+        # Intentar identificar secciones en el texto
+        lines = expert_opinion.split("\n")
+        for line in lines:
+            line = line.strip()
+
+            # Detectar secciones por encabezados
+            if any(keyword in line.upper() for keyword in ["EVALUACIÓN", "ANÁLISIS", "PANORAMA"]):
+                current_section = "evaluación"
+                continue
+            elif any(keyword in line.upper() for keyword in ["SOPORTE", "RESISTENCIA", "NIVELES"]):
+                current_section = "soporte"
+                continue
+            elif any(keyword in line.upper() for keyword in ["INDICADOR", "TÉCNICO", "RSI", "MACD"]):
+                current_section = "indicadores"
+                continue
+            elif any(keyword in line.upper() for keyword in ["ESTRATEGIA", "OPERATIVA", "TRADING", "RECOMENDACIÓN"]):
+                current_section = "estrategias"
+                continue
+            elif any(keyword in line.upper() for keyword in ["RIESGO", "STOP", "CAUTELA"]):
+                current_section = "riesgos"
+                continue
+            elif any(keyword in line.upper() for keyword in ["PROYECCIÓN", "PRONÓSTICO", "ESCENARIO", "TARGET"]):
+                current_section = "proyección"
+                continue
+            
+            # Agregar línea a la sección actual
+            if current_section and line:
+                sections[current_section] += line + "\n"
+    except Exception as e:
+        logger.error(f"Error al procesar la respuesta del experto: {str(e)}")
+
+    # Si no se identificaron secciones, mostrar el texto completo
+    if all(not v for v in sections.values()):
+        st.markdown(
+            f"""
+            <div class="expert-container">
+                <div class="expert-header">
+                    <div class="expert-avatar">E</div>
+                    <div class="expert-title">Analista de Mercados</div>
+                </div>
+                <div class="expert-content">
+                    {expert_opinion}
+                </div>
+                <div class="expert-footer">
+                    Análisis generado por IA - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        # Mostrar secciones identificadas
+        st.markdown(
+            f"""
+            <div class="expert-container">
+                <div class="expert-header">
+                    <div class="expert-avatar">E</div>
+                    <div class="expert-title">Analista de Mercados</div>
+                </div>
+                <div class="expert-content">
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Mostrar cada sección identificada en un formato más estructurado
+        if sections["evaluación"]:
+            st.markdown("### 📊 Evaluación General")
+            st.markdown(sections["evaluación"])
+
+        if sections["soporte"]:
+            st.markdown("### 🔍 Niveles Clave")
+            st.markdown(sections["soporte"])
+
+        if sections["indicadores"]:
+            st.markdown("### 📈 Análisis de Indicadores")
+            st.markdown(sections["indicadores"])
+
+        if sections["estrategias"]:
+            st.markdown("### 🎯 Estrategias Recomendadas")
+            st.markdown(sections["estrategias"])
+
+        if sections["riesgos"]:
+            st.markdown("### ⚠️ Gestión de Riesgo")
+            st.markdown(sections["riesgos"])
+
+        if sections["proyección"]:
+            st.markdown("### 🔮 Proyección de Movimiento")
+            st.markdown(sections["proyección"])
+
+        st.markdown(
+            f"""
+                </div>
+                <div class="expert-footer">
+                    Análisis generado por IA - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# =================================================
 # FUNCIONES DE ASISTENTE MEJORADAS
 # =================================================
 
 
 def process_chat_input_with_openai(
-    prompt, symbol=None, api_key=None, assistant_id=None
+    prompt, symbol=None, api_key=None, assistant_id=None, context=None
 ):
     """
     Procesa la entrada del chat utilizando OpenAI para respuestas más naturales y variadas.
@@ -406,20 +1800,12 @@ def process_chat_input_with_openai(
             # Modo fallback: generar respuesta basada en análisis local
             return fallback_analyze_symbol(symbol, prompt)
 
-        # Obtener contexto actualizado del mercado
-        context = get_market_context(symbol)
+        # Si no se proporciona contexto, obtenerlo
+        if not context:
+            context = get_market_context(symbol)
+            
         if not context or "error" in context:
             return f"❌ Error: No se pudo obtener el contexto de mercado para {symbol}."
-
-        # Formatear el contexto para incluirlo en el mensaje
-        price = context.get("last_price", 0)
-        change = context.get("change_percent", 0)
-        vix_level = context.get("vix_level", "N/A")
-
-        # Crear una versión resumida del contexto
-        context_summary = f"""
-        Contexto actual: {symbol} a ${price:.2f} ({change:+.2f}%), VIX: {vix_level}
-        """
 
         # Si tenemos un assistant_id, usar la API de asistentes
         if assistant_id:
@@ -429,16 +1815,18 @@ def process_chat_input_with_openai(
             return process_with_chat_completion(prompt, symbol, context, api_key)
 
     except Exception as e:
+        logger.error(f"Error procesando consulta: {str(e)}")
         return f"Error procesando consulta: {str(e)}"
 
 
 def process_with_assistant(prompt, symbol, context, assistant_id):
-    """Procesa el mensaje utilizando la API de Asistentes de OpenAI"""
+    """Procesa el mensaje utilizando la API de Asistentes de OpenAI con manejo mejorado"""
     try:
         # Crear thread si no existe
         if "thread_id" not in st.session_state:
             thread = openai.beta.threads.create()
             st.session_state.thread_id = thread.id
+            logger.info(f"Nuevo thread creado: {thread.id}")
 
         # Formatear contexto para el mensaje
         price = context.get("last_price", 0)
@@ -485,50 +1873,76 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
 
         # Monitorear la ejecución
         with st.spinner("Analizando mercado y generando respuesta..."):
-            while True:
+            run_status = "in_progress"
+            start_time = time.time()
+            timeout = 40  # 40 segundos de timeout
+            
+            while run_status not in ["completed", "failed", "cancelled", "expired"]:
+                # Verificar timeout
+                if time.time() - start_time > timeout:
+                    logger.warning(f"Timeout al procesar consulta para {symbol}")
+                    return f"La consulta está tomando demasiado tiempo. Por favor, inténtalo de nuevo o formula tu pregunta de otra manera."
+                
+                # Recuperar estado actual
                 run = openai.beta.threads.runs.retrieve(
                     thread_id=st.session_state.thread_id, run_id=run.id
                 )
+                run_status = run.status
 
                 # Verificar estado de ejecución
-                if run.status == "completed":
+                if run_status == "completed":
                     break
-                elif run.status == "requires_action":
+                elif run_status == "requires_action":
                     # Procesar llamadas a herramientas
-                    tool_outputs = process_tool_calls(
-                        run.required_action.submit_tool_outputs.tool_calls, symbol
-                    )
+                    try:
+                        tool_outputs = process_tool_calls(
+                            run.required_action.submit_tool_outputs.tool_calls, symbol
+                        )
 
-                    # Enviar resultados
-                    run = openai.beta.threads.runs.submit_tool_outputs(
-                        thread_id=st.session_state.thread_id,
-                        run_id=run.id,
-                        tool_outputs=tool_outputs,
-                    )
-                elif run.status in ["failed", "cancelled", "expired"]:
-                    return f"Error en la ejecución: {run.status}"
+                        # Enviar resultados
+                        run = openai.beta.threads.runs.submit_tool_outputs(
+                            thread_id=st.session_state.thread_id,
+                            run_id=run.id,
+                            tool_outputs=tool_outputs,
+                        )
+                    except Exception as tool_error:
+                        logger.error(f"Error procesando herramientas: {str(tool_error)}")
+                        # Continuar con la ejecución incluso si falla el procesamiento de herramientas
+                        run_status = "failed"
+                        break
+                elif run_status in ["failed", "cancelled", "expired"]:
+                    logger.error(f"Ejecución fallida con estado: {run_status}, error: {getattr(run, 'error', 'Desconocido')}")
+                    return f"Error en la ejecución: {run_status}"
 
                 # Pequeña pausa para no sobrecargar la API
-                time.sleep(0.5)
+                time.sleep(0.8)
+
+            # Si falló la ejecución después del timeout
+            if run_status in ["failed", "cancelled", "expired"]:
+                return f"Error en la ejecución: {run_status}"
 
             # Obtener mensajes actualizados
-            messages = openai.beta.threads.messages.list(
-                thread_id=st.session_state.thread_id
-            )
+            try:
+                messages = openai.beta.threads.messages.list(
+                    thread_id=st.session_state.thread_id
+                )
 
-            # Encontrar respuesta del asistente
-            for message in messages:
-                if message.run_id == run.id and message.role == "assistant":
-                    # Extraer texto de la respuesta
-                    if hasattr(message.content[0], "text"):
-                        return message.content[0].text.value
-                    else:
-                        return "Error: Formato de respuesta no reconocido"
-
-        return "No se pudo obtener una respuesta del asistente."
+                # Encontrar respuesta del asistente
+                for message in messages:
+                    if message.run_id == run.id and message.role == "assistant":
+                        # Extraer texto de la respuesta
+                        if hasattr(message.content[0], "text"):
+                            return message.content[0].text.value
+                        else:
+                            return "Error: Formato de respuesta no reconocido"
+                            
+                return "No se pudo obtener una respuesta del asistente."
+            except Exception as msg_error:
+                logger.error(f"Error obteniendo mensajes: {str(msg_error)}")
+                return f"Error obteniendo respuesta: {str(msg_error)}"
 
     except Exception as e:
-        st.error(f"Error en process_with_assistant: {str(e)}")
+        logger.error(f"Error en process_with_assistant: {str(e)}")
         # En caso de error, caer en el modo fallback
         return fallback_analyze_symbol(symbol, prompt)
 
@@ -583,19 +1997,36 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
             {"role": "user", "content": prompt},
         ]
 
-        # Realizar llamada a la API
-        response = openai.chat.completions.create(
-            model="gpt-4-turbo-preview",  # Usar el modelo más avanzado
-            messages=messages,
-            temperature=0.7,  # Balancear creatividad y precisión
-            max_tokens=1000,  # Respuesta detallada pero no excesiva
-        )
+        # Realizar llamada a la API con manejo de errores
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4-turbo-preview",  # Usar el modelo más avanzado
+                messages=messages,
+                temperature=0.7,  # Balancear creatividad y precisión
+                max_tokens=1000,  # Respuesta detallada pero no excesiva
+            )
 
-        # Extraer la respuesta
-        return response.choices[0].message.content
+            # Extraer la respuesta
+            return response.choices[0].message.content
+            
+        except openai.error.AuthenticationError:
+            logger.error("Error de autenticación con OpenAI API")
+            return "Error: No se pudo autenticar con OpenAI. Por favor, verifica tu API key."
+            
+        except openai.error.RateLimitError:
+            logger.error("Límite de tasa excedido en OpenAI API")
+            return "Error: Se ha excedido el límite de solicitudes a OpenAI. Por favor, intenta más tarde."
+            
+        except openai.error.APIError as api_err:
+            logger.error(f"Error en API de OpenAI: {str(api_err)}")
+            return f"Error en el servicio de OpenAI: {str(api_err)}"
+            
+        except Exception as general_err:
+            logger.error(f"Error general en OpenAI: {str(general_err)}")
+            return "Error al procesar la solicitud. Por favor, intenta más tarde."
 
     except Exception as e:
-        st.error(f"Error en process_with_chat_completion: {str(e)}")
+        logger.error(f"Error en process_with_chat_completion: {str(e)}")
         # En caso de error, caer en el modo fallback
         return fallback_analyze_symbol(symbol, prompt)
 
@@ -917,7 +2348,7 @@ def initialize_session_state():
             thread = openai.beta.threads.create()
             st.session_state.thread_id = thread.id
         except Exception as e:
-            st.error(f"Error creando thread: {str(e)}")
+            logger.error(f"Error creando thread: {str(e)}")
             st.session_state.thread_id = None
 
     # Estado para activos seleccionados
@@ -934,78 +2365,116 @@ def initialize_session_state():
     # Comprobar APIs una sola vez al iniciar
     if "show_system_status" not in st.session_state:
         st.session_state.show_system_status = True
+        
+    # Estado para última consulta al experto
+    if "last_expert_analysis" not in st.session_state:
+        st.session_state.last_expert_analysis = {}
+        
+    # Estado para gráfico técnico activo
+    if "active_chart" not in st.session_state:
+        st.session_state.active_chart = None
 
 
 def render_sidebar():
-    """Renderiza el panel lateral con información profesional"""
+    """Renderiza el panel lateral con información profesional y estado del mercado"""
     with st.sidebar:
-        st.title("🧑‍💻 Trading Specialist Pro")
+        st.markdown('<h2 class="sidebar-section-title">🧑‍💻 Trading Specialist Pro</h2>', unsafe_allow_html=True)
 
+        # Perfil profesional en un contenedor con estilo
         st.markdown(
             """
-        ## Perfil Profesional
-        Analista técnico y estratega de mercados con especialización en derivados financieros y más de 8 años de experiencia en trading institucional. Experto en el desarrollo e implementación de estrategias cuantitativas, análisis de volatilidad y gestión de riesgo algorítmica. Capacidad demostrada para integrar análisis técnico avanzado con fundamentos macroeconómicos.
-
-        ## Áreas de Especialización Principal
-        - Estrategias avanzadas de opciones y volatilidad
-        - Trading sistemático y algorítmico
-        - Análisis técnico y cuantitativo
-        - Gestión de riesgo dinámica
-        - Market Making y liquidez
-
-        ## Competencias Técnicas Avanzadas
-        - Modelado avanzado de volatilidad y superficies de volatilidad
-        - Análisis de flujo de opciones y order flow
-        - Desarrollo de indicadores propietarios
-        - Machine Learning aplicado a trading
-        - Análisis de microestructura de mercado
-        """
+            <div class="sidebar-profile">
+                <h2>Perfil Profesional</h2>
+                <p>Analista técnico y estratega de mercados con especialización en derivados financieros y más de 8 años de experiencia en trading institucional.</p>
+                <p>Experto en estrategias cuantitativas, análisis de volatilidad y gestión de riesgo algorítmica.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        st.markdown("---")
+        # Áreas de especialización colapsables
+        with st.expander("📊 Áreas de Especialización"):
+            st.markdown(
+                """
+                - Estrategias avanzadas de opciones y volatilidad
+                - Trading sistemático y algorítmico
+                - Análisis técnico y cuantitativo
+                - Gestión de riesgo dinámica
+                - Market Making y liquidez
+                
+                **Competencias Técnicas:**
+                - Modelado de volatilidad y superficies
+                - Análisis de flujo de opciones y order flow
+                - Desarrollo de indicadores propietarios
+                - Machine Learning aplicado a trading
+                - Análisis de microestructura de mercado
+                """
+            )
+
+        st.markdown('<hr style="margin: 1.5rem 0;">', unsafe_allow_html=True)
 
         # Información de mercado
+        st.markdown('<div class="sidebar-section-title">📊 Estado del Mercado</div>', unsafe_allow_html=True)
+        
         try:
-            st.subheader("📊 Estado del Mercado")
-
             # Obtener VIX
             vix_level = get_vix_level()
 
             # Determinar sesión de mercado
             now = datetime.now()
-
             hour = now.hour
             weekday = now.weekday()
 
             if weekday >= 5:  # Fin de semana
                 session = "CERRADO"
+                session_color = "red"
             elif 4 <= hour < 9:
                 session = "PRE-MARKET"
+                session_color = "orange"
             elif 9 <= hour < 16:
                 session = "REGULAR"
+                session_color = "green"
             elif 16 <= hour < 20:
                 session = "AFTER-HOURS"
+                session_color = "blue"
             else:
                 session = "CERRADO"
+                session_color = "red"
 
+            # Mostrar información en dos columnas
             col1, col2 = st.columns(2)
+            
             with col1:
+                # Determinar delta y color basado en nivel VIX
+                if vix_level > 25:
+                    vix_status = "Volatilidad Alta"
+                    delta_color = "inverse"
+                elif vix_level < 15:
+                    vix_status = "Volatilidad Baja"
+                    delta_color = "normal"
+                else:
+                    vix_status = "Normal"
+                    delta_color = "off"
+                    
                 st.metric(
                     "VIX",
                     f"{vix_level:.2f}",
-                    delta=(
-                        "Volatilidad Alta"
-                        if vix_level > 25
-                        else "Volatilidad Baja" if vix_level < 15 else "Normal"
-                    ),
-                    delta_color=(
-                        "inverse"
-                        if vix_level > 25
-                        else "normal" if vix_level < 15 else "off"
-                    ),
+                    delta=vix_status,
+                    delta_color=delta_color,
                 )
+                
             with col2:
-                st.metric("Sesión", session, now.strftime("%H:%M:%S"))
+                # Crear métrica personalizada para la sesión con color
+                st.markdown(
+                    f"""
+                    <div style="padding: 0.5rem; border-radius: 0.5rem; background-color: rgba(0,0,0,0.05);">
+                        <div style="font-size: 0.875rem; color: #6c757d;">Sesión</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: {session_color};">{session}</div>
+                        <div style="font-size: 0.75rem; color: #6c757d;">{now.strftime("%H:%M:%S")}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
             # Mercados principales como referencia
             try:
@@ -1035,16 +2504,41 @@ def render_sidebar():
                             f"{qqq_change:.2f}%",
                             delta_color="normal" if qqq_change >= 0 else "inverse",
                         )
+                        
+                    # Mostrar gráfico mini de SPY
+                    with st.expander("📈 Vista rápida S&P 500"):
+                        # Crear un gráfico simplificado
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=spy_data.index if isinstance(spy_data.index, pd.DatetimeIndex) else range(len(spy_data)),
+                            y=spy_data['Close'],
+                            line=dict(color='#1E88E5', width=2),
+                            name="SPY"
+                        ))
+                        
+                        # Configurar layout minimalista
+                        fig.update_layout(
+                            height=200,
+                            margin=dict(l=10, r=10, t=10, b=10),
+                            showlegend=False,
+                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                            yaxis=dict(showgrid=True, zeroline=False, showticklabels=True),
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                        
             except Exception as e:
                 st.warning("No se pudieron cargar datos de referencia")
 
         except Exception as ex:
             st.warning("No se pudo obtener información de mercado")
 
-        st.markdown("---")
+        st.markdown('<hr style="margin: 1.5rem 0;">', unsafe_allow_html=True)
 
         # Acciones rápidas
-        st.subheader("⚙️ Acciones")
+        st.markdown('<div class="sidebar-section-title">⚙️ Acciones</div>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
 
@@ -1093,22 +2587,698 @@ def render_sidebar():
             ):
                 clear_session()
                 st.rerun()
+                
+        # Mostrar estadísticas de caché
+        stats = _data_cache.get_stats()
+        
+        st.markdown('<div class="sidebar-section-title">💾 Caché</div>', unsafe_allow_html=True)
+        st.text(f"Entradas: {stats['entradas']}")
+        st.text(f"Hit rate: {stats['hit_rate']}")
+        st.text(f"Hits/Misses: {stats['hits']}/{stats['misses']}")
+
+        # Disclaimer
+        st.markdown('<hr style="margin: 1.5rem 0;">', unsafe_allow_html=True)
+        st.caption(
+            """
+            **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
+            para fines informativos únicamente. No constituye asesoramiento financiero 
+            ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
+            """
+        )
 
         # Información de sesión
-        st.markdown("---")
+        st.markdown('<hr style="margin: 1rem 0 0.5rem 0;">', unsafe_allow_html=True)
         if "session_start" in st.session_state:
             session_duration = datetime.now() - st.session_state.session_start
             hours, remainder = divmod(session_duration.seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
-            st.caption(f"Sesión activa: {hours}h {minutes}m {seconds}s")
+            
+            # Mostrar duración de sesión con formato mejorado
+            st.markdown(
+                f"""
+                <div style="font-size: 0.75rem; color: #6c757d; display: flex; justify-content: space-between;">
+                    <span>Sesión activa: {hours}h {minutes}m</span>
+                    <span>v2.0.3</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
             # Mostrar estado de OpenAI
-            if st.session_state.get("openai_configured"):
-                st.caption("✅ OpenAI conectado")
-            else:
-                st.caption("⚠️ OpenAI no configurado - Chat en modo básico")
+            openai_status = "✅ OpenAI conectado" if st.session_state.get("openai_configured") else "⚠️ OpenAI no configurado - Chat en modo básico"
+            st.markdown(
+                f"""
+                <div style="font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;">
+                    {openai_status}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        st.caption("InversorIA Pro v1.0 | © 2025")
+
+# =================================================
+# NUEVAS FUNCIONES DE ANÁLISIS
+# =================================================
+
+def analyze_market_data(symbol, timeframe="1d", period="6mo", indicators=True):
+    """
+    Analiza datos de mercado con indicadores técnicos avanzados
+    """
+    try:
+        # Obtener datos de mercado
+        data = fetch_market_data(symbol, period, interval=timeframe)
+        
+        if data is None or data.empty:
+            return None
+        
+        # Añadir indicadores técnicos si se solicita
+        if indicators:
+            # Crear instancia del analizador técnico
+            analyzer = TechnicalAnalyzer(data)
+            
+            # Calcular indicadores
+            data = analyzer.add_all_indicators()
+            
+            # Detectar patrones si es posible
+            try:
+                # Patrones de vela (solo en los últimos 20 períodos para eficiencia)
+                candle_patterns = detect_candle_patterns(data.tail(30))
+                
+                # Añadir columnas para patrones detectados
+                for pattern in candle_patterns:
+                    idx = pattern.get("idx", -1)
+                    if 0 <= idx < len(data):
+                        pattern_name = pattern.get("pattern", "unknown")
+                        pattern_type = pattern.get("type", "neutral")
+                        
+                        # Crear columna para el patrón si no existe
+                        col_name = f"Pattern_{pattern_name}"
+                        if col_name not in data.columns:
+                            data[col_name] = None
+                        
+                        # Marcar el patrón en el índice correspondiente
+                        data.iloc[idx, data.columns.get_loc(col_name)] = pattern_type
+            except Exception as e:
+                logger.warning(f"No se pudieron detectar patrones de velas: {str(e)}")
+        
+        return data
+    except Exception as e:
+        logger.error(f"Error analizando datos de mercado para {symbol}: {str(e)}")
+        return None
+
+
+def render_enhanced_dashboard(symbol, timeframe="1d"):
+    """Renderiza un dashboard mejorado con análisis técnico avanzado"""
+    
+    # Obtener datos y analizarlos
+    data = analyze_market_data(symbol, timeframe)
+    if data is None or data.empty:
+        st.error(f"No se pudieron obtener datos para {symbol} en timeframe {timeframe}")
+        return
+    
+    # Obtener contexto de mercado
+    context = get_market_context(symbol)
+    if context is None or "error" in context:
+        st.warning(f"No se pudo obtener el contexto completo para {symbol}")
+        context = {"last_price": data["Close"].iloc[-1], "change_percent": 0}
+    
+    # Crear tarjeta principal con información del activo
+    price = context.get("last_price", data["Close"].iloc[-1])
+    change = context.get("change_percent", 0)
+    
+    # Encabezado con precio actual
+    st.markdown(
+        f"""
+        <div style="background-color: rgba(30, 136, 229, 0.1); padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #1E88E5; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0; color: #1E88E5;">{symbol}</h2>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: #666;">
+                        {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | Timeframe: {timeframe}
+                    </p>
+                </div>
+                <div style="text-align: right;">
+                    <h2 style="margin: 0;">${price:.2f}</h2>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: {'green' if change >= 0 else 'red'};">
+                        {change:+.2f}%
+                    </p>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Crear pestañas para diferentes tipos de análisis
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Análisis Técnico", 
+        "🎯 Opciones",  
+        "⚙️ Multi-Timeframe",
+        "🧠 Análisis Experto"
+    ])
+    
+    with tab1:
+        # Mostrar resumen técnico
+        display_technical_summary(symbol, data)
+        
+        # Mostrar gráfico técnico
+        st.markdown("### 📈 Gráfico Técnico")
+        fig = create_technical_chart(data, symbol)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+            # Guardar el gráfico activo en el estado
+            st.session_state.active_chart = fig
+        else:
+            st.warning("No se pudo crear el gráfico técnico")
+            
+        # Mostrar detalles de indicadores
+        with st.expander("📊 Detalles de Indicadores"):
+            last_row = data.iloc[-1]
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("#### Momentum")
+                if "RSI" in data.columns:
+                    rsi = last_row["RSI"]
+                    st.metric("RSI", f"{rsi:.2f}", 
+                             "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral")
+                
+                if "STOCH_K" in data.columns and "STOCH_D" in data.columns:
+                    st.metric("Estocástico", 
+                             f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
+                
+                if "CCI" in data.columns:
+                    st.metric("CCI", f"{last_row['CCI']:.2f}")
+            
+            with col2:
+                st.markdown("#### Tendencia")
+                if "SMA_20" in data.columns and "SMA_50" in data.columns:
+                    sma_20 = last_row["SMA_20"]
+                    sma_50 = last_row["SMA_50"]
+                    sma_diff = ((sma_20 / sma_50) - 1) * 100
+                    st.metric("SMA 20/50", f"{sma_diff:+.2f}%", 
+                             "Alcista" if sma_diff > 0 else "Bajista")
+                
+                if "MACD" in data.columns and "MACD_Signal" in data.columns:
+                    macd = last_row["MACD"]
+                    macd_signal = last_row["MACD_Signal"]
+                    macd_hist = macd - macd_signal
+                    st.metric("MACD Hist", f"{macd_hist:.3f}", 
+                             "Alcista" if macd_hist > 0 else "Bajista")
+                
+                if "SMA_200" in data.columns:
+                    price = last_row["Close"]
+                    sma_200 = last_row["SMA_200"]
+                    price_vs_sma = ((price / sma_200) - 1) * 100
+                    st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
+                             "Por encima" if price_vs_sma > 0 else "Por debajo")
+            
+            with col3:
+                st.markdown("#### Volatilidad")
+                if "BB_Width" in data.columns:
+                    st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
+                
+                if "ATR" in data.columns:
+                    st.metric("ATR", f"{last_row['ATR']:.3f}")
+                    
+                # ATR como porcentaje del precio
+                if "ATR" in data.columns and "Close" in data.columns:
+                    atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
+                    st.metric("ATR %", f"{atr_pct:.2f}%")
+    
+    with tab2:
+        # Obtener datos de opciones
+        option_data = context.get("options", {})
+        option_signal = context.get("signals", {}).get("options", {})
+        
+        # Combinar datos
+        combined_options = {
+            "recommendation": option_signal.get("direction", "NEUTRAL"),
+            "confidence": option_signal.get("confidence", "baja"),
+            "strategy": option_signal.get("strategy", "N/A"),
+            "implied_volatility": option_data.get("implied_volatility", 0) * 100,
+            "historical_volatility": option_data.get("historical_volatility", 0) * 100,
+        }
+        
+        # Mostrar análisis de opciones
+        display_options_analysis(symbol, combined_options)
+        
+        # Mostrar superficie de volatilidad
+        st.markdown("### 📊 Superficie de Volatilidad")
+        
+        # Datos de ejemplo para la superficie de volatilidad
+        try:
+            # Crear datos para la superficie
+            strikes = np.linspace(price * 0.8, price * 1.2, 11)
+            expirations = [30, 60, 90, 180, 270]
+            
+            # Modelar la superficie con un sesgo ligeramente negativo (volatility skew)
+            vol_surface = []
+            for days in expirations:
+                row = []
+                for strike in strikes:
+                    # Modelar skew (mayor volatilidad para puts, menor para calls)
+                    moneyness = strike / price
+                    skew = -0.2 * (1 - moneyness)
+                    # Modelar term structure (mayor volatilidad para vencimientos largos)
+                    term_effect = 0.02 * np.log(days / 30)
+                    # Volatilidad base
+                    base_vol = combined_options.get("implied_volatility", 20)
+                    # Volatilidad final
+                    vol = max(5, base_vol / 100 + skew + term_effect) * 100
+                    row.append(vol)
+                vol_surface.append(row)
+            
+            # Crear figura 3D
+            fig = go.Figure(data=[go.Surface(
+                z=vol_surface,
+                x=strikes,
+                y=expirations,
+                colorscale='Viridis',
+                colorbar=dict(title="Vol. Implícita (%)")
+            )])
+            
+            fig.update_layout(
+                title='Superficie de Volatilidad',
+                scene=dict(
+                    xaxis_title='Strike',
+                    yaxis_title='Días a vencimiento',
+                    zaxis_title='Volatilidad Implícita (%)'
+                ),
+                height=600,
+                margin=dict(l=10, r=10, b=10, t=30)
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.warning(f"No se pudo generar la superficie de volatilidad: {str(e)}")
+        
+        # Mostrar estrategias de opciones
+        st.markdown("### 🎯 Estrategias Recomendadas")
+        
+        # Determinar qué estrategias mostrar según la señal
+        recommendation = combined_options.get("recommendation", "NEUTRAL")
+        
+        if recommendation == "CALL":
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>🔵 Call Debit Spread</h4>
+                        <p><strong>Objetivo:</strong> Beneficiarse de un movimiento alcista moderado con riesgo limitado.</p>
+                        <p><strong>Implementación:</strong> Comprar un call ATM y vender un call OTM con el mismo vencimiento.</p>
+                        <p><strong>Riesgo Máximo:</strong> Limitado a la prima neta pagada.</p>
+                        <p><strong>Recompensa Máxima:</strong> Diferencia entre strikes menos prima neta.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Baja a moderada.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            
+            with col2:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>🔵 Bull Call Ladder</h4>
+                        <p><strong>Objetivo:</strong> Posición alcista agresiva con protección contra movimientos muy fuertes.</p>
+                        <p><strong>Implementación:</strong> Comprar un call ITM, vender un call ATM y vender otro call muy OTM.</p>
+                        <p><strong>Riesgo Máximo:</strong> Diferencia entre strikes menos primas recibidas.</p>
+                        <p><strong>Recompensa Máxima:</strong> Ilimitada en ciertos rangos de precio.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Alta.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        elif recommendation == "PUT":
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>🔴 Put Debit Spread</h4>
+                        <p><strong>Objetivo:</strong> Beneficiarse de un movimiento bajista moderado con riesgo limitado.</p>
+                        <p><strong>Implementación:</strong> Comprar un put ATM y vender un put OTM con el mismo vencimiento.</p>
+                        <p><strong>Riesgo Máximo:</strong> Limitado a la prima neta pagada.</p>
+                        <p><strong>Recompensa Máxima:</strong> Diferencia entre strikes menos prima neta.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Baja a moderada.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            
+            with col2:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>🔴 Bear Put Ladder</h4>
+                        <p><strong>Objetivo:</strong> Posición bajista agresiva con protección contra movimientos muy fuertes.</p>
+                        <p><strong>Implementación:</strong> Comprar un put ITM, vender un put ATM y vender otro put muy OTM.</p>
+                        <p><strong>Riesgo Máximo:</strong> Diferencia entre strikes menos primas recibidas.</p>
+                        <p><strong>Recompensa Máxima:</strong> Ilimitada en ciertos rangos de precio.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Alta.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>⚪ Iron Condor</h4>
+                        <p><strong>Objetivo:</strong> Beneficiarse de un rango de precios estable con volatilidad decreciente.</p>
+                        <p><strong>Implementación:</strong> Vender un put spread y un call spread OTM con el mismo vencimiento.</p>
+                        <p><strong>Riesgo Máximo:</strong> Diferencia entre strikes de un lado menos prima neta.</p>
+                        <p><strong>Recompensa Máxima:</strong> Limitada a la prima neta recibida.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Alta pero esperando que disminuya.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            
+            with col2:
+                st.markdown(
+                    """
+                    <div class="strategy-card">
+                        <h4>⚪ Calendar Spread</h4>
+                        <p><strong>Objetivo:</strong> Aprovechar el paso del tiempo y cambios en volatilidad.</p>
+                        <p><strong>Implementación:</strong> Vender opciones de corto plazo y comprar de largo plazo al mismo strike.</p>
+                        <p><strong>Riesgo Máximo:</strong> Limitado a la prima neta pagada.</p>
+                        <p><strong>Recompensa Máxima:</strong> Varía según la evolución de la volatilidad y el subyacente.</p>
+                        <p><strong>Volatilidad Ideal:</strong> Baja en corto plazo, alta en largo plazo.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        
+        # Mostrar parámetros de opciones recomendados
+        with st.expander("⚙️ Parámetros Recomendados"):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("#### Vencimiento")
+                vencimiento = "45 días" if recommendation != "NEUTRAL" else "30-60 días"
+                st.info(f"Recomendado: **{vencimiento}**")
+                st.text("Razonamiento: Balance óptimo entre theta decay y tiempo para que se desarrolle el movimiento.")
+            
+            with col2:
+                st.markdown("#### Strikes")
+                if recommendation == "CALL":
+                    strikes = f"Comprar: ${price:.2f} (ATM)\nVender: ${price * 1.05:.2f} (5% OTM)"
+                elif recommendation == "PUT":
+                    strikes = f"Comprar: ${price:.2f} (ATM)\nVender: ${price * 0.95:.2f} (5% OTM)"
+                else:
+                    strikes = f"Put spread: ${price * 0.90:.2f}-${price * 0.95:.2f}\nCall spread: ${price * 1.05:.2f}-${price * 1.10:.2f}"
+                
+                st.info("Recomendados:")
+                st.text(strikes)
+            
+            with col3:
+                st.markdown("#### Gestión de Riesgo")
+                st.info("Tamaño de posición: 2-3% del capital")
+                st.text(f"Stop loss: -50% del valor de la posición\nTake profit: 25-30% del beneficio máximo potencial")
+    
+    with tab3:
+        st.markdown("### ⚙️ Análisis Multi-Timeframe")
+        
+        # Mostrar resultados de diferentes timeframes
+        col1, col2, col3 = st.columns(3)
+        
+        timeframes = ["1d", "1wk", "1mo"]
+        labels = ["Diario", "Semanal", "Mensual"]
+        
+        multi_timeframe_data = {}
+        
+        for i, (tf, label) in enumerate(zip(timeframes, labels)):
+            # Obtener datos para este timeframe
+            tf_data = analyze_market_data(symbol, tf, "1y")
+            multi_timeframe_data[tf] = tf_data
+            
+            if tf_data is not None and not tf_data.empty:
+                last_row = tf_data.iloc[-1]
+                
+                # Determinar señal basada en indicadores
+                rsi = last_row.get("RSI")
+                macd = last_row.get("MACD")
+                macd_signal = last_row.get("MACD_Signal")
+                sma_20 = last_row.get("SMA_20")
+                sma_50 = last_row.get("SMA_50")
+                
+                # Inicializar señales
+                momentum = "Neutral"
+                trend = "Neutral"
+                
+                # Determinar momentum
+                if rsi is not None:
+                    if rsi > 70:
+                        momentum = "Sobrecompra"
+                    elif rsi < 30:
+                        momentum = "Sobreventa"
+                
+                # Determinar tendencia
+                if macd is not None and macd_signal is not None:
+                    trend = "Alcista" if macd > macd_signal else "Bajista"
+                
+                # Determinar señal general
+                if sma_20 is not None and sma_50 is not None:
+                    sma_cross = "Alcista" if sma_20 > sma_50 else "Bajista"
+                else:
+                    sma_cross = "N/A"
+                
+                # Mostrar en columna
+                with [col1, col2, col3][i]:
+                    st.markdown(f"#### {label}")
+                    
+                    # Color para la señal general
+                    if trend == "Alcista" and momentum != "Sobrecompra":
+                        signal_color = "#4CAF50"  # Verde
+                        signal = "ALCISTA"
+                    elif trend == "Bajista" and momentum != "Sobreventa":
+                        signal_color = "#F44336"  # Rojo
+                        signal = "BAJISTA"
+                    else:
+                        signal_color = "#9E9E9E"  # Gris
+                        signal = "NEUTRAL"
+                    
+                    # Mostrar señal principal
+                    st.markdown(
+                        f"""
+                        <div style="background-color: {signal_color}33; padding: 0.5rem; border-radius: 0.5rem; text-align: center; margin-bottom: 0.5rem;">
+                            <div style="font-size: 1.25rem; font-weight: 700; color: {signal_color};">{signal}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Mostrar indicadores
+                    st.markdown(f"**RSI:** {rsi:.1f} ({momentum})")
+                    st.markdown(f"**MACD:** {trend}")
+                    st.markdown(f"**SMA Cross:** {sma_cross}")
+                    
+                    # Mostrar botón para ver gráfico
+                    if st.button(f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}"):
+                        st.session_state.current_timeframe = tf
+                        st.rerun()
+            else:
+                with [col1, col2, col3][i]:
+                    st.markdown(f"#### {label}")
+                    st.warning(f"No hay datos disponibles para {tf}")
+        
+        # Mostrar alineación de timeframes
+        st.markdown("### 📊 Alineación de Timeframes")
+        
+        daily = multi_timeframe_data.get("1d")
+        weekly = multi_timeframe_data.get("1wk")
+        monthly = multi_timeframe_data.get("1mo")
+        
+        if daily is not None and weekly is not None and monthly is not None:
+            # Extraer señales de cada timeframe
+            try:
+                # Obtener último valor de cada dataframe
+                daily_last = daily.iloc[-1]
+                weekly_last = weekly.iloc[-1]
+                monthly_last = monthly.iloc[-1]
+                
+                # Determinar tendencia basada en MACD y SMAs
+                daily_trend = "alcista" if daily_last.get("MACD", 0) > daily_last.get("MACD_Signal", 0) else "bajista"
+                weekly_trend = "alcista" if weekly_last.get("MACD", 0) > weekly_last.get("MACD_Signal", 0) else "bajista"
+                monthly_trend = "alcista" if monthly_last.get("MACD", 0) > monthly_last.get("MACD_Signal", 0) else "bajista"
+                
+                # Determinar alineación
+                if daily_trend == weekly_trend == monthly_trend:
+                    alignment = "FUERTE"
+                    alignment_color = "#4CAF50" if daily_trend == "alcista" else "#F44336"
+                elif weekly_trend == monthly_trend:
+                    alignment = "MODERADA"
+                    alignment_color = "#66BB6A" if weekly_trend == "alcista" else "#EF5350"
+                else:
+                    alignment = "DÉBIL"
+                    alignment_color = "#9E9E9E"
+                
+                # Mostrar matriz de alineación
+                st.markdown(
+                    f"""
+                    <div style="background-color: {alignment_color}22; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;">
+                        <h4 style="margin-top: 0; color: {alignment_color};">Alineación {alignment}</h4>
+                        <table style="width: 100%; text-align: center;">
+                            <tr style="font-weight: bold;">
+                                <td>Timeframe</td>
+                                <td>Tendencia</td>
+                                <td>Momentum</td>
+                                <td>Volatilidad</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Diario</strong></td>
+                                <td style="color: {'green' if daily_trend == 'alcista' else 'red'};">{daily_trend.upper()}</td>
+                                <td>{('Neutral' if 30 <= daily_last.get('RSI', 50) <= 70 else 'Sobrecompra' if daily_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
+                                <td>{('Alta' if daily_last.get('BB_Width', 0) > 0.05 else 'Baja' if daily_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Semanal</strong></td>
+                                <td style="color: {'green' if weekly_trend == 'alcista' else 'red'};">{weekly_trend.upper()}</td>
+                                <td>{('Neutral' if 30 <= weekly_last.get('RSI', 50) <= 70 else 'Sobrecompra' if weekly_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
+                                <td>{('Alta' if weekly_last.get('BB_Width', 0) > 0.05 else 'Baja' if weekly_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mensual</strong></td>
+                                <td style="color: {'green' if monthly_trend == 'alcista' else 'red'};">{monthly_trend.upper()}</td>
+                                <td>{('Neutral' if 30 <= monthly_last.get('RSI', 50) <= 70 else 'Sobrecompra' if monthly_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
+                                <td>{('Alta' if monthly_last.get('BB_Width', 0) > 0.05 else 'Baja' if monthly_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                
+                # Mostrar recomendación basada en alineación
+                st.markdown("#### 🎯 Recomendación Multi-Timeframe")
+                
+                if alignment == "FUERTE":
+                    if daily_trend == "alcista":
+                        st.success(
+                            """
+                            **Alineación Alcista Fuerte**: Los tres timeframes muestran señal alcista, lo que indica una tendencia sólida.
+                            
+                            **Estrategia recomendada:** Posiciones largas con horizonte de medio a largo plazo. Considerar estrategias direccionales como Call Debit Spreads o Bull Call Spreads con vencimiento de 60-90 días.
+                            """
+                        )
+                    else:
+                        st.error(
+                            """
+                            **Alineación Bajista Fuerte**: Los tres timeframes muestran señal bajista, lo que indica una tendencia sólida a la baja.
+                            
+                            **Estrategia recomendada:** Posiciones cortas con horizonte de medio plazo. Considerar Put Debit Spreads o Bull Put Spreads con vencimiento de 45-60 días.
+                            """
+                        )
+                elif alignment == "MODERADA":
+                    if weekly_trend == "alcista":
+                        st.info(
+                            """
+                            **Alineación Alcista Moderada**: Los timeframes semanal y mensual están alineados alcistas, pero el diario muestra divergencia.
+                            
+                            **Estrategia recomendada:** Buscar oportunidades de compra en retrocesos. Considerar estrategias con sesgo alcista pero protección a la baja como Bull Put Spreads.
+                            """
+                        )
+                    else:
+                        st.warning(
+                            """
+                            **Alineación Bajista Moderada**: Los timeframes semanal y mensual están alineados bajistas, pero el diario muestra divergencia.
+                            
+                            **Estrategia recomendada:** Mantener cautela en posiciones largas. Considerar protección con Bear Call Spreads o reducir exposición alcista.
+                            """
+                        )
+                else:
+                    st.info(
+                        """
+                        **Alineación Débil**: Los timeframes muestran señales mixtas sin una dirección clara.
+                        
+                        **Estrategia recomendada:** Estrategias neutrales como Iron Condors o Calendar Spreads. Evitar posiciones direccionales agresivas y reducir tamaño de posición.
+                        """
+                    )
+            except Exception as e:
+                st.warning(f"No se pudo calcular la alineación de timeframes: {str(e)}")
+        else:
+            st.warning("No hay datos suficientes para calcular la alineación de timeframes")
+    
+    with tab4:
+        st.markdown("### 🧠 Análisis del Experto")
+        
+        # Botón para solicitar análisis experto
+        if st.button("🔍 Solicitar Análisis del Experto", type="primary", use_container_width=True):
+            # Verificar si OpenAI está configurado
+            if st.session_state.get("openai_configured"):
+                with st.spinner("Consultando al experto de trading..."):
+                    # Obtener análisis experto
+                    expert_analysis = process_expert_analysis(
+                        openai, 
+                        st.session_state.assistant_id, 
+                        symbol, 
+                        context
+                    )
+                    
+                    # Guardar el análisis en el estado de la sesión
+                    if expert_analysis:
+                        st.session_state.last_expert_analysis[symbol] = {
+                            "analysis": expert_analysis,
+                            "timestamp": datetime.now().isoformat(),
+                            "price": price,
+                            "change": change
+                        }
+            else:
+                st.error("OpenAI no está configurado. No se puede generar análisis experto.")
+        
+        # Mostrar análisis guardado si existe
+        if symbol in st.session_state.last_expert_analysis:
+            expert_data = st.session_state.last_expert_analysis[symbol]
+            
+            # Calcular tiempo transcurrido
+            analysis_time = datetime.fromisoformat(expert_data["timestamp"])
+            elapsed = datetime.now() - analysis_time
+            
+            # Mostrar información del análisis
+            st.markdown(
+                f"""
+                <div style="background-color: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <p style="margin: 0; font-size: 0.8rem; color: #666;">
+                        Análisis generado hace {elapsed.seconds // 60} minutos
+                        | Precio: ${expert_data["price"]:.2f} ({expert_data["change"]:+.2f}%)
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            
+            # Mostrar el análisis
+            display_expert_opinion(expert_data["analysis"])
+        else:
+            st.info("Solicita un nuevo análisis usando el botón superior")
+        
+        # Añadir sección de preguntas específicas
+        with st.expander("❓ Preguntas Específicas al Experto"):
+            question = st.text_input("Pregunta sobre este activo:", placeholder="Ej: ¿Cuáles son los niveles de soporte clave? o ¿Qué estrategia de opciones recomiendas?")
+            
+            if st.button("Preguntar", key="ask_specific"):
+                if question and st.session_state.get("openai_configured"):
+                    with st.spinner("Consultando al experto..."):
+                        answer = process_chat_input_with_openai(
+                            question,
+                            symbol,
+                            st.session_state.openai_api_key,
+                            st.session_state.assistant_id,
+                            context
+                        )
+                        
+                        st.markdown(f"**Respuesta del experto:**")
+                        st.markdown(answer)
+                else:
+                    st.warning("Por favor, ingresa una pregunta y asegúrate de que OpenAI esté configurado.")
 
 
 # =================================================
@@ -1129,17 +3299,13 @@ def main():
         # Mostrar el estado del sistema al iniciar sesión y luego desactivarlo
         if st.session_state.get("show_system_status", False):
             display_system_status()
-            # Botón para cerrar el panel de estado
-            if st.button("Continuar al Dashboard", use_container_width=True):
-                st.session_state.show_system_status = False
-                st.rerun()
             return
 
         # Renderizar sidebar después de mostrar el estado del sistema
         render_sidebar()
 
         # Panel principal
-        st.title("💹 Análisis Profesional de Trading")
+        st.markdown('<h1 class="main-header">💹 InversorIA Pro - Terminal de Trading</h1>', unsafe_allow_html=True)
 
         # Selección de activo
         col_cat, col_sym, col_tf = st.columns([1, 1, 1])
@@ -1178,23 +3344,12 @@ def main():
 
         # Panel de Dashboard en columna 1
         with col1:
-            # Pestañas para diferentes vistas
-            tab1, tab2, tab3 = st.tabs(
-                ["📈 Análisis Técnico", "🎯 Opciones", "⏱️ Multi-Timeframe"]
-            )
-
-            with tab1:
-                render_technical_tab(symbol, timeframe)
-
-            with tab2:
-                render_options_tab(symbol)
-
-            with tab3:
-                render_multiframe_tab(symbol)
+            # Renderizar dashboard mejorado
+            render_enhanced_dashboard(symbol, timeframe)
 
         # Panel de Chat en columna 2
         with col2:
-            st.header("💬 Trading Specialist")
+            st.markdown('<h2 class="sub-header">💬 Trading Specialist</h2>', unsafe_allow_html=True)
 
             # Mostrar tarjeta de contexto
             context = get_market_context(symbol)
@@ -1212,21 +3367,24 @@ def main():
                     option_strategy = signals["options"]["strategy"]
 
                 # Colores dinámicos según señal
-                signal_color = "gray"
+                signal_color = "#9E9E9E"  # gris por defecto
                 if option_signal == "CALL":
-                    signal_color = "green"
+                    signal_color = "#4CAF50"  # verde
                 elif option_signal == "PUT":
-                    signal_color = "red"
+                    signal_color = "#F44336"  # rojo
 
                 # Mostrar tarjeta con contexto actual
                 st.markdown(
                     f"""
-                <div style="background-color:rgba(70,70,70,0.2);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
-                <h3 style="margin-top:0">{symbol} ${price:.2f} <span style="color:{'green' if change >= 0 else 'red'}">{change:+.2f}%</span></h3>
-                <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
-                <p><strong>VIX:</strong> {context.get('vix_level', 'N/A')} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
-                </div>
-                """,
+                    <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
+                        <h3 style="margin-top:0; display: flex; justify-content: space-between;">
+                            <span>{symbol}</span> 
+                            <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
+                        </h3>
+                        <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
+                        <p><strong>VIX:</strong> {context.get('vix_level', 'N/A')} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
+                    </div>
+                    """,
                     unsafe_allow_html=True,
                 )
 
@@ -1234,19 +3392,19 @@ def main():
                 if st.session_state.get("openai_configured"):
                     st.markdown(
                         """
-                    <div style="display:inline-block;background-color:rgba(25,118,210,0.2);color:white;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px">
-                    ✨ Modo Avanzado con IA
-                    </div>
-                    """,
+                        <div style="display:inline-block;background-color:rgba(25,118,210,0.1);color:#1976D2;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
+                        ✨ Modo Avanzado con IA
+                        </div>
+                        """,
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
                         """
-                    <div style="display:inline-block;background-color:rgba(128,128,128,0.2);color:white;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px">
-                    ⚠️ Modo Básico
-                    </div>
-                    """,
+                        <div style="display:inline-block;background-color:rgba(128,128,128,0.1);color:#9E9E9E;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
+                        ⚠️ Modo Básico
+                        </div>
+                        """,
                         unsafe_allow_html=True,
                     )
 
@@ -1277,6 +3435,7 @@ def main():
                                 symbol,
                                 st.session_state.openai_api_key,
                                 st.session_state.assistant_id,
+                                context
                             )
                         else:
                             # Usar modo fallback si OpenAI no está configurado
@@ -1294,10 +3453,10 @@ def main():
             st.markdown("---")
             st.caption(
                 """
-            **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
-            para fines informativos únicamente. No constituye asesoramiento financiero 
-            ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
-            """
+                **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
+                para fines informativos únicamente. No constituye asesoramiento financiero 
+                ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
+                """
             )
 
     except Exception as e:
