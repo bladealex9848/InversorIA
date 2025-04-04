@@ -3491,12 +3491,12 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     st.warning("Por favor, ingresa una pregunta y asegúrate de que OpenAI esté configurado.")
 
 
-    # =================================================
-    # FUNCIÓN PRINCIPAL
-    # =================================================
+# =================================================
+# FUNCIÓN PRINCIPAL
+# =================================================
 
 
-    def main():
+def main():
     """Función principal de la aplicación"""
     try:
         # Verificar autenticación primero
@@ -3698,5 +3698,5 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         st.error(traceback.format_exc())
 
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
