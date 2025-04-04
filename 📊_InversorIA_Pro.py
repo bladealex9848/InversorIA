@@ -120,6 +120,26 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super(NumpyEncoder, self).default(obj)
 
+# Información de símbolos y nombres completos
+COMPANY_INFO = {
+    "AAPL": {"name": "Apple Inc.", "sector": "Tecnología", "description": "Fabricante de dispositivos electrónicos y software"},
+    "MSFT": {"name": "Microsoft Corporation", "sector": "Tecnología", "description": "Empresa de software y servicios en la nube"},
+    "GOOGL": {"name": "Alphabet Inc. (Google)", "sector": "Tecnología", "description": "Conglomerado especializado en productos y servicios de Internet"},
+    "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumo Discrecional", "description": "Comercio electrónico y servicios en la nube"},
+    "TSLA": {"name": "Tesla Inc.", "sector": "Automóviles", "description": "Fabricante de vehículos eléctricos y tecnología de energía limpia"},
+    "NVDA": {"name": "NVIDIA Corporation", "sector": "Tecnología", "description": "Fabricante de unidades de procesamiento gráfico"},
+    "META": {"name": "Meta Platforms Inc.", "sector": "Tecnología", "description": "Empresa de redes sociales y tecnología"},
+    "NFLX": {"name": "Netflix Inc.", "sector": "Comunicación", "description": "Servicio de streaming y producción de contenido"},
+    "PYPL": {"name": "PayPal Holdings Inc.", "sector": "Servicios Financieros", "description": "Plataforma de pagos en línea"},
+    "CRM": {"name": "Salesforce Inc.", "sector": "Tecnología", "description": "Software de gestión de relaciones con clientes"},
+    "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Finanzas", "description": "Banco multinacional y servicios financieros"},
+    "BAC": {"name": "Bank of America Corp.", "sector": "Finanzas", "description": "Institución bancaria multinacional"},
+    "SPY": {"name": "SPDR S&P 500 ETF Trust", "sector": "ETF", "description": "ETF que sigue el índice S&P 500"},
+    "QQQ": {"name": "Invesco QQQ Trust", "sector": "ETF", "description": "ETF que sigue el índice Nasdaq-100"},
+    "DIA": {"name": "SPDR Dow Jones Industrial Average ETF", "sector": "ETF", "description": "ETF que sigue el índice Dow Jones Industrial Average"},
+    "IWM": {"name": "iShares Russell 2000 ETF", "sector": "ETF", "description": "ETF que sigue el índice Russell 2000 de small caps"},
+}
+
 # Universo de Trading
 SYMBOLS = {
     "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
@@ -177,7 +197,7 @@ st.markdown(
         color: #1E88E5;
         margin-bottom: 1rem;
     }
-    
+
     .sub-header {
         font-size: 1.5rem;
         font-weight: 600;
@@ -185,7 +205,7 @@ st.markdown(
         margin-top: 1rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .metric-card {
         background-color: #f8f9fa;
         border-radius: 0.5rem;
@@ -193,17 +213,17 @@ st.markdown(
         box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
         text-align: center;
     }
-    
+
     .metric-value {
         font-size: 1.8rem;
         font-weight: 700;
     }
-    
+
     .metric-label {
         font-size: 0.875rem;
         color: #6c757d;
     }
-    
+
     .call-badge {
         background-color: rgba(0, 200, 0, 0.2);
         color: #006400;
@@ -211,7 +231,7 @@ st.markdown(
         border-radius: 0.25rem;
         font-weight: 600;
     }
-    
+
     .put-badge {
         background-color: rgba(200, 0, 0, 0.2);
         color: #8B0000;
@@ -219,7 +239,7 @@ st.markdown(
         border-radius: 0.25rem;
         font-weight: 600;
     }
-    
+
     .neutral-badge {
         background-color: rgba(128, 128, 128, 0.2);
         color: #696969;
@@ -227,33 +247,33 @@ st.markdown(
         border-radius: 0.25rem;
         font-weight: 600;
     }
-    
+
     .news-card {
         border-left: 3px solid #1E88E5;
         padding-left: 0.75rem;
         margin-bottom: 0.75rem;
     }
-    
+
     .news-date {
         font-size: 0.75rem;
         color: #6c757d;
     }
-    
+
     .confidence-high {
         color: #28a745;
         font-weight: 600;
     }
-    
+
     .confidence-medium {
         color: #ffc107;
         font-weight: 600;
     }
-    
+
     .confidence-low {
         color: #6c757d;
         font-weight: 600;
     }
-    
+
     /* Estilos para indicadores de análisis institucional */
     .institutional-insight {
         border-left: 4px solid #9C27B0;
@@ -262,22 +282,22 @@ st.markdown(
         margin-bottom: 1rem;
         border-radius: 0 0.25rem 0.25rem 0;
     }
-    
+
     .risk-low {
         color: #4CAF50;
         font-weight: 600;
     }
-    
+
     .risk-medium {
         color: #FF9800;
         font-weight: 600;
     }
-    
+
     .risk-high {
         color: #F44336;
         font-weight: 600;
     }
-    
+
     .pro-trading-tip {
         background-color: rgba(33, 150, 243, 0.1);
         border: 1px solid rgba(33, 150, 243, 0.3);
@@ -285,7 +305,7 @@ st.markdown(
         padding: 0.75rem;
         margin: 1rem 0;
     }
-    
+
     .strategy-card {
         border: 1px solid #e0e0e0;
         border-radius: 0.5rem;
@@ -293,12 +313,12 @@ st.markdown(
         margin-bottom: 1rem;
         transition: all 0.3s ease;
     }
-    
+
     .strategy-card:hover {
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         border-color: #bbdefb;
     }
-    
+
     /* Estilos adicionales para el análisis del experto */
     .expert-container {
         border: 1px solid #EEEEEE;
@@ -308,7 +328,7 @@ st.markdown(
         margin-top: 2rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    
+
     .expert-header {
         display: flex;
         align-items: center;
@@ -316,7 +336,7 @@ st.markdown(
         border-bottom: 1px solid #EEEEEE;
         padding-bottom: 0.5rem;
     }
-    
+
     .expert-avatar {
         background-color: #1E88E5;
         color: white;
@@ -329,17 +349,17 @@ st.markdown(
         justify-content: center;
         margin-right: 1rem;
     }
-    
+
     .expert-title {
         font-weight: 600;
         font-size: 1.2rem;
         color: #1E88E5;
     }
-    
+
     .expert-content {
         line-height: 1.6;
     }
-    
+
     .expert-footer {
         margin-top: 1rem;
         font-size: 0.8rem;
@@ -348,7 +368,7 @@ st.markdown(
         border-top: 1px solid #EEEEEE;
         padding-top: 0.5rem;
     }
-    
+
     /* Estilos para chat mejorado */
     .chat-container {
         border: 1px solid #e0e0e0;
@@ -359,31 +379,31 @@ st.markdown(
         padding: 1rem;
         margin-bottom: 1rem;
     }
-    
+
     .chat-message {
         margin-bottom: 0.75rem;
         padding: 0.75rem;
         border-radius: 8px;
         max-width: 85%;
     }
-    
+
     .chat-message-user {
         background-color: #DCF8C6;
         margin-left: auto;
         margin-right: 0;
     }
-    
+
     .chat-message-assistant {
         background-color: #FFFFFF;
         margin-left: 0;
         margin-right: auto;
         box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
-    
+
     .chat-input {
         display: flex;
     }
-    
+
     /* Estilos para el dashboard */
     .dashboard-card {
         background-color: white;
@@ -392,7 +412,7 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         margin-bottom: 1rem;
     }
-    
+
     .dashboard-header {
         border-bottom: 1px solid #e0e0e0;
         padding-bottom: 0.5rem;
@@ -400,7 +420,7 @@ st.markdown(
         font-size: 1.2rem;
         font-weight: 600;
     }
-    
+
     /* Estilos para pestañas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 1rem;
@@ -410,7 +430,7 @@ st.markdown(
         padding: 0.5rem 1rem;
         font-weight: 600;
     }
-    
+
     /* Estilos para sidebar mejorada */
     .sidebar-profile {
         padding: 1rem;
@@ -418,21 +438,89 @@ st.markdown(
         border-radius: 8px;
         margin-bottom: 1rem;
     }
-    
+
     .sidebar-profile h2 {
         font-size: 1.25rem;
         margin-bottom: 0.5rem;
         color: #1E88E5;
     }
-    
+
     .sidebar-section {
         margin-bottom: 1.5rem;
     }
-    
+
     .sidebar-section-title {
         font-weight: 600;
         margin-bottom: 0.5rem;
         color: #424242;
+    }
+
+    /* Estilos para tarjeta de activo */
+    .asset-card {
+        background-color: #f8f9fa;
+        border-left: 4px solid #1E88E5;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .asset-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .asset-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .asset-price {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .asset-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .asset-detail-item {
+        flex: 1;
+        min-width: 120px;
+    }
+
+    .asset-detail-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+    }
+
+    .asset-detail-value {
+        font-size: 1rem;
+        font-weight: 600;
+    }
+
+    /* Estilo para mensaje de error */
+    .error-message {
+        background-color: rgba(244, 67, 54, 0.1);
+        border-left: 4px solid #F44336;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .info-message {
+        background-color: rgba(33, 150, 243, 0.1);
+        border-left: 4px solid #2196F3;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-bottom: 1rem;
     }
 </style>
 """,
@@ -567,17 +655,18 @@ def check_api_keys():
     for key in keys_to_check:
         # Intentar obtener desde Streamlit secrets o variables de entorno
         try:
+            value = None
             # Primero verificar en streamlit secrets
             if hasattr(st, "secrets"):
                 value = st.secrets.get(key, None)
                 if value is None and "api_keys" in st.secrets:
                     value = st.secrets["api_keys"].get(key, None)
-                
+
             # Si no se encuentra en secrets, verificar variables de entorno
             if value is None:
                 env_key = key.upper()
                 value = os.environ.get(env_key, "")
-                
+
             is_present = bool(value)
 
             # Mostrar solo una indicación de si está presente, no el valor real
@@ -588,7 +677,7 @@ def check_api_keys():
                 source = "Streamlit secrets (api_keys)"
             elif key.upper() in os.environ:
                 source = "Variables de entorno"
-                
+
             apis_status[key] = {
                 "status": "✅ Disponible" if is_present else "❌ No configurada",
                 "source": source,
@@ -655,7 +744,7 @@ def check_libraries():
             else:
                 module = importlib.import_module(lib)
                 version = getattr(module, "__version__", "versión desconocida")
-                
+
             libraries_status[lib] = {
                 "status": "✅ Instalada",
                 "version": version,
@@ -689,7 +778,7 @@ def display_system_status():
         """,
         unsafe_allow_html=True
     )
-    
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -709,25 +798,25 @@ def display_system_status():
             st.write(
                 f"**Hits/Misses:** {cache_stats.get('hits', 0)}/{cache_stats.get('misses', 0)}"
             )
-            
+
             # Mostrar gráfico de uso de caché
             if cache_stats.get('hits', 0) > 0 or cache_stats.get('misses', 0) > 0:
                 labels = ['Hits', 'Misses']
                 values = [cache_stats.get('hits', 0), cache_stats.get('misses', 0)]
-                
+
                 fig = go.Figure(data=[go.Pie(
                     labels=labels,
                     values=values,
                     hole=.3,
                     marker_colors=['#4CAF50', '#F44336']
                 )])
-                
+
                 fig.update_layout(
                     title="Eficiencia de Caché",
                     height=300,
                     margin=dict(l=10, r=10, t=30, b=10),
                 )
-                
+
                 st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.write("**Error accediendo a estadísticas de caché:**", str(e))
@@ -742,7 +831,7 @@ def display_system_status():
         """,
         unsafe_allow_html=True
     )
-    
+
     apis_status = check_api_keys()
 
     # Crear tabla de estados de API
@@ -758,7 +847,7 @@ def display_system_status():
         st.dataframe(api_df, use_container_width=True)
     else:
         st.warning("No se pudo obtener información de APIs")
-        
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Estado de librerías
@@ -769,7 +858,7 @@ def display_system_status():
         """,
         unsafe_allow_html=True
     )
-    
+
     libraries_status = check_libraries()
 
     # Crear tabla de estados de librerías
@@ -785,7 +874,7 @@ def display_system_status():
         st.dataframe(lib_df, use_container_width=True)
     else:
         st.warning("No se pudo obtener información de librerías")
-        
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Prueba de conexión a datos
@@ -796,19 +885,19 @@ def display_system_status():
         """,
         unsafe_allow_html=True
     )
-    
+
     try:
         with st.spinner("Probando acceso a datos de mercado..."):
             test_data = fetch_market_data("SPY", "2d")
             if test_data is not None and not test_data.empty:
                 st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
-                
+
                 # Mostrar datos recientes
                 st.dataframe(test_data.tail(3), use_container_width=True)
-                
+
                 # Crear un gráfico rápido para visualizar
                 fig = go.Figure()
-                
+
                 fig.add_trace(
                     go.Candlestick(
                         x=test_data.index if isinstance(test_data.index, pd.DatetimeIndex) else test_data['Date'],
@@ -819,7 +908,7 @@ def display_system_status():
                         name="OHLC"
                     )
                 )
-                
+
                 fig.update_layout(
                     title="Prueba de Datos SPY",
                     xaxis_title="Fecha",
@@ -827,15 +916,15 @@ def display_system_status():
                     height=400,
                     xaxis_rangeslider_visible=False
                 )
-                
+
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.error("❌ No se pudieron obtener datos para SPY")
     except Exception as e:
         st.error(f"❌ Error en prueba de datos: {str(e)}")
-        
+
     st.markdown("</div>", unsafe_allow_html=True)
-    
+
     # Botón para continuar
     if st.button("Continuar al Dashboard", type="primary", use_container_width=True):
         st.session_state.show_system_status = False
@@ -857,14 +946,14 @@ def check_authentication():
 
         # Mostrar información del producto en columnas
         col1, col2 = st.columns([3, 2])
-        
+
         with col1:
             st.markdown(
                 """
                 ### Plataforma Profesional de Trading
-                
+
                 InversorIA Pro es una terminal avanzada de trading que ofrece:
-                
+
                 - 📊 Análisis técnico multi-timeframe con detección de patrones
                 - 🎯 Estrategias de volatilidad y opciones con modelos avanzados
                 - 📈 Surface analytics y volatilidad implícita institucional
@@ -873,7 +962,7 @@ def check_authentication():
                 - 📰 Análisis de sentimiento de mercado y noticias
                 """
             )
-        
+
         with col2:
             # Usar un contenedor con estilo para el formulario de login
             st.markdown(
@@ -885,12 +974,12 @@ def check_authentication():
                 """,
                 unsafe_allow_html=True
             )
-            
+
             # Formulario de login
             with st.form("login_form"):
                 password = st.text_input("Contraseña de acceso", type="password")
                 submitted = st.form_submit_button("Acceder", use_container_width=True)
-                
+
                 if submitted:
                     if check_password(password):
                         st.session_state.authenticated = True
@@ -900,7 +989,7 @@ def check_authentication():
                         st.error("Contraseña incorrecta. Intente nuevamente.")
 
         # Imagen o gráfico de muestra
-        st.image("https://dummyimage.com/1200x400/1E88E5/ffffff&text=Terminal+Profesional+de+Trading", use_container_width=True)
+        st.image("https://placehold.co/1200x400/1E88E5/ffffff?text=Terminal+Profesional+de+Trading", use_column_width=True)
 
         st.markdown("---")
         st.markdown(
@@ -909,7 +998,7 @@ def check_authentication():
                 <span>© 2025 InversorIA Pro | Plataforma Institucional de Trading</span>
                 <span>v2.0.3</span>
             </div>
-            """, 
+            """,
             unsafe_allow_html=True
         )
 
@@ -926,6 +1015,31 @@ def check_authentication():
 # FUNCIONES DE VISUALIZACIÓN AVANZADA
 # =================================================
 
+def get_company_info(symbol):
+    """Obtiene información completa de la empresa o activo"""
+    # Si el símbolo está en nuestra base de datos de información de compañías
+    if symbol in COMPANY_INFO:
+        return COMPANY_INFO[symbol]
+
+    # Información para símbolos no conocidos explícitamente
+    # Determinar a qué categoría pertenece
+    category = None
+    for cat, symbols in SYMBOLS.items():
+        if symbol in symbols:
+            category = cat
+            break
+
+    if not category:
+        category = "No categorizado"
+
+    # Crear información básica
+    return {
+        "name": f"{symbol}",
+        "sector": category,
+        "description": f"Activo financiero negociado bajo el símbolo {symbol}"
+    }
+
+
 def create_technical_chart(data, symbol):
     """Crea gráfico técnico avanzado con indicadores y patrones técnicos"""
     # Verificación adecuada de DataFrame vacío
@@ -934,6 +1048,7 @@ def create_technical_chart(data, symbol):
         or (isinstance(data, pd.DataFrame) and data.empty)
         or (isinstance(data, list) and (len(data) < 20))
     ):
+        logger.warning(f"Datos insuficientes o inválidos para crear gráfico de {symbol}")
         return None
 
     # Convertir a DataFrame si es necesario
@@ -941,6 +1056,12 @@ def create_technical_chart(data, symbol):
         df = pd.DataFrame(data)
     else:
         df = data.copy()
+
+    # Asegurarse que las columnas necesarias existen
+    required_cols = ['Open', 'High', 'Low', 'Close']
+    if not all(col in df.columns for col in required_cols):
+        logger.error(f"Faltan columnas OHLC en los datos de {symbol}")
+        return None
 
     # Crear figura con subplots
     fig = make_subplots(
@@ -981,12 +1102,15 @@ def create_technical_chart(data, symbol):
         # Normalizar volumen para mostrarlo en la misma escala
         max_price = df["High"].max()
         max_volume = df["Volume"].max()
-        scale_factor = max_price / max_volume * 0.2  # Ajustar para que el volumen ocupe ~20% del gráfico
-        
+        if max_volume > 0: # Evitar división por cero
+            scale_factor = max_price / max_volume * 0.2  # Ajustar para que el volumen ocupe ~20% del gráfico
+        else:
+            scale_factor = 0
+
         # Crear colores para el volumen (verde si el precio subió, rojo si bajó)
-        colors = ['rgba(0, 150, 0, 0.3)' if row['Close'] >= row['Open'] else 'rgba(255, 0, 0, 0.3)' 
+        colors = ['rgba(0, 150, 0, 0.3)' if row['Close'] >= row['Open'] else 'rgba(255, 0, 0, 0.3)'
                   for _, row in df.iterrows()]
-        
+
         fig.add_trace(
             go.Bar(
                 x=x_data,
@@ -995,7 +1119,7 @@ def create_technical_chart(data, symbol):
                 marker={'color': colors},
                 opacity=0.3,
                 showlegend=True,
-                hovertemplate="Volumen: %{y:.0f}<extra></extra>",
+                hovertemplate="Volumen: %{y:.0f}<extra></extra>", # Mostrar volumen real en hover
             ),
             row=1,
             col=1,
@@ -1022,11 +1146,15 @@ def create_technical_chart(data, symbol):
     # Añadir Bandas Bollinger
     for bb, color, fill in [
         ("BB_Upper", "rgba(0, 150, 136, 0.3)", None),
-        ("BB_MA20", "rgba(0, 150, 136, 0.7)", None),
+        ("BB_MA20", "rgba(0, 150, 136, 0.7)", None), # Usar SMA_20 si BB_MA20 no existe
         ("BB_Lower", "rgba(0, 150, 136, 0.3)", "tonexty"),
     ]:
-        if bb in df.columns or (bb == "BB_MA20" and "SMA_20" in df.columns):
-            y_data = df[bb] if bb in df.columns else df["SMA_20"]
+        y_col = bb
+        if bb == "BB_MA20" and bb not in df.columns and "SMA_20" in df.columns:
+            y_col = "SMA_20" # Fallback a SMA_20
+
+        if y_col in df.columns:
+            y_data = df[y_col]
             fig.add_trace(
                 go.Scatter(
                     x=x_data,
@@ -1034,6 +1162,7 @@ def create_technical_chart(data, symbol):
                     name=bb,
                     line=dict(color=color, width=1),
                     fill=fill,
+                    fillcolor=color.replace('0.3)', '0.1)').replace('0.7)', '0.1)') if fill else None # Lighter fill color
                 ),
                 row=1,
                 col=1,
@@ -1064,15 +1193,16 @@ def create_technical_chart(data, symbol):
         )
 
         # Añadir histograma MACD
+        macd_hist = df["MACD"] - df["MACD_Signal"]
         colors = [
             "rgba(33, 150, 243, 0.7)" if val >= 0 else "rgba(255, 87, 34, 0.7)"
-            for val in (df["MACD"] - df["MACD_Signal"])
+            for val in macd_hist
         ]
 
         fig.add_trace(
             go.Bar(
                 x=x_data,
-                y=df["MACD"] - df["MACD_Signal"],
+                y=macd_hist,
                 name="Histograma MACD",
                 marker_color=colors,
             ),
@@ -1099,16 +1229,17 @@ def create_technical_chart(data, symbol):
             (50, "rgba(158, 158, 158, 0.5)"),
             (70, "rgba(255, 87, 34, 0.5)"),
         ]:
-            fig.add_shape(
-                type="line",
-                x0=x_first,
-                x1=x_last,
-                y0=level,
-                y1=level,
-                line=dict(color=color, width=1, dash="dash"),
-                row=3,
-                col=1,
-            )
+            if x_first is not None and x_last is not None:
+                fig.add_shape(
+                    type="line",
+                    x0=x_first,
+                    x1=x_last,
+                    y0=level,
+                    y1=level,
+                    line=dict(color=color, width=1, dash="dash"),
+                    row=3,
+                    col=1,
+                )
 
     # Detectar soportes y resistencias
     try:
@@ -1116,53 +1247,55 @@ def create_technical_chart(data, symbol):
 
         # Añadir líneas de soporte
         for level in supports:
-            fig.add_shape(
-                type="line",
-                x0=x_first,
-                x1=x_last,
-                y0=level,
-                y1=level,
-                line=dict(color="rgba(0, 128, 0, 0.7)", width=1, dash="dot"),
-                row=1,
-                col=1,
-            )
+            if x_first is not None and x_last is not None:
+                fig.add_shape(
+                    type="line",
+                    x0=x_first,
+                    x1=x_last,
+                    y0=level,
+                    y1=level,
+                    line=dict(color="rgba(0, 128, 0, 0.7)", width=1, dash="dot"),
+                    row=1,
+                    col=1,
+                )
 
-            # Añadir etiqueta
-            fig.add_annotation(
-                x=x_last,
-                y=level,
-                text=f"S: {level:.2f}",
-                showarrow=False,
-                xshift=10,
-                font=dict(color="rgba(0, 128, 0, 1)"),
-                row=1,
-                col=1,
-            )
+                # Añadir etiqueta
+                fig.add_annotation(
+                    x=x_last,
+                    y=level,
+                    text=f"S: {level:.2f}",
+                    showarrow=False,
+                    xshift=10,
+                    font=dict(color="rgba(0, 128, 0, 1)"),
+                    row=1,
+                    col=1,
+                )
 
         # Añadir líneas de resistencia
         for level in resistances:
-            fig.add_shape(
-                type="line",
-                x0=x_first,
-                x1=x_last,
-                y0=level,
-                y1=level,
-                line=dict(color="rgba(255, 0, 0, 0.7)", width=1, dash="dot"),
-                row=1,
-                col=1,
-            )
+            if x_first is not None and x_last is not None:
+                fig.add_shape(
+                    type="line",
+                    x0=x_first,
+                    x1=x_last,
+                    y0=level,
+                    y1=level,
+                    line=dict(color="rgba(255, 0, 0, 0.7)", width=1, dash="dot"),
+                    row=1,
+                    col=1,
+                )
 
-            # Añadir etiqueta
-            fig.add_annotation(
-                x=x_last,
-                y=level,
-                text=f"R: {level:.2f}",
-                showarrow=False,
-                xshift=10,
-                font=dict(color="rgba(255, 0, 0, 1)"),
-                row=1,
-                col=1,
-            )
+                # Añadir etiqueta
+                fig.add_annotation(
+                    x=x_last,
+                    y=level,
+                    text=f"R: {level:.2f}",
+                    showarrow=False,
+                    xshift=10,
+                    font=dict(color="rgba(255, 0, 0, 1)"),
+                    row=1,
+                    col=1,
+                )
     except Exception as e:
         logger.warning(f"No se pudieron detectar niveles de soporte/resistencia: {str(e)}")
 
@@ -1262,7 +1395,7 @@ def create_technical_chart(data, symbol):
     # Añadir patrones de velas japonesas
     try:
         candle_patterns = detect_candle_patterns(df.tail(20))
-        
+
         # Mostrar solo los 3 patrones más recientes para no saturar el gráfico
         for i, pattern in enumerate(candle_patterns[:3]):
             pattern_idx = pattern.get("idx", -1)
@@ -1274,16 +1407,16 @@ def create_technical_chart(data, symbol):
                 else:
                     color = "rgba(255, 0, 0, 0.7)"
                     arrow = "⬇"
-                
+
                 # Obtener la posición X
                 x_pos = df["Date"].iloc[pattern_idx] if "Date" in df.columns else df.index[pattern_idx]
-                
+
                 # Obtener la posición Y (depende del tipo de patrón)
                 if pattern["type"] == "bullish":
                     y_pos = df["Low"].iloc[pattern_idx] * 0.995  # Ligeramente por debajo
                 else:
-                    y_pos = df["High"].iloc[pattern_idx] * 1.005  # Ligeramente por encima
-                
+                    y_pos = df["High"].iloc[pattern_idx] * 1.005 # Ligeramente por encima
+
                 # Añadir anotación
                 fig.add_annotation(
                     x=x_pos,
@@ -1324,7 +1457,7 @@ def create_technical_chart(data, symbol):
     fig.update_yaxes(title_text="Precio", row=1, col=1)
     fig.update_yaxes(title_text="MACD", row=2, col=1)
     fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
-    
+
     # Añadir crosshair
     fig.update_layout(
         xaxis=dict(
@@ -1349,33 +1482,33 @@ def create_technical_chart(data, symbol):
 def display_technical_summary(symbol, technical_data):
     """Muestra resumen técnico en un formato mejorado"""
     st.markdown("### 📊 Resumen Técnico")
-    
+
     # Crear columnas para mostrar datos clave
     col1, col2, col3, col4 = st.columns(4)
-    
+
     # Extraer últimos valores
     if isinstance(technical_data, pd.DataFrame) and not technical_data.empty:
         last_row = technical_data.iloc[-1]
         last_price = last_row["Close"]
-        
+
         # Calcular cambio porcentual
         if len(technical_data) > 1:
             prev_close = technical_data.iloc[-2]["Close"]
             change_pct = (last_price - prev_close) / prev_close * 100
         else:
             change_pct = 0
-        
+
         # Extraer RSI y MA values si están disponibles
         rsi = last_row.get("RSI", None)
         sma20 = last_row.get("SMA_20", None)
         sma50 = last_row.get("SMA_50", None)
         sma200 = last_row.get("SMA_200", None)
-        
+
         # Determinar condiciones de tendencia
         above_sma20 = last_price > sma20 if sma20 is not None else None
         above_sma50 = last_price > sma50 if sma50 is not None else None
         above_sma200 = last_price > sma200 if sma200 is not None else None
-        
+
         # Métricas en columnas
         with col1:
             st.metric(
@@ -1383,7 +1516,7 @@ def display_technical_summary(symbol, technical_data):
                 value=f"${last_price:.2f}",
                 delta=f"{change_pct:+.2f}%"
             )
-        
+
         with col2:
             if rsi is not None:
                 rsi_status = "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral"
@@ -1395,7 +1528,7 @@ def display_technical_summary(symbol, technical_data):
                 )
             else:
                 st.metric(label="RSI", value="N/A")
-        
+
         with col3:
             if sma20 is not None and sma50 is not None:
                 ma_cross = "Alcista" if sma20 > sma50 else "Bajista" if sma20 < sma50 else "Neutral"
@@ -1407,7 +1540,7 @@ def display_technical_summary(symbol, technical_data):
                 )
             else:
                 st.metric(label="Cruce MA", value="N/A")
-        
+
         with col4:
             if above_sma200 is not None:
                 trend = "Alcista LP" if above_sma200 else "Bajista LP"
@@ -1426,20 +1559,20 @@ def display_technical_summary(symbol, technical_data):
 def display_options_analysis(symbol, options_data):
     """Muestra análisis de opciones en formato mejorado"""
     st.markdown("### 🎯 Análisis de Opciones")
-    
+
     if options_data is None or not options_data:
         st.warning(f"No hay datos de opciones disponibles para {symbol}")
         return
-    
+
     # Extraer datos clave
     recommendation = options_data.get("recommendation", "NEUTRAL")
     confidence = options_data.get("confidence", "baja")
     strategy = options_data.get("strategy", "N/A")
     implied_vol = options_data.get("implied_volatility", 0)
-    
+
     # Crear columnas para mostrar métricas clave
     col1, col2, col3 = st.columns(3)
-    
+
     # Determinar clases CSS
     badge_class = (
         "call-badge"
@@ -1447,7 +1580,7 @@ def display_options_analysis(symbol, options_data):
         else "put-badge" if recommendation == "PUT" else "neutral-badge"
     )
     confidence_class = f"confidence-{'high' if confidence == 'alta' else 'medium' if confidence == 'media' else 'low'}"
-    
+
     with col1:
         st.markdown(
             f"""
@@ -1458,7 +1591,7 @@ def display_options_analysis(symbol, options_data):
         """,
             unsafe_allow_html=True,
         )
-    
+
     with col2:
         st.markdown(
             f"""
@@ -1469,7 +1602,7 @@ def display_options_analysis(symbol, options_data):
         """,
             unsafe_allow_html=True,
         )
-    
+
     with col3:
         st.markdown(
             f"""
@@ -1480,10 +1613,10 @@ def display_options_analysis(symbol, options_data):
         """,
             unsafe_allow_html=True,
         )
-    
+
     # Mostrar estrategias recomendadas
     st.markdown("#### Estrategias Recomendadas")
-    
+
     if recommendation == "CALL":
         st.markdown(
             """
@@ -1528,17 +1661,57 @@ def display_options_analysis(symbol, options_data):
         )
 
 
+def display_asset_info(symbol, price=None, change=None):
+    """Muestra información básica del activo incluso cuando no hay datos de mercado"""
+    # Obtener información completa de la empresa/activo
+    company_info = get_company_info(symbol)
+
+    # Obtener nombre completo del activo
+    full_name = company_info.get("name", symbol)
+    sector = company_info.get("sector", "No especificado")
+    description = company_info.get("description", "")
+
+    # Estimar precio y cambio si no están disponibles
+    price_display = f"${price:.2f}" if price is not None else "N/A"
+    change_display = f"{change:+.2f}%" if change is not None else ""
+    change_color = "green" if change is not None and change >= 0 else "red" if change is not None else "inherit"
+
+    # Mostrar tarjeta de información del activo
+    st.markdown(
+        f"""
+        <div class="asset-card">
+            <div class="asset-header">
+                <h2 class="asset-name">{full_name} ({symbol})</h2>
+                <h2 class="asset-price" style="color: {change_color};">{price_display} <span style="font-size: 0.8em;">{change_display}</span></h2>
+            </div>
+            <p>{description}</p>
+            <div class="asset-details">
+                <div class="asset-detail-item">
+                    <div class="asset-detail-label">Sector</div>
+                    <div class="asset-detail-value">{sector}</div>
+                </div>
+                <div class="asset-detail-item">
+                    <div class="asset-detail-label">Última Actualización</div>
+                    <div class="asset-detail-value">{datetime.now().strftime('%H:%M:%S')}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 def process_expert_analysis(client, assistant_id, symbol, context):
     """Procesa análisis experto con OpenAI"""
     if not client or not assistant_id:
         return None
-        
+
     # Formatear prompt para el asistente
     price = context.get("last_price", 0)
     change = context.get("change_percent", 0)
     vix_level = context.get("vix_level", "N/A")
     signals = context.get("signals", {})
-    
+
     # Obtener señal general
     overall_signal = "NEUTRAL"
     if "overall" in signals:
@@ -1552,19 +1725,19 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     option_signal = "NEUTRAL"
     if "options" in signals:
         option_signal = signals["options"]["direction"]
-        
+
     # Crear contenido del prompt
     prompt = f"""
     Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional del siguiente activo:
-    
+
     SÍMBOLO: {symbol}
-    
+
     DATOS DE MERCADO:
     - Precio actual: ${price:.2f} ({'+' if change > 0 else ''}{change:.2f}%)
     - VIX: {vix_level}
     - Señal técnica: {overall_signal}
     - Señal de opciones: {option_signal}
-    
+
     INSTRUCCIONES ESPECÍFICAS:
     1. Proporciona una evaluación integral basada en el contexto técnico y de mercado actual.
     2. Identifica los niveles de soporte y resistencia clave.
@@ -1572,10 +1745,10 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     4. Sugiere estrategias específicas para traders institucionales.
     5. Indica riesgos clave y niveles de stop loss recomendados.
     6. Concluye con una proyección de movimiento con rangos de precio.
-    
+
     El análisis debe ser conciso, directo y con información accionable específica para un trader profesional.
     """
-    
+
     try:
         # Enviar mensaje al thread
         client.beta.threads.messages.create(
@@ -1584,7 +1757,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
         # Crear una ejecución para el thread
         run = client.beta.threads.runs.create(
-            thread_id=st.session_state.thread_id, 
+            thread_id=st.session_state.thread_id,
             assistant_id=assistant_id
         )
 
@@ -1639,7 +1812,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
                             return nested_text.value
                         elif isinstance(nested_text, str):
                             return nested_text
-                
+
                 return "No se pudo procesar la respuesta del asistente"
 
         return "No se recibió respuesta del experto."
@@ -1693,7 +1866,7 @@ def display_expert_opinion(expert_opinion):
             elif any(keyword in line.upper() for keyword in ["PROYECCIÓN", "PRONÓSTICO", "ESCENARIO", "TARGET"]):
                 current_section = "proyección"
                 continue
-            
+
             # Agregar línea a la sección actual
             if current_section and line:
                 sections[current_section] += line + "\n"
@@ -1803,7 +1976,7 @@ def process_chat_input_with_openai(
         # Si no se proporciona contexto, obtenerlo
         if not context:
             context = get_market_context(symbol)
-            
+
         if not context or "error" in context:
             return f"❌ Error: No se pudo obtener el contexto de mercado para {symbol}."
 
@@ -1852,12 +2025,12 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
         # Crear mensaje enriquecido con contexto
         context_prompt = f"""
         Consulta sobre {symbol} a ${price:.2f} ({'+' if change > 0 else ''}{change:.2f}%):
-        
+
         Señales técnicas actuales:
         - Tendencia general: {overall_signal}
         - Señal de opciones: {option_signal}
         - VIX: {vix_level}
-        
+
         Pregunta del usuario: {prompt}
         """
 
@@ -1876,13 +2049,13 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
             run_status = "in_progress"
             start_time = time.time()
             timeout = 40  # 40 segundos de timeout
-            
+
             while run_status not in ["completed", "failed", "cancelled", "expired"]:
                 # Verificar timeout
                 if time.time() - start_time > timeout:
                     logger.warning(f"Timeout al procesar consulta para {symbol}")
                     return f"La consulta está tomando demasiado tiempo. Por favor, inténtalo de nuevo o formula tu pregunta de otra manera."
-                
+
                 # Recuperar estado actual
                 run = openai.beta.threads.runs.retrieve(
                     thread_id=st.session_state.thread_id, run_id=run.id
@@ -1935,7 +2108,7 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
                             return message.content[0].text.value
                         else:
                             return "Error: Formato de respuesta no reconocido"
-                            
+
                 return "No se pudo obtener una respuesta del asistente."
             except Exception as msg_error:
                 logger.error(f"Error obteniendo mensajes: {str(msg_error)}")
@@ -1960,17 +2133,17 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
 
         # Preparar contexto resumido para el sistema
         system_prompt = """
-        Eres un especialista en trading y análisis técnico avanzado con más de 8 años de experiencia en trading institucional. 
-        Tu expertise incluye análisis técnico, estrategias de opciones, volatilidad, y gestión de riesgo. 
+        Eres un especialista en trading y análisis técnico avanzado con más de 8 años de experiencia en trading institucional.
+        Tu expertise incluye análisis técnico, estrategias de opciones, volatilidad, y gestión de riesgo.
         Proporciona análisis claros, concisos y profesionales basados en los datos de mercado actuales.
-        
+
         Cuando analices activos, considera:
         1. Tendencias de precios y patrones
         2. Indicadores técnicos (RSI, MACD, medias móviles)
         3. Niveles de soporte y resistencia
         4. Volatilidad del mercado y condiciones generales
         5. Estrategias de opciones recomendadas
-        
+
         No te limites a repetir las señales automáticas. Aporta tu análisis profesional, busca divergencias y patrones que los indicadores básicos podrían no capturar. Tu valor está en proporcionar una perspectiva única basada en tu experiencia.
         """
 
@@ -1979,12 +2152,12 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         Contexto actual para {symbol}:
         - Precio: ${price:.2f} ({change:+.2f}%)
         - VIX: {vix_level}
-        
+
         Señales técnicas:
         - Tendencia general: {signals.get('overall', {}).get('signal', 'N/A')}
         - Confianza: {signals.get('overall', {}).get('confidence', 'N/A')}
         - Recomendación opciones: {signals.get('options', {}).get('direction', 'N/A')}
-        
+
         Principales niveles:
         - Resistencias: {', '.join([f"${r:.2f}" for r in support_resistance.get('resistances', [])[:2]])}
         - Soportes: {', '.join([f"${s:.2f}" for s in support_resistance.get('supports', [])[:2]])}
@@ -2008,19 +2181,19 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
 
             # Extraer la respuesta
             return response.choices[0].message.content
-            
+
         except openai.error.AuthenticationError:
             logger.error("Error de autenticación con OpenAI API")
             return "Error: No se pudo autenticar con OpenAI. Por favor, verifica tu API key."
-            
+
         except openai.error.RateLimitError:
             logger.error("Límite de tasa excedido en OpenAI API")
             return "Error: Se ha excedido el límite de solicitudes a OpenAI. Por favor, intenta más tarde."
-            
+
         except openai.error.APIError as api_err:
             logger.error(f"Error en API de OpenAI: {str(api_err)}")
             return f"Error en el servicio de OpenAI: {str(api_err)}"
-            
+
         except Exception as general_err:
             logger.error(f"Error general en OpenAI: {str(general_err)}")
             return "Error al procesar la solicitud. Por favor, intenta más tarde."
@@ -2065,221 +2238,221 @@ def fallback_analyze_symbol(symbol, question=None):
 
             # Determinar una respuesta más personalizada basada en la pregunta si está disponible
             if question:
-                question_lower = question.lower()
+                    question_lower = question.lower()
 
-                if any(
-                    term in question_lower
-                    for term in ["análisis", "resumen", "general", "situación"]
-                ):
-                    response += f"### Análisis General\n\n"
-                    response += f"El activo {symbol} muestra una tendencia **{overall_signal}** en este momento. "
-
-                    if "trend" in signals:
-                        trend = signals["trend"]
-                        response += f"Los indicadores de tendencia muestran: "
-                        response += f"SMA 20-50 {trend.get('sma_20_50', 'N/A')}, "
-                        response += f"MACD {trend.get('macd', 'N/A')}, "
-                        response += (
-                            f"y está {trend.get('sma_200', 'N/A')} de su SMA 200.\n\n"
-                        )
-
-                    response += f"### Recomendación de Trading\n\n"
-                    if overall_signal == "ALCISTA":
-                        response += f"Se recomienda considerar posiciones **LONG** con gestión adecuada del riesgo. "
-                        response += f"Para opciones, la estrategia sugerida es **{option_signal}** con enfoque en {option_strategy}.\n\n"
-                    elif overall_signal == "BAJISTA":
-                        response += f"Se recomienda considerar posiciones **SHORT** con gestión adecuada del riesgo. "
-                        response += f"Para opciones, la estrategia sugerida es **{option_signal}** con enfoque en {option_strategy}.\n\n"
-                    else:
-                        response += f"Se recomienda **NEUTRAL/CAUTELA** hasta una señal más clara. "
-                        response += f"Para opciones, considerar estrategias de volatilidad no direccionales.\n\n"
-
-                elif any(
-                    term in question_lower
-                    for term in ["nivel", "soporte", "resistencia", "precio", "target"]
-                ):
-                    response += f"### Niveles Clave para {symbol}\n\n"
-
-                    if (
-                        "resistances" in support_resistance
-                        and support_resistance["resistances"]
+                    if any(
+                        term in question_lower
+                        for term in ["análisis", "resumen", "general", "situación"]
                     ):
-                        resistances = sorted(support_resistance["resistances"])
-                        response += "**Resistencias clave:**\n"
-                        for i, level in enumerate(resistances[:3]):
-                            distance = ((level / price) - 1) * 100
-                            response += f"- R{i+1}: ${level:.2f} ({distance:+.2f}% desde precio actual)\n"
+                        response += f"### Análisis General\n\n"
+                        response += f"El activo {symbol} muestra una tendencia **{overall_signal}** en este momento. "
 
-                    response += "\n"
-
-                    if (
-                        "supports" in support_resistance
-                        and support_resistance["supports"]
-                    ):
-                        supports = sorted(support_resistance["supports"], reverse=True)
-                        response += "**Soportes clave:**\n"
-                        for i, level in enumerate(supports[:3]):
-                            distance = ((level / price) - 1) * 100
-                            response += f"- S{i+1}: ${level:.2f} ({distance:+.2f}% desde precio actual)\n"
-
-                    response += "\n"
-                    response += f"Estos niveles son significativos para planificar entradas, salidas y gestión de riesgo. "
-                    response += f"Considerar stop loss por debajo del soporte más cercano para posiciones largas, "
-                    response += f"o por encima de la resistencia más cercana para posiciones cortas."
-
-                elif any(
-                    term in question_lower
-                    for term in ["opcion", "opciones", "call", "put", "derivado"]
-                ):
-                    response += f"### Análisis de Opciones para {symbol}\n\n"
-
-                    if "options" in signals:
-                        options = signals["options"]
-                        response += f"**Dirección recomendada: {options.get('direction', 'N/A')}**\n"
-                        response += (
-                            f"**Estrategia: {options.get('strategy', 'N/A')}**\n"
-                        )
-                        response += (
-                            f"**Confianza: {options.get('confidence', 'N/A')}**\n"
-                        )
-                        response += (
-                            f"**Timeframe: {options.get('timeframe', 'N/A')}**\n\n"
-                        )
-
-                    if "options_params" in context:
-                        params = context["options_params"]
-                        response += "**Parámetros recomendados:**\n"
-                        for param, value in params.items():
-                            response += f"- {param}: {value}\n"
-
-                    if "volatility_adjustments" in context:
-                        vix = context.get("vix_level", 0)
-                        vol_state = (
-                            "ALTA" if vix > 25 else "BAJA" if vix < 15 else "NORMAL"
-                        )
-
-                        response += f"\nCon VIX en {vix:.2f} (Volatilidad {vol_state}), se recomienda:\n"
-
-                        if vix > 25:
+                        if "trend" in signals:
+                            trend = signals["trend"]
+                            response += f"Los indicadores de tendencia muestran: "
+                            response += f"SMA 20-50 {trend.get('sma_20_50', 'N/A')}, "
+                            response += f"MACD {trend.get('macd', 'N/A')}, "
                             response += (
-                                "- Considerar spreads en lugar de opciones simples\n"
+                                f"y está {trend.get('sma_200', 'N/A')} de su SMA 200.\n\n"
                             )
-                            response += "- Reducir el tamaño de posición\n"
-                            response += "- Strike más alejado para mayor seguridad\n"
-                        elif vix < 15:
-                            response += "- Estrategias direccionales simples\n"
-                            response += "- Strike cercano al precio actual\n"
-                            response += "- Considerar vencimientos más largos\n"
+
+                        response += f"### Recomendación de Trading\n\n"
+                        if overall_signal == "ALCISTA":
+                            response += f"Se recomienda considerar posiciones **LONG** con gestión adecuada del riesgo. "
+                            response += f"Para opciones, la estrategia sugerida es **{option_signal}** con enfoque en {option_strategy}.\n\n"
+                        elif overall_signal == "BAJISTA":
+                            response += f"Se recomienda considerar posiciones **SHORT** con gestión adecuada del riesgo. "
+                            response += f"Para opciones, la estrategia sugerida es **{option_signal}** con enfoque en {option_strategy}.\n\n"
                         else:
-                            response += "- Parámetros estándar\n"
-                            response += (
-                                "- Balance entre riesgo y recompensa tradicional\n"
-                            )
+                            response += f"Se recomienda **NEUTRAL/CAUTELA** hasta una señal más clara. "
+                            response += f"Para opciones, considerar estrategias de volatilidad no direccionales.\n\n"
 
-                elif any(
-                    term in question_lower
-                    for term in ["rsi", "momentum", "indicador", "técnico", "macd"]
-                ):
-                    response += f"### Indicadores Técnicos para {symbol}\n\n"
-
-                    if "momentum" in signals:
-                        momentum = signals["momentum"]
-                        rsi = momentum.get("rsi", 0)
-                        condition = momentum.get("rsi_condition", "N/A")
-
-                        response += f"**RSI:** {rsi:.1f} ({condition})\n"
-                        response += (
-                            f"**Tendencia RSI:** {momentum.get('rsi_trend', 'N/A')}\n"
-                        )
-
-                        if "stoch_k" in momentum and "stoch_d" in momentum:
-                            response += f"**Estocástico:** %K={momentum['stoch_k']:.1f}, %D={momentum['stoch_d']:.1f}\n"
-
-                    if "trend" in signals:
-                        trend = signals["trend"]
-                        response += f"\n**Indicadores de Tendencia:**\n"
-                        response += f"- SMA 20-50: {trend.get('sma_20_50', 'N/A')}\n"
-                        response += f"- MACD: {trend.get('macd', 'N/A')}\n"
-                        response += f"- EMA Trend: {trend.get('ema_trend', 'N/A')}\n"
-                        response += (
-                            f"- Posición vs SMA 200: {trend.get('sma_200', 'N/A')}\n"
-                        )
-
-                    if "volatility" in signals:
-                        volatility = signals["volatility"]
-                        response += f"\n**Indicadores de Volatilidad:**\n"
-                        response += f"- BB Width: {volatility.get('bb_width', 0):.3f}\n"
-                        response += f"- ATR: {volatility.get('atr', 0):.3f}\n"
-                        response += f"- Posición del precio: {volatility.get('price_position', 'N/A')}\n"
-                        response += f"- Estado de volatilidad: {volatility.get('volatility_state', 'N/A')}\n"
-
-                elif any(
-                    term in question_lower
-                    for term in ["timeframe", "plazo", "corto", "largo", "medio"]
-                ):
-                    response += f"### Análisis Multi-Timeframe para {symbol}\n\n"
-
-                    if "multi_timeframe" in context:
-                        multi_tf = context["multi_timeframe"]
-                        if "consolidated" in multi_tf:
-                            cons = multi_tf["consolidated"]
-                            response += f"**Señal consolidada: {cons.get('signal', 'N/A').upper()}**\n"
-                            response += (
-                                f"**Confianza: {cons.get('confidence', 'N/A')}**\n"
-                            )
-                            response += f"**Alineación de timeframes: {cons.get('timeframe_alignment', 'N/A')}**\n"
-                            response += f"**Recomendación: {cons.get('options_recommendation', 'N/A')}**\n\n"
-
-                        response += "**Análisis por timeframe:**\n\n"
-
-                        for tf, analysis in multi_tf.items():
-                            if (
-                                tf != "consolidated"
-                                and isinstance(analysis, dict)
-                                and "overall" in analysis
-                            ):
-                                response += (
-                                    f"**{tf}:** {analysis['overall']['signal']} "
-                                )
-                                response += f"({analysis['overall']['confidence']})"
-                                if "options" in analysis:
-                                    response += f" → Opciones: {analysis['options']['direction']}\n"
-                                else:
-                                    response += "\n"
-                    else:
-                        response += "Información multi-timeframe no disponible para este activo."
-
-                else:
-                    # Si la pregunta no tiene términos específicos, dar un resumen general
-                    response += f"### Análisis Técnico {symbol}\n\n"
-                    response += f"El análisis actual muestra una tendencia **{overall_signal}** con una señal de opciones **{option_signal}**.\n\n"
-
-                    if "momentum" in signals:
-                        momentum = signals["momentum"]
-                        rsi = momentum.get("rsi", 0)
-                        condition = momentum.get("rsi_condition", "N/A")
-                        response += f"**RSI:** {rsi:.1f} ({condition})\n"
-
-                    if (
-                        "supports" in support_resistance
-                        and "resistances" in support_resistance
+                    elif any(
+                        term in question_lower
+                        for term in ["nivel", "soporte", "resistencia", "precio", "target"]
                     ):
-                        supports = sorted(support_resistance["supports"], reverse=True)[
-                            :1
-                        ]
-                        resistances = sorted(support_resistance["resistances"])[:1]
+                        response += f"### Niveles Clave para {symbol}\n\n"
 
-                        if supports:
-                            support = supports[0]
-                            support_dist = ((support / price) - 1) * 100
-                            response += f"**Soporte clave:** ${support:.2f} ({support_dist:+.2f}%)\n"
+                        if (
+                            "resistances" in support_resistance
+                            and support_resistance["resistances"]
+                        ):
+                            resistances = sorted(support_resistance["resistances"])
+                            response += "**Resistencias clave:**\n"
+                            for i, level in enumerate(resistances[:3]):
+                                distance = ((level / price) - 1) * 100
+                                response += f"- R{i+1}: ${level:.2f} ({distance:+.2f}% desde precio actual)\n"
 
-                        if resistances:
-                            resistance = resistances[0]
-                            resistance_dist = ((resistance / price) - 1) * 100
-                            response += f"**Resistencia clave:** ${resistance:.2f} ({resistance_dist:+.2f}%)\n"
+                        response += "\n"
 
-                    response += f"\nPara información específica, puedes preguntar sobre tendencia, opciones, RSI, volatilidad o niveles de soporte/resistencia."
+                        if (
+                            "supports" in support_resistance
+                            and support_resistance["supports"]
+                        ):
+                            supports = sorted(support_resistance["supports"], reverse=True)
+                            response += "**Soportes clave:**\n"
+                            for i, level in enumerate(supports[:3]):
+                                distance = ((level / price) - 1) * 100
+                                response += f"- S{i+1}: ${level:.2f} ({distance:+.2f}% desde precio actual)\n"
+
+                        response += "\n"
+                        response += f"Estos niveles son significativos para planificar entradas, salidas y gestión de riesgo. "
+                        response += f"Considerar stop loss por debajo del soporte más cercano para posiciones largas, "
+                        response += f"o por encima de la resistencia más cercana para posiciones cortas."
+
+                    elif any(
+                        term in question_lower
+                        for term in ["opcion", "opciones", "call", "put", "derivado"]
+                    ):
+                        response += f"### Análisis de Opciones para {symbol}\n\n"
+
+                        if "options" in signals:
+                            options = signals["options"]
+                            response += f"**Dirección recomendada: {options.get('direction', 'N/A')}**\n"
+                            response += (
+                                f"**Estrategia: {options.get('strategy', 'N/A')}**\n"
+                            )
+                            response += (
+                                f"**Confianza: {options.get('confidence', 'N/A')}**\n"
+                            )
+                            response += (
+                                f"**Timeframe: {options.get('timeframe', 'N/A')}**\n\n"
+                            )
+
+                        if "options_params" in context:
+                            params = context["options_params"]
+                            response += "**Parámetros recomendados:**\n"
+                            for param, value in params.items():
+                                response += f"- {param}: {value}\n"
+
+                        if "volatility_adjustments" in context:
+                            vix = context.get("vix_level", 0)
+                            vol_state = (
+                                "ALTA" if vix > 25 else "BAJA" if vix < 15 else "NORMAL"
+                            )
+
+                            response += f"\nCon VIX en {vix:.2f} (Volatilidad {vol_state}), se recomienda:\n"
+
+                            if vix > 25:
+                                response += (
+                                    "- Considerar spreads en lugar de opciones simples\n"
+                                )
+                                response += "- Reducir el tamaño de posición\n"
+                                response += "- Strike más alejado para mayor seguridad\n"
+                            elif vix < 15:
+                                response += "- Estrategias direccionales simples\n"
+                                response += "- Strike cercano al precio actual\n"
+                                response += "- Considerar vencimientos más largos\n"
+                            else:
+                                response += "- Parámetros estándar\n"
+                                response += (
+                                    "- Balance entre riesgo y recompensa tradicional\n"
+                                )
+
+                    elif any(
+                        term in question_lower
+                        for term in ["rsi", "momentum", "indicador", "técnico", "macd"]
+                    ):
+                        response += f"### Indicadores Técnicos para {symbol}\n\n"
+
+                        if "momentum" in signals:
+                            momentum = signals["momentum"]
+                            rsi = momentum.get("rsi", 0)
+                            condition = momentum.get("rsi_condition", "N/A")
+
+                            response += f"**RSI:** {rsi:.1f} ({condition})\n"
+                            response += (
+                                f"**Tendencia RSI:** {momentum.get('rsi_trend', 'N/A')}\n"
+                            )
+
+                            if "stoch_k" in momentum and "stoch_d" in momentum:
+                                response += f"**Estocástico:** %K={momentum['stoch_k']:.1f}, %D={momentum['stoch_d']:.1f}\n"
+
+                        if "trend" in signals:
+                            trend = signals["trend"]
+                            response += f"\n**Indicadores de Tendencia:**\n"
+                            response += f"- SMA 20-50: {trend.get('sma_20_50', 'N/A')}\n"
+                            response += f"- MACD: {trend.get('macd', 'N/A')}\n"
+                            response += f"- EMA Trend: {trend.get('ema_trend', 'N/A')}\n"
+                            response += (
+                                f"- Posición vs SMA 200: {trend.get('sma_200', 'N/A')}\n"
+                            )
+
+                        if "volatility" in signals:
+                            volatility = signals["volatility"]
+                            response += f"\n**Indicadores de Volatilidad:**\n"
+                            response += f"- BB Width: {volatility.get('bb_width', 0):.3f}\n"
+                            response += f"- ATR: {volatility.get('atr', 0):.3f}\n"
+                            response += f"- Posición del precio: {volatility.get('price_position', 'N/A')}\n"
+                            response += f"- Estado de volatilidad: {volatility.get('volatility_state', 'N/A')}\n"
+
+                    elif any(
+                        term in question_lower
+                        for term in ["timeframe", "plazo", "corto", "largo", "medio"]
+                    ):
+                        response += f"### Análisis Multi-Timeframe para {symbol}\n\n"
+
+                        if "multi_timeframe" in context:
+                            multi_tf = context["multi_timeframe"]
+                            if "consolidated" in multi_tf:
+                                cons = multi_tf["consolidated"]
+                                response += f"**Señal consolidada: {cons.get('signal', 'N/A').upper()}**\n"
+                                response += (
+                                    f"**Confianza: {cons.get('confidence', 'N/A')}**\n"
+                                )
+                                response += f"**Alineación de timeframes: {cons.get('timeframe_alignment', 'N/A')}**\n"
+                                response += f"**Recomendación: {cons.get('options_recommendation', 'N/A')}**\n\n"
+
+                            response += "**Análisis por timeframe:**\n\n"
+
+                            for tf, analysis in multi_tf.items():
+                                if (
+                                    tf != "consolidated"
+                                    and isinstance(analysis, dict)
+                                    and "overall" in analysis
+                                ):
+                                    response += (
+                                        f"**{tf}:** {analysis['overall']['signal']} "
+                                    )
+                                    response += f"({analysis['overall']['confidence']})"
+                                    if "options" in analysis:
+                                        response += f" → Opciones: {analysis['options']['direction']}\n"
+                                    else:
+                                        response += "\n"
+                        else:
+                            response += "Información multi-timeframe no disponible para este activo."
+
+                    else:
+                        # Si la pregunta no tiene términos específicos, dar un resumen general
+                        response += f"### Análisis Técnico {symbol}\n\n"
+                        response += f"El análisis actual muestra una tendencia **{overall_signal}** con una señal de opciones **{option_signal}**.\n\n"
+
+                        if "momentum" in signals:
+                            momentum = signals["momentum"]
+                            rsi = momentum.get("rsi", 0)
+                            condition = momentum.get("rsi_condition", "N/A")
+                            response += f"**RSI:** {rsi:.1f} ({condition})\n"
+
+                        if (
+                            "supports" in support_resistance
+                            and "resistances" in support_resistance
+                        ):
+                            supports = sorted(support_resistance["supports"], reverse=True)[
+                                :1
+                            ]
+                            resistances = sorted(support_resistance["resistances"])[:1]
+
+                            if supports:
+                                support = supports[0]
+                                support_dist = ((support / price) - 1) * 100
+                                response += f"**Soporte clave:** ${support:.2f} ({support_dist:+.2f}%)\n"
+
+                            if resistances:
+                                resistance = resistances[0]
+                                resistance_dist = ((resistance / price) - 1) * 100
+                                response += f"**Resistencia clave:** ${resistance:.2f} ({resistance_dist:+.2f}%)\n"
+
+                        response += f"\nPara información específica, puedes preguntar sobre tendencia, opciones, RSI, volatilidad o niveles de soporte/resistencia."
             else:
                 # Si no hay pregunta, dar un resumen estándar
                 response += f"### Señal General: {overall_signal}\n"
@@ -2311,14 +2484,40 @@ def fallback_analyze_symbol(symbol, question=None):
             return response
 
         else:
+            # Mensaje predeterminado para símbolos que no tienen datos disponibles
+            company_info = get_company_info(symbol)
+            name = company_info.get("name", symbol)
+            sector = company_info.get("sector", "N/A")
+
             error_msg = (
                 context.get("error", "Error desconocido")
                 if context
                 else "No hay datos disponibles"
             )
-            return f"❌ No se pudo analizar {symbol}: {error_msg}"
+
+            response = f"""
+            ## Información sobre {name} ({symbol})
+
+            **Sector:** {sector}
+
+            Lo siento, no se pudieron obtener datos actuales de mercado para {symbol}. {error_msg}
+
+            Algunas posibles razones:
+
+            - El símbolo puede no estar disponible en nuestras fuentes de datos
+            - Puede haber una interrupción temporal en los servicios de datos
+            - El mercado puede estar cerrado actualmente
+
+            Recomendaciones:
+
+            - Intenta con otro símbolo
+            - Verifica que el símbolo esté escrito correctamente
+            - Intenta nuevamente más tarde
+            """
+            return response
 
     except Exception as e:
+        logger.error(f"Error analizando símbolo {symbol}: {str(e)}")
         return f"❌ Error analizando {symbol}: {str(e)}"
 
 
@@ -2365,11 +2564,11 @@ def initialize_session_state():
     # Comprobar APIs una sola vez al iniciar
     if "show_system_status" not in st.session_state:
         st.session_state.show_system_status = True
-        
+
     # Estado para última consulta al experto
     if "last_expert_analysis" not in st.session_state:
         st.session_state.last_expert_analysis = {}
-        
+
     # Estado para gráfico técnico activo
     if "active_chart" not in st.session_state:
         st.session_state.active_chart = None
@@ -2401,7 +2600,7 @@ def render_sidebar():
                 - Análisis técnico y cuantitativo
                 - Gestión de riesgo dinámica
                 - Market Making y liquidez
-                
+
                 **Competencias Técnicas:**
                 - Modelado de volatilidad y superficies
                 - Análisis de flujo de opciones y order flow
@@ -2415,7 +2614,7 @@ def render_sidebar():
 
         # Información de mercado
         st.markdown('<div class="sidebar-section-title">📊 Estado del Mercado</div>', unsafe_allow_html=True)
-        
+
         try:
             # Obtener VIX
             vix_level = get_vix_level()
@@ -2443,7 +2642,7 @@ def render_sidebar():
 
             # Mostrar información en dos columnas
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 # Determinar delta y color basado en nivel VIX
                 if vix_level > 25:
@@ -2455,14 +2654,14 @@ def render_sidebar():
                 else:
                     vix_status = "Normal"
                     delta_color = "off"
-                    
+
                 st.metric(
                     "VIX",
                     f"{vix_level:.2f}",
                     delta=vix_status,
                     delta_color=delta_color,
                 )
-                
+
             with col2:
                 # Crear métrica personalizada para la sesión con color
                 st.markdown(
@@ -2504,7 +2703,7 @@ def render_sidebar():
                             f"{qqq_change:.2f}%",
                             delta_color="normal" if qqq_change >= 0 else "inverse",
                         )
-                        
+
                     # Mostrar gráfico mini de SPY
                     with st.expander("📈 Vista rápida S&P 500"):
                         # Crear un gráfico simplificado
@@ -2515,7 +2714,7 @@ def render_sidebar():
                             line=dict(color='#1E88E5', width=2),
                             name="SPY"
                         ))
-                        
+
                         # Configurar layout minimalista
                         fig.update_layout(
                             height=200,
@@ -2526,9 +2725,9 @@ def render_sidebar():
                             plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor='rgba(0,0,0,0)',
                         )
-                        
+
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-                        
+
             except Exception as e:
                 st.warning("No se pudieron cargar datos de referencia")
 
@@ -2587,10 +2786,10 @@ def render_sidebar():
             ):
                 clear_session()
                 st.rerun()
-                
+
         # Mostrar estadísticas de caché
         stats = _data_cache.get_stats()
-        
+
         st.markdown('<div class="sidebar-section-title">💾 Caché</div>', unsafe_allow_html=True)
         st.text(f"Entradas: {stats['entradas']}")
         st.text(f"Hit rate: {stats['hit_rate']}")
@@ -2601,7 +2800,7 @@ def render_sidebar():
         st.caption(
             """
             **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
-            para fines informativos únicamente. No constituye asesoramiento financiero 
+            para fines informativos únicamente. No constituye asesoramiento financiero
             ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
             """
         )
@@ -2612,7 +2811,7 @@ def render_sidebar():
             session_duration = datetime.now() - st.session_state.session_start
             hours, remainder = divmod(session_duration.seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
-            
+
             # Mostrar duración de sesión con formato mejorado
             st.markdown(
                 f"""
@@ -2637,110 +2836,128 @@ def render_sidebar():
 
 
 # =================================================
-# NUEVAS FUNCIONES DE ANÁLISIS
+# FUNCIONES DE ANÁLISIS DE MERCADO
 # =================================================
 
 def analyze_market_data(symbol, timeframe="1d", period="6mo", indicators=True):
     """
     Analiza datos de mercado con indicadores técnicos avanzados
+    y manejo robusto de errores
     """
     try:
-        # Obtener datos de mercado
-        data = fetch_market_data(symbol, period, interval=timeframe)
-        
-        if data is None or data.empty:
+        # Obtener datos de mercado con manejo mejorado de errores
+        try:
+            data = fetch_market_data(symbol, period, interval=timeframe)
+            logger.info(f"Datos obtenidos para {symbol}: {data.shape if isinstance(data, pd.DataFrame) else 'No data'}")
+
+            if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+                logger.warning(f"No se pudieron obtener datos para {symbol}")
+                return None
+        except Exception as e:
+            logger.error(f"Error obteniendo datos para {symbol}: {str(e)}")
             return None
-        
+
         # Añadir indicadores técnicos si se solicita
-        if indicators:
-            # Crear instancia del analizador técnico
-            analyzer = TechnicalAnalyzer(data)
-            
-            # Calcular indicadores
-            data = analyzer.add_all_indicators()
-            
-            # Detectar patrones si es posible
+        if indicators and data is not None and not data.empty:
             try:
-                # Patrones de vela (solo en los últimos 20 períodos para eficiencia)
-                candle_patterns = detect_candle_patterns(data.tail(30))
-                
-                # Añadir columnas para patrones detectados
-                for pattern in candle_patterns:
-                    idx = pattern.get("idx", -1)
-                    if 0 <= idx < len(data):
-                        pattern_name = pattern.get("pattern", "unknown")
-                        pattern_type = pattern.get("type", "neutral")
-                        
-                        # Crear columna para el patrón si no existe
-                        col_name = f"Pattern_{pattern_name}"
-                        if col_name not in data.columns:
-                            data[col_name] = None
-                        
-                        # Marcar el patrón en el índice correspondiente
-                        data.iloc[idx, data.columns.get_loc(col_name)] = pattern_type
+                # Crear instancia del analizador técnico
+                analyzer = TechnicalAnalyzer(data)
+
+                # Calcular indicadores
+                data = analyzer.add_all_indicators()
+
+                # Detectar patrones si es posible
+                try:
+                    # Patrones de vela (solo en los últimos 20 períodos para eficiencia)
+                    candle_patterns = detect_candle_patterns(data.tail(30))
+
+                    # Añadir columnas para patrones detectados
+                    for pattern in candle_patterns:
+                        idx = pattern.get("idx", -1)
+                        if 0 <= idx < len(data):
+                            pattern_name = pattern.get("pattern", "unknown")
+                            pattern_type = pattern.get("type", "neutral")
+
+                            # Crear columna para el patrón si no existe
+                            col_name = f"Pattern_{pattern_name}"
+                            if col_name not in data.columns:
+                                data[col_name] = None
+
+                            # Marcar el patrón en el índice correspondiente
+                            data.iloc[idx, data.columns.get_loc(col_name)] = pattern_type
+                except Exception as e:
+                    logger.warning(f"No se pudieron detectar patrones de velas para {symbol}: {str(e)}")
             except Exception as e:
-                logger.warning(f"No se pudieron detectar patrones de velas: {str(e)}")
-        
+                logger.error(f"Error calculando indicadores para {symbol}: {str(e)}")
+                # Al menos retornar los datos sin indicadores
+                return data
+
         return data
     except Exception as e:
-        logger.error(f"Error analizando datos de mercado para {symbol}: {str(e)}")
+        logger.error(f"Error general analizando datos de mercado para {symbol}: {str(e)}")
         return None
 
 
 def render_enhanced_dashboard(symbol, timeframe="1d"):
-    """Renderiza un dashboard mejorado con análisis técnico avanzado"""
-    
+    """Renderiza un dashboard mejorado con análisis técnico avanzado y manejo de fallos"""
+    # Obtener información del activo (nombre completo, sector, etc.)
+    company_info = get_company_info(symbol)
+    company_name = company_info.get("name", symbol)
+
+    # Intentar obtener contexto de mercado primero
+    context = get_market_context(symbol)
+    price = None
+    change = None
+
+    if context and "error" not in context:
+        price = context.get("last_price")
+        change = context.get("change_percent")
+
+    # Mostrar la información del activo, incluso si no hay datos de mercado
+    display_asset_info(symbol, price, change)
+
     # Obtener datos y analizarlos
     data = analyze_market_data(symbol, timeframe)
-    if data is None or data.empty:
-        st.error(f"No se pudieron obtener datos para {symbol} en timeframe {timeframe}")
-        return
-    
-    # Obtener contexto de mercado
-    context = get_market_context(symbol)
-    if context is None or "error" in context:
-        st.warning(f"No se pudo obtener el contexto completo para {symbol}")
-        context = {"last_price": data["Close"].iloc[-1], "change_percent": 0}
-    
-    # Crear tarjeta principal con información del activo
-    price = context.get("last_price", data["Close"].iloc[-1])
-    change = context.get("change_percent", 0)
-    
-    # Encabezado con precio actual
-    st.markdown(
-        f"""
-        <div style="background-color: rgba(30, 136, 229, 0.1); padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #1E88E5; margin-bottom: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h2 style="margin: 0; color: #1E88E5;">{symbol}</h2>
-                    <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: #666;">
-                        {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} | Timeframe: {timeframe}
-                    </p>
-                </div>
-                <div style="text-align: right;">
-                    <h2 style="margin: 0;">${price:.2f}</h2>
-                    <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: {'green' if change >= 0 else 'red'};">
-                        {change:+.2f}%
-                    </p>
-                </div>
+
+    # Si no tenemos datos, mostrar un mensaje y terminar
+    if data is None or (isinstance(data, pd.DataFrame) and data.empty):
+        st.warning(f"No se pudieron obtener datos para {symbol} en timeframe {timeframe}")
+
+        # Mostrar información alternativa para que el usuario tenga contexto
+        st.markdown(
+            f"""
+            <div class="info-message">
+                <h3>Información</h3>
+                <p>No se pudieron cargar datos de mercado para {company_name} ({symbol}) en el timeframe {timeframe}.</p>
+                <p>Esto puede deberse a diferentes razones:</p>
+                <ul>
+                    <li>El símbolo puede no estar disponible en nuestras fuentes de datos</li>
+                    <li>El mercado puede estar cerrado actualmente</li>
+                    <li>Puede haber un problema temporal con los servicios de datos</li>
+                </ul>
+                <p>Intenta con otro símbolo o timeframe, o vuelve a intentarlo más tarde.</p>
             </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
+            """,
+            unsafe_allow_html=True
+        )
+
+        # A pesar de no tener datos, mostramos el panel de chat para que el usuario pueda hacer consultas
+        return
+
+    # Si llegamos aquí, tenemos datos para mostrar
+
     # Crear pestañas para diferentes tipos de análisis
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Análisis Técnico", 
-        "🎯 Opciones",  
+        "📊 Análisis Técnico",
+        "🎯 Opciones",
         "⚙️ Multi-Timeframe",
         "🧠 Análisis Experto"
     ])
-    
+
     with tab1:
         # Mostrar resumen técnico
         display_technical_summary(symbol, data)
-        
+
         # Mostrar gráfico técnico
         st.markdown("### 📈 Gráfico Técnico")
         fig = create_technical_chart(data, symbol)
@@ -2750,68 +2967,68 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             st.session_state.active_chart = fig
         else:
             st.warning("No se pudo crear el gráfico técnico")
-            
+
         # Mostrar detalles de indicadores
         with st.expander("📊 Detalles de Indicadores"):
             last_row = data.iloc[-1]
-            
+
             col1, col2, col3 = st.columns(3)
-            
+
             with col1:
                 st.markdown("#### Momentum")
                 if "RSI" in data.columns:
                     rsi = last_row["RSI"]
-                    st.metric("RSI", f"{rsi:.2f}", 
-                             "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral")
-                
+                    st.metric("RSI", f"{rsi:.2f}",
+                              "Sobrecompra" if rsi > 70 else "Sobreventa" if rsi < 30 else "Neutral")
+
                 if "STOCH_K" in data.columns and "STOCH_D" in data.columns:
-                    st.metric("Estocástico", 
-                             f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
-                
+                    st.metric("Estocástico",
+                              f"%K:{last_row['STOCH_K']:.2f} %D:{last_row['STOCH_D']:.2f}")
+
                 if "CCI" in data.columns:
                     st.metric("CCI", f"{last_row['CCI']:.2f}")
-            
+
             with col2:
                 st.markdown("#### Tendencia")
                 if "SMA_20" in data.columns and "SMA_50" in data.columns:
                     sma_20 = last_row["SMA_20"]
                     sma_50 = last_row["SMA_50"]
                     sma_diff = ((sma_20 / sma_50) - 1) * 100
-                    st.metric("SMA 20/50", f"{sma_diff:+.2f}%", 
-                             "Alcista" if sma_diff > 0 else "Bajista")
-                
+                    st.metric("SMA 20/50", f"{sma_diff:+.2f}%",
+                              "Alcista" if sma_diff > 0 else "Bajista")
+
                 if "MACD" in data.columns and "MACD_Signal" in data.columns:
                     macd = last_row["MACD"]
                     macd_signal = last_row["MACD_Signal"]
                     macd_hist = macd - macd_signal
-                    st.metric("MACD Hist", f"{macd_hist:.3f}", 
-                             "Alcista" if macd_hist > 0 else "Bajista")
-                
+                    st.metric("MACD Hist", f"{macd_hist:.3f}",
+                              "Alcista" if macd_hist > 0 else "Bajista")
+
                 if "SMA_200" in data.columns:
                     price = last_row["Close"]
                     sma_200 = last_row["SMA_200"]
                     price_vs_sma = ((price / sma_200) - 1) * 100
                     st.metric("Precio vs SMA200", f"{price_vs_sma:+.2f}%",
-                             "Por encima" if price_vs_sma > 0 else "Por debajo")
-            
+                              "Por encima" if price_vs_sma > 0 else "Por debajo")
+
             with col3:
                 st.markdown("#### Volatilidad")
                 if "BB_Width" in data.columns:
                     st.metric("Ancho BB", f"{last_row['BB_Width']:.3f}")
-                
+
                 if "ATR" in data.columns:
                     st.metric("ATR", f"{last_row['ATR']:.3f}")
-                    
+
                 # ATR como porcentaje del precio
                 if "ATR" in data.columns and "Close" in data.columns:
                     atr_pct = (last_row["ATR"] / last_row["Close"]) * 100
                     st.metric("ATR %", f"{atr_pct:.2f}%")
-    
+
     with tab2:
         # Obtener datos de opciones
-        option_data = context.get("options", {})
-        option_signal = context.get("signals", {}).get("options", {})
-        
+        option_data = context.get("options", {}) if context and "error" not in context else {}
+        option_signal = context.get("signals", {}).get("options", {}) if context and "error" not in context else {}
+
         # Combinar datos
         combined_options = {
             "recommendation": option_signal.get("direction", "NEUTRAL"),
@@ -2820,19 +3037,20 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             "implied_volatility": option_data.get("implied_volatility", 0) * 100,
             "historical_volatility": option_data.get("historical_volatility", 0) * 100,
         }
-        
+
         # Mostrar análisis de opciones
         display_options_analysis(symbol, combined_options)
-        
+
         # Mostrar superficie de volatilidad
         st.markdown("### 📊 Superficie de Volatilidad")
-        
+
         # Datos de ejemplo para la superficie de volatilidad
         try:
             # Crear datos para la superficie
+            price = last_row["Close"] if data is not None and not data.empty else 100
             strikes = np.linspace(price * 0.8, price * 1.2, 11)
             expirations = [30, 60, 90, 180, 270]
-            
+
             # Modelar la superficie con un sesgo ligeramente negativo (volatility skew)
             vol_surface = []
             for days in expirations:
@@ -2849,7 +3067,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     vol = max(5, base_vol / 100 + skew + term_effect) * 100
                     row.append(vol)
                 vol_surface.append(row)
-            
+
             # Crear figura 3D
             fig = go.Figure(data=[go.Surface(
                 z=vol_surface,
@@ -2858,7 +3076,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 colorscale='Viridis',
                 colorbar=dict(title="Vol. Implícita (%)")
             )])
-            
+
             fig.update_layout(
                 title='Superficie de Volatilidad',
                 scene=dict(
@@ -2869,20 +3087,20 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 height=600,
                 margin=dict(l=10, r=10, b=10, t=30)
             )
-            
+
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.warning(f"No se pudo generar la superficie de volatilidad: {str(e)}")
-        
+
         # Mostrar estrategias de opciones
         st.markdown("### 🎯 Estrategias Recomendadas")
-        
+
         # Determinar qué estrategias mostrar según la señal
         recommendation = combined_options.get("recommendation", "NEUTRAL")
-        
+
         if recommendation == "CALL":
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown(
                     """
@@ -2897,7 +3115,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     """,
                     unsafe_allow_html=True,
                 )
-            
+
             with col2:
                 st.markdown(
                     """
@@ -2914,7 +3132,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 )
         elif recommendation == "PUT":
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown(
                     """
@@ -2929,7 +3147,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     """,
                     unsafe_allow_html=True,
                 )
-            
+
             with col2:
                 st.markdown(
                     """
@@ -2946,7 +3164,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 )
         else:
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown(
                     """
@@ -2961,7 +3179,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     """,
                     unsafe_allow_html=True,
                 )
-            
+
             with col2:
                 st.markdown(
                     """
@@ -2976,85 +3194,89 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     """,
                     unsafe_allow_html=True,
                 )
-        
+
         # Mostrar parámetros de opciones recomendados
         with st.expander("⚙️ Parámetros Recomendados"):
             col1, col2, col3 = st.columns(3)
-            
+
             with col1:
                 st.markdown("#### Vencimiento")
                 vencimiento = "45 días" if recommendation != "NEUTRAL" else "30-60 días"
                 st.info(f"Recomendado: **{vencimiento}**")
                 st.text("Razonamiento: Balance óptimo entre theta decay y tiempo para que se desarrolle el movimiento.")
-            
+
             with col2:
                 st.markdown("#### Strikes")
-                if recommendation == "CALL":
-                    strikes = f"Comprar: ${price:.2f} (ATM)\nVender: ${price * 1.05:.2f} (5% OTM)"
-                elif recommendation == "PUT":
-                    strikes = f"Comprar: ${price:.2f} (ATM)\nVender: ${price * 0.95:.2f} (5% OTM)"
+                if data is not None and not data.empty:
+                    current_price = data["Close"].iloc[-1]
+                    if recommendation == "CALL":
+                        strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 1.05:.2f} (5% OTM)"
+                    elif recommendation == "PUT":
+                        strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 0.95:.2f} (5% OTM)"
+                    else:
+                        strikes = f"Put spread: ${current_price * 0.90:.2f}-${current_price * 0.95:.2f}\nCall spread: ${current_price * 1.05:.2f}-${current_price * 1.10:.2f}"
                 else:
-                    strikes = f"Put spread: ${price * 0.90:.2f}-${price * 0.95:.2f}\nCall spread: ${price * 1.05:.2f}-${price * 1.10:.2f}"
-                
+                    strikes = "No se pueden calcular sin precio actual"
+
                 st.info("Recomendados:")
                 st.text(strikes)
-            
+
             with col3:
                 st.markdown("#### Gestión de Riesgo")
                 st.info("Tamaño de posición: 2-3% del capital")
                 st.text(f"Stop loss: -50% del valor de la posición\nTake profit: 25-30% del beneficio máximo potencial")
-    
+
     with tab3:
         st.markdown("### ⚙️ Análisis Multi-Timeframe")
-        
+
         # Mostrar resultados de diferentes timeframes
         col1, col2, col3 = st.columns(3)
-        
+
         timeframes = ["1d", "1wk", "1mo"]
         labels = ["Diario", "Semanal", "Mensual"]
-        
+
         multi_timeframe_data = {}
-        
+
         for i, (tf, label) in enumerate(zip(timeframes, labels)):
             # Obtener datos para este timeframe
             tf_data = analyze_market_data(symbol, tf, "1y")
             multi_timeframe_data[tf] = tf_data
-            
+
             if tf_data is not None and not tf_data.empty:
                 last_row = tf_data.iloc[-1]
-                
+
                 # Determinar señal basada en indicadores
                 rsi = last_row.get("RSI")
                 macd = last_row.get("MACD")
                 macd_signal = last_row.get("MACD_Signal")
                 sma_20 = last_row.get("SMA_20")
                 sma_50 = last_row.get("SMA_50")
-                
+
                 # Inicializar señales
                 momentum = "Neutral"
                 trend = "Neutral"
-                
+
                 # Determinar momentum
                 if rsi is not None:
                     if rsi > 70:
                         momentum = "Sobrecompra"
                     elif rsi < 30:
                         momentum = "Sobreventa"
-                
+
                 # Determinar tendencia
                 if macd is not None and macd_signal is not None:
                     trend = "Alcista" if macd > macd_signal else "Bajista"
-                
+
                 # Determinar señal general
                 if sma_20 is not None and sma_50 is not None:
                     sma_cross = "Alcista" if sma_20 > sma_50 else "Bajista"
                 else:
                     sma_cross = "N/A"
-                
+
                 # Mostrar en columna
                 with [col1, col2, col3][i]:
                     st.markdown(f"#### {label}")
-                    
+
                     # Color para la señal general
                     if trend == "Alcista" and momentum != "Sobrecompra":
                         signal_color = "#4CAF50"  # Verde
@@ -3065,7 +3287,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     else:
                         signal_color = "#9E9E9E"  # Gris
                         signal = "NEUTRAL"
-                    
+
                     # Mostrar señal principal
                     st.markdown(
                         f"""
@@ -3075,12 +3297,12 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         """,
                         unsafe_allow_html=True
                     )
-                    
+
                     # Mostrar indicadores
                     st.markdown(f"**RSI:** {rsi:.1f} ({momentum})")
                     st.markdown(f"**MACD:** {trend}")
                     st.markdown(f"**SMA Cross:** {sma_cross}")
-                    
+
                     # Mostrar botón para ver gráfico
                     if st.button(f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}"):
                         st.session_state.current_timeframe = tf
@@ -3089,14 +3311,14 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 with [col1, col2, col3][i]:
                     st.markdown(f"#### {label}")
                     st.warning(f"No hay datos disponibles para {tf}")
-        
+
         # Mostrar alineación de timeframes
         st.markdown("### 📊 Alineación de Timeframes")
-        
+
         daily = multi_timeframe_data.get("1d")
         weekly = multi_timeframe_data.get("1wk")
         monthly = multi_timeframe_data.get("1mo")
-        
+
         if daily is not None and weekly is not None and monthly is not None:
             # Extraer señales de cada timeframe
             try:
@@ -3104,12 +3326,12 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 daily_last = daily.iloc[-1]
                 weekly_last = weekly.iloc[-1]
                 monthly_last = monthly.iloc[-1]
-                
+
                 # Determinar tendencia basada en MACD y SMAs
                 daily_trend = "alcista" if daily_last.get("MACD", 0) > daily_last.get("MACD_Signal", 0) else "bajista"
                 weekly_trend = "alcista" if weekly_last.get("MACD", 0) > weekly_last.get("MACD_Signal", 0) else "bajista"
                 monthly_trend = "alcista" if monthly_last.get("MACD", 0) > monthly_last.get("MACD_Signal", 0) else "bajista"
-                
+
                 # Determinar alineación
                 if daily_trend == weekly_trend == monthly_trend:
                     alignment = "FUERTE"
@@ -3120,7 +3342,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 else:
                     alignment = "DÉBIL"
                     alignment_color = "#9E9E9E"
-                
+
                 # Mostrar matriz de alineación
                 st.markdown(
                     f"""
@@ -3136,19 +3358,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                             <tr>
                                 <td><strong>Diario</strong></td>
                                 <td style="color: {'green' if daily_trend == 'alcista' else 'red'};">{daily_trend.upper()}</td>
-                                <td>{('Neutral' if 30 <= daily_last.get('RSI', 50) <= 70 else 'Sobrecompra' if daily_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
-                                <td>{('Alta' if daily_last.get('BB_Width', 0) > 0.05 else 'Baja' if daily_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Semanal</strong></td>
-                                <td style="color: {'green' if weekly_trend == 'alcista' else 'red'};">{weekly_trend.upper()}</td>
-                                <td>{('Neutral' if 30 <= weekly_last.get('RSI', 50) <= 70 else 'Sobrecompra' if weekly_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
-                                <td>{('Alta' if weekly_last.get('BB_Width', 0) > 0.05 else 'Baja' if weekly_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Mensual</strong></td>
-                                <td style="color: {'green' if monthly_trend == 'alcista' else 'red'};">{monthly_trend.upper()}</td>
-                                <td>{('Neutral' if 30 <= monthly_last.get('RSI', 50) <= 70 else 'Sobrecompra' if monthly_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>
+                                <td>{('Neutral' if 30 <= daily_last.get('RSI', 50) <= 70 else 'Sobrecompra' if daily_last.get('RSI', 50) > 70 else 'Sobreventa')}</td>                                
                                 <td>{('Alta' if monthly_last.get('BB_Width', 0) > 0.05 else 'Baja' if monthly_last.get('BB_Width', 0) < 0.03 else 'Normal')}</td>
                             </tr>
                         </table>
@@ -3206,7 +3416,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 st.warning(f"No se pudo calcular la alineación de timeframes: {str(e)}")
         else:
             st.warning("No hay datos suficientes para calcular la alineación de timeframes")
-    
+
     with tab4:
         st.markdown("### 🧠 Análisis del Experto")
         
@@ -3220,7 +3430,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         openai, 
                         st.session_state.assistant_id, 
                         symbol, 
-                        context
+                        context if context and "error" not in context else {"last_price": price, "change_percent": change}
                     )
                     
                     # Guardar el análisis en el estado de la sesión
@@ -3228,8 +3438,8 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.session_state.last_expert_analysis[symbol] = {
                             "analysis": expert_analysis,
                             "timestamp": datetime.now().isoformat(),
-                            "price": price,
-                            "change": change
+                            "price": price if price is not None else (data["Close"].iloc[-1] if data is not None and not data.empty else 0),
+                            "change": change if change is not None else 0
                         }
             else:
                 st.error("OpenAI no está configurado. No se puede generar análisis experto.")
@@ -3281,12 +3491,12 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     st.warning("Por favor, ingresa una pregunta y asegúrate de que OpenAI esté configurado.")
 
 
-# =================================================
-# FUNCIÓN PRINCIPAL
-# =================================================
+    # =================================================
+    # FUNCIÓN PRINCIPAL
+    # =================================================
 
 
-def main():
+    def main():
     """Función principal de la aplicación"""
     try:
         # Verificar autenticación primero
@@ -3351,17 +3561,27 @@ def main():
         with col2:
             st.markdown('<h2 class="sub-header">💬 Trading Specialist</h2>', unsafe_allow_html=True)
 
-            # Mostrar tarjeta de contexto
+            # Obtener contexto para información del símbolo
             context = get_market_context(symbol)
-
+            company_info = get_company_info(symbol)
+            company_name = company_info.get("name", symbol)
+            
+            # Variables para la tarjeta de información
+            price = None
+            change = None
+            signals = {}
+            option_signal = "NEUTRAL"
+            option_strategy = "N/A"
+            vix_level = "N/A"
+            
+            # Mostrar tarjeta de contexto
             if context and "error" not in context:
                 price = context.get("last_price", 0)
                 change = context.get("change_percent", 0)
                 signals = context.get("signals", {})
+                vix_level = context.get("vix_level", "N/A")
 
                 # Determinar señal de opciones
-                option_signal = "NEUTRAL"
-                option_strategy = "N/A"
                 if "options" in signals:
                     option_signal = signals["options"]["direction"]
                     option_strategy = signals["options"]["strategy"]
@@ -3378,35 +3598,49 @@ def main():
                     f"""
                     <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
                         <h3 style="margin-top:0; display: flex; justify-content: space-between;">
-                            <span>{symbol}</span> 
+                            <span>{company_name}</span> 
                             <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
                         </h3>
                         <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
-                        <p><strong>VIX:</strong> {context.get('vix_level', 'N/A')} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
+                        <p><strong>VIX:</strong> {vix_level} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                # Mostrar tarjeta con información mínima cuando no hay contexto
+                st.markdown(
+                    f"""
+                    <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid #9E9E9E">
+                        <h3 style="margin-top:0; display: flex; justify-content: space-between;">
+                            <span>{company_name} ({symbol})</span> 
+                        </h3>
+                        <p>No se pudieron obtener datos de mercado actualizados para este activo.</p>
+                        <p>Puedes consultar información general o preguntar sobre estrategias típicas.</p>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                # Mostrar badge del modo de chat
-                if st.session_state.get("openai_configured"):
-                    st.markdown(
-                        """
-                        <div style="display:inline-block;background-color:rgba(25,118,210,0.1);color:#1976D2;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
-                        ✨ Modo Avanzado con IA
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        """
-                        <div style="display:inline-block;background-color:rgba(128,128,128,0.1);color:#9E9E9E;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
-                        ⚠️ Modo Básico
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+            # Mostrar badge del modo de chat
+            if st.session_state.get("openai_configured"):
+                st.markdown(
+                    """
+                    <div style="display:inline-block;background-color:rgba(25,118,210,0.1);color:#1976D2;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
+                    ✨ Modo Avanzado con IA
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    """
+                    <div style="display:inline-block;background-color:rgba(128,128,128,0.1);color:#9E9E9E;padding:4px 8px;border-radius:4px;font-size:0.8em;margin-bottom:10px; font-weight: 600;">
+                    ⚠️ Modo Básico
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             # Contenedor para mensajes de chat
             chat_container = st.container(height=500)
@@ -3464,5 +3698,5 @@ def main():
         st.error(traceback.format_exc())
 
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
