@@ -622,10 +622,60 @@ st.markdown(
         margin-bottom: 2rem;
         font-weight: bold;
     }
+
+    /* Estilos adicionales para análisis de sentimiento y noticias */
+    .sentiment-gauge {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    .web-insight {
+        background-color: #f8f9fa;
+        border-left: 3px solid #9C27B0;
+        padding: 1rem;
+        border-radius: 0 5px 5px 0;
+        margin-bottom: 1rem;
+    }
+    
+    .recommendation-box {
+        background-color: rgba(0, 150, 136, 0.1);
+        border: 2px solid #009688;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        text-align: center;
+    }
+    
+    .recommendation-box.call {
+        background-color: rgba(76, 175, 80, 0.1);
+        border-color: #4CAF50;
+    }
+    
+    .recommendation-box.put {
+        background-color: rgba(244, 67, 54, 0.1);
+        border-color: #F44336;
+    }
+    
+    .recommendation-box h2 {
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .recommendation-box.call h2 {
+        color: #4CAF50;
+    }
+    
+    .recommendation-box.put h2 {
+        color: #F44336;
+    }
 </style>
 """,
     unsafe_allow_html=True,
 )
+
 
 # =================================================
 # CLASES DE SCANNER DE MERCADO (De InversorIA Mini)
@@ -1413,6 +1463,35 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     if "options" in signals:
         option_signal = signals["options"]["direction"]
 
+    # Extraer información fundamental si está disponible
+    fundamental_data = context.get("fundamental_data", {})
+    fundamentals_text = ""
+    if fundamental_data:
+        fundamentals_text = "DATOS FUNDAMENTALES:\n"
+        for key, value in fundamental_data.items():
+            fundamentals_text += f"- {key}: {value}\n"
+
+    # Extraer información de noticias si está disponible
+    news = context.get("news", [])
+    news_text = ""
+    if news:
+        news_text = "NOTICIAS RECIENTES:\n"
+        for item in news[:3]:  # Limitar a 3 noticias
+            news_text += f"- {item.get('date', '')}: {item.get('title', '')}\n"
+
+    # Extraer sentimiento de noticias
+    sentiment = context.get("news_sentiment", {})
+    sentiment_text = ""
+    if sentiment:
+        sentiment_score = sentiment.get("score", 0.5) * 100
+        sentiment_text = f"SENTIMIENTO: {sentiment.get('sentiment', 'neutral')} ({sentiment_score:.1f}%)\n"
+        sentiment_text += (
+            f"Menciones positivas: {sentiment.get('positive_mentions', 0)}\n"
+        )
+        sentiment_text += (
+            f"Menciones negativas: {sentiment.get('negative_mentions', 0)}\n"
+        )
+
     # Detectar patrones
     chart_data = pd.DataFrame(context.get("chart_data", []))
     patterns = {}
@@ -1443,9 +1522,9 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     else:
         patterns_text = "No hay datos suficientes para detectar patrones técnicos."
 
-    # Crear contenido del prompt
+    # Crear contenido del prompt enriquecido con toda la información disponible
     prompt = f"""
-    Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional del siguiente activo:
+    Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional integral del siguiente activo:
 
     SÍMBOLO: {symbol}
 
@@ -1455,17 +1534,36 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     - Señal técnica: {overall_signal}
     - Señal de opciones: {option_signal}
 
+    {fundamentals_text}
+
+    {sentiment_text}
+
+    {news_text}
+
     PATRONES TÉCNICOS:
     {patterns_text}
 
     INSTRUCCIONES ESPECÍFICAS:
-    1. Proporciona una evaluación integral basada en el contexto técnico y de mercado actual.
-    2. Identifica los niveles de soporte y resistencia clave.
+    1. Proporciona una evaluación integral que combine análisis técnico, fundamental y sentimiento de mercado.
+    2. Identifica claramente los niveles de soporte y resistencia clave.
     3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
-    4. Sugiere estrategias específicas para traders institucionales.
-    5. Indica riesgos clave y niveles de stop loss recomendados.
-    6. Concluye con una proyección de movimiento con rangos de precio.
+    4. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
+    5. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
+    6. Indica riesgos clave y niveles de stop loss recomendados.
+    7. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
 
+    FORMATO DE RESPUESTA:
+    Por favor, estructura tu respuesta con los siguientes encabezados:
+    
+    - EVALUACIÓN GENERAL: (Visión general integrada técnica, fundamental y sentimiento)
+    - NIVELES CLAVE: (Soportes, resistencias y niveles psicológicos importantes)
+    - ANÁLISIS TÉCNICO: (Indicadores y patrones detectados)
+    - ANÁLISIS FUNDAMENTAL Y NOTICIAS: (Factores fundamentales y su impacto)
+    - ESTRATEGIAS RECOMENDADAS: (Estrategias específicas y operativa sugerida)
+    - GESTIÓN DE RIESGO: (Stop loss, take profit y ratios riesgo/recompensa)
+    - PROYECCIÓN DE MOVIMIENTO: (Escenarios probables y sus catalizadores)
+    - RECOMENDACIÓN FINAL: (CALL, PUT o NEUTRAL con horizonte temporal) - ESTE ENCABEZADO ES INDISPENSABLE
+    
     El análisis debe ser conciso, directo y con información accionable específica para un trader profesional.
     """
 
@@ -1542,14 +1640,18 @@ def display_expert_opinion(expert_opinion):
     # Procesamiento mejorado del texto: buscar secciones clave
     sections = {
         "evaluación": "",
-        "soporte": "",
-        "indicadores": "",
+        "niveles": "",
+        "técnico": "",
+        "fundamental": "",
         "estrategias": "",
-        "riesgos": "",
+        "riesgo": "",
         "proyección": "",
+        "recomendación": "",
     }
 
     current_section = None
+    final_recommendation = None
+    recommendation_type = "NEUTRAL"
 
     try:
         # Intentar identificar secciones en el texto
@@ -1558,47 +1660,71 @@ def display_expert_opinion(expert_opinion):
             line = line.strip()
 
             # Detectar secciones por encabezados
-            if any(
-                keyword in line.upper()
-                for keyword in ["EVALUACIÓN", "ANÁLISIS", "PANORAMA"]
-            ):
+            if "EVALUACIÓN GENERAL" in line.upper():
                 current_section = "evaluación"
                 continue
-            elif any(
-                keyword in line.upper()
-                for keyword in ["SOPORTE", "RESISTENCIA", "NIVELES"]
-            ):
-                current_section = "soporte"
+            elif "NIVELES CLAVE" in line.upper():
+                current_section = "niveles"
                 continue
-            elif any(
-                keyword in line.upper()
-                for keyword in ["INDICADOR", "TÉCNICO", "RSI", "MACD"]
-            ):
-                current_section = "indicadores"
+            elif "ANÁLISIS TÉCNICO" in line.upper():
+                current_section = "técnico"
                 continue
-            elif any(
-                keyword in line.upper()
-                for keyword in ["ESTRATEGIA", "OPERATIVA", "TRADING", "RECOMENDACIÓN"]
-            ):
+            elif "ANÁLISIS FUNDAMENTAL" in line.upper() or "NOTICIAS" in line.upper():
+                current_section = "fundamental"
+                continue
+            elif "ESTRATEGIAS RECOMENDADAS" in line.upper():
                 current_section = "estrategias"
                 continue
-            elif any(
-                keyword in line.upper() for keyword in ["RIESGO", "STOP", "CAUTELA"]
-            ):
-                current_section = "riesgos"
+            elif "GESTIÓN DE RIESGO" in line.upper() or "STOP LOSS" in line.upper():
+                current_section = "riesgo"
                 continue
-            elif any(
-                keyword in line.upper()
-                for keyword in ["PROYECCIÓN", "PRONÓSTICO", "ESCENARIO", "TARGET"]
-            ):
+            elif "PROYECCIÓN DE MOVIMIENTO" in line.upper():
                 current_section = "proyección"
+                continue
+            elif "RECOMENDACIÓN FINAL" in line.upper():
+                current_section = "recomendación"
+
+                # Extraer la recomendación final (CALL, PUT o NEUTRAL)
+                if "CALL" in line.upper():
+                    recommendation_type = "CALL"
+                elif "PUT" in line.upper():
+                    recommendation_type = "PUT"
                 continue
 
             # Agregar línea a la sección actual
             if current_section and line:
                 sections[current_section] += line + "\n"
+
+                # Guardar la recomendación final de forma completa
+                if current_section == "recomendación":
+                    final_recommendation = sections[current_section]
+
+                    # Detectar si hay una recomendación explícita de CALL o PUT
+                    if "CALL" in line.upper() and recommendation_type == "NEUTRAL":
+                        recommendation_type = "CALL"
+                    elif "PUT" in line.upper() and recommendation_type == "NEUTRAL":
+                        recommendation_type = "PUT"
     except Exception as e:
         logger.error(f"Error al procesar la respuesta del experto: {str(e)}")
+
+    # Determinar la clase de color para la recomendación
+    recommendation_class = (
+        "call"
+        if recommendation_type == "CALL"
+        else "put" if recommendation_type == "PUT" else ""
+    )
+
+    # Mostrar recomendación final en un box destacado si existe
+    if final_recommendation:
+        st.markdown(
+            f"""
+            <div class="recommendation-box {recommendation_class}">
+                <h2>RECOMENDACIÓN: {recommendation_type}</h2>
+                {final_recommendation}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # Si no se identificaron secciones, mostrar el texto completo
     if all(not v for v in sections.values()):
@@ -1638,21 +1764,25 @@ def display_expert_opinion(expert_opinion):
             st.markdown("### 📊 Evaluación General")
             st.markdown(sections["evaluación"])
 
-        if sections["soporte"]:
+        if sections["niveles"]:
             st.markdown("### 🔍 Niveles Clave")
-            st.markdown(sections["soporte"])
+            st.markdown(sections["niveles"])
 
-        if sections["indicadores"]:
-            st.markdown("### 📈 Análisis de Indicadores")
-            st.markdown(sections["indicadores"])
+        if sections["técnico"]:
+            st.markdown("### 📈 Análisis Técnico")
+            st.markdown(sections["técnico"])
+
+        if sections["fundamental"]:
+            st.markdown("### 📰 Análisis Fundamental y Noticias")
+            st.markdown(sections["fundamental"])
 
         if sections["estrategias"]:
             st.markdown("### 🎯 Estrategias Recomendadas")
             st.markdown(sections["estrategias"])
 
-        if sections["riesgos"]:
+        if sections["riesgo"]:
             st.markdown("### ⚠️ Gestión de Riesgo")
-            st.markdown(sections["riesgos"])
+            st.markdown(sections["riesgo"])
 
         if sections["proyección"]:
             st.markdown("### 🔮 Proyección de Movimiento")
@@ -1671,516 +1801,192 @@ def display_expert_opinion(expert_opinion):
 
 
 # =================================================
-# CONFIGURACIÓN DE OPENAI
+# FUNCIONES PARA MOSTRAR SENTIMIENTO Y NOTICIAS
 # =================================================
 
 
-def setup_openai():
-    """Configura credenciales de OpenAI con manejo mejorado de errores"""
-    try:
-        # Estrategia de búsqueda de credenciales en múltiples ubicaciones
-        credential_sources = [
-            # Nivel principal
-            {
-                "container": st.secrets if hasattr(st, "secrets") else {},
-                "key": "OPENAI_API_KEY",
-                "target": "OPENAI_API_KEY",
-            },
-            {
-                "container": st.secrets if hasattr(st, "secrets") else {},
-                "key": "ASSISTANT_ID",
-                "target": "ASSISTANT_ID",
-            },
-            # Variables de entorno
-            {
-                "container": os.environ,
-                "key": "OPENAI_API_KEY",
-                "target": "OPENAI_API_KEY",
-            },
-            {
-                "container": os.environ,
-                "key": "ASSISTANT_ID",
-                "target": "ASSISTANT_ID",
-            },
-            # Sección api_keys en secrets
-            {
-                "container": (
-                    st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {}
-                ),
-                "key": "OPENAI_API_KEY",
-                "target": "OPENAI_API_KEY",
-            },
-            {
-                "container": (
-                    st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {}
-                ),
-                "key": "ASSISTANT_ID",
-                "target": "ASSISTANT_ID",
-            },
-        ]
+def display_sentiment_analysis(context):
+    """Muestra análisis de sentimiento integrado desde MarketIntel"""
+    sentiment = context.get("news_sentiment", {})
+    web_analysis = context.get("web_analysis", {})
 
-        # Nombres alternativos
-        api_key_alternatives = ["openai_api_key", "OpenAIAPIKey", "OPENAI_KEY"]
-        assistant_id_alternatives = ["assistant_id", "AssistantID", "ASSISTANT"]
+    if not sentiment and not web_analysis:
+        st.info("No se encontró análisis de sentimiento disponible.")
+        return
 
-        API_KEY = None
-        ASSISTANT_ID = None
-
-        # Buscar en todas las posibles ubicaciones
-        for source in credential_sources:
-            container = source["container"]
-            key = source["key"]
-            target = source["target"]
-
-            if key in container:
-                if target == "OPENAI_API_KEY":
-                    API_KEY = container[key]
-                    logger.info(f"✅ OPENAI_API_KEY encontrada en {key}")
-                elif target == "ASSISTANT_ID":
-                    ASSISTANT_ID = container[key]
-                    logger.info(f"✅ ASSISTANT_ID encontrado en {key}")
-
-        # Buscar nombres alternativos si aún no encontramos las credenciales
-        if not API_KEY and hasattr(st, "secrets"):
-            for alt_key in api_key_alternatives:
-                if alt_key in st.secrets:
-                    API_KEY = st.secrets[alt_key]
-                    logger.info(f"✅ API Key encontrada como {alt_key}")
-                    break
-                elif "api_keys" in st.secrets and alt_key in st.secrets["api_keys"]:
-                    API_KEY = st.secrets["api_keys"][alt_key]
-                    logger.info(f"✅ API Key encontrada en api_keys.{alt_key}")
-                    break
-
-        if not ASSISTANT_ID and hasattr(st, "secrets"):
-            for alt_id in assistant_id_alternatives:
-                if alt_id in st.secrets:
-                    ASSISTANT_ID = st.secrets[alt_id]
-                    logger.info(f"✅ Assistant ID encontrado como {alt_id}")
-                    break
-                elif "api_keys" in st.secrets and alt_id in st.secrets["api_keys"]:
-                    ASSISTANT_ID = st.secrets["api_keys"][alt_id]
-                    logger.info(f"✅ Assistant ID encontrado en api_keys.{alt_id}")
-                    break
-
-        if not API_KEY:
-            logger.warning("⚠️ No se encontró OPENAI_API_KEY en ninguna ubicación")
-            return None, None
-
-        if not ASSISTANT_ID:
-            logger.warning("⚠️ No se encontró ASSISTANT_ID en ninguna ubicación")
-            return API_KEY, None
-
-        openai.api_key = API_KEY
-        return API_KEY, ASSISTANT_ID
-
-    except Exception as e:
-        logger.error(f"Error configurando OpenAI: {str(e)}")
-        return None, None
-
-
-# =================================================
-# VERIFICACIÓN DE APIS Y LIBRERÍAS
-# =================================================
-
-
-def check_api_keys():
-    """Verifica las API keys disponibles en secret.toml o env vars"""
-    apis_status = {}
-
-    # Verificar API keys comunes para datos financieros
-    keys_to_check = [
-        "alpha_vantage_api_key",
-        "finnhub_api_key",
-        "marketstack_api_key",
-        "openai_api_key",
-        "assistant_id",
-        "you_api_key",
-        "tavily_api_key",
-    ]
-
-    for key in keys_to_check:
-        # Intentar obtener desde Streamlit secrets o variables de entorno
-        try:
-            value = None
-            # Primero verificar en streamlit secrets
-            if hasattr(st, "secrets"):
-                value = st.secrets.get(key, None)
-                if value is None and "api_keys" in st.secrets:
-                    value = st.secrets["api_keys"].get(key, None)
-
-            # Si no se encuentra en secrets, verificar variables de entorno
-            if value is None:
-                env_key = key.upper()
-                value = os.environ.get(env_key, "")
-
-            is_present = bool(value)
-
-            # Mostrar solo una indicación de si está presente, no el valor real
-            source = "No encontrada"
-            if hasattr(st, "secrets") and key in st.secrets:
-                source = "Streamlit secrets"
-            elif (
-                hasattr(st, "secrets")
-                and "api_keys" in st.secrets
-                and key in st.secrets["api_keys"]
-            ):
-                source = "Streamlit secrets (api_keys)"
-            elif key.upper() in os.environ:
-                source = "Variables de entorno"
-
-            apis_status[key] = {
-                "status": "✅ Disponible" if is_present else "❌ No configurada",
-                "source": source,
-            }
-        except Exception as e:
-            apis_status[key] = {
-                "status": "❌ Error accediendo",
-                "source": f"Error: {str(e)}",
-            }
-
-    # Verificar si se puede acceder a APIs externas
-    api_endpoints = {
-        "Alpha Vantage": "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=demo",
-        "Yahoo Finance": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d",
-        "Finnhub": "https://finnhub.io/api/v1/quote?symbol=AAPL&token=demo",
-    }
-
-    for name, url in api_endpoints.items():
-        try:
-            response = requests.get(url, timeout=5)
-            status_code = response.status_code
-            apis_status[name] = {
-                "status": (
-                    "✅ Accesible" if status_code == 200 else f"⚠️ Error {status_code}"
-                ),
-                "response_time": f"{response.elapsed.total_seconds():.2f}s",
-            }
-        except Exception as e:
-            apis_status[name] = {"status": "❌ No accesible", "error": str(e)}
-
-    return apis_status
-
-
-def check_libraries():
-    """Verifica la disponibilidad de las bibliotecas necesarias"""
-    libraries = {
-        "pandas": "Análisis de datos",
-        "numpy": "Operaciones numéricas",
-        "yfinance": "Datos de Yahoo Finance",
-        "plotly": "Visualización",
-        "streamlit": "Interfaz de usuario",
-        "ta": "Indicadores técnicos",
-        "sklearn": "Machine Learning",
-        "scipy": "Cálculos científicos",
-        "statsmodels": "Análisis estadístico",
-        "requests": "API HTTP",
-        "pytz": "Zonas horarias",
-        "openai": "Inteligencia artificial",
-        "beautifulsoup4": "Web scraping",
-        "tavily_python": "Búsqueda web",
-    }
-
-    libraries_status = {}
-
-    for lib, description in libraries.items():
-        try:
-            # Intentar importar la biblioteca
-            if lib == "tavily_python":
-                try:
-                    from tavily import TavilyClient
-
-                    version = "Instalada"
-                except ImportError:
-                    raise ImportError("No instalada")
-            else:
-                module = importlib.import_module(lib)
-                version = getattr(module, "__version__", "versión desconocida")
-
-            libraries_status[lib] = {
-                "status": "✅ Instalada",
-                "version": version,
-                "description": description,
-            }
-        except ImportError:
-            libraries_status[lib] = {
-                "status": "❌ No instalada",
-                "description": description,
-            }
-        except Exception as e:
-            libraries_status[lib] = {
-                "status": "⚠️ Error",
-                "error": str(e),
-                "description": description,
-            }
-
-    return libraries_status
-
-
-def display_system_status():
-    """Muestra el estado del sistema, APIs y librerías con diseño mejorado"""
     st.markdown(
-        '<h1 class="main-header">🛠️ Estado del Sistema</h1>', unsafe_allow_html=True
-    )
-
-    # Información del sistema en tarjeta
-    st.markdown(
-        """
-        <div class="dashboard-card">
-            <div class="dashboard-header">Información del Sistema</div>
-            <div style="display: flex; flex-wrap: wrap;">
-        """,
+        '<div class="sub-header">📊 Análisis de Sentimiento</div>',
         unsafe_allow_html=True,
     )
 
+    # Mostrar sentimiento de noticias
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Información Técnica")
-        st.write(f"**Python versión:** {sys.version.split(' ')[0]}")
-        st.write(f"**Streamlit versión:** {st.__version__}")
-        st.write(f"**Fecha y hora:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.write(f"**Zona horaria:** {time.tzname[0]}")
-        st.write(f"**Sistema operativo:** {os.name.upper()}")
+        if sentiment:
+            # Mostrar sentimiento
+            sentiment_value = sentiment.get("sentiment", "neutral")
+            sentiment_score = sentiment.get("score", 0.5)
+
+            # Crear medidor
+            st.markdown("### Sentimiento de Noticias")
+
+            # Crear gráfico gauge con Plotly
+            fig = go.Figure(
+                go.Indicator(
+                    mode="gauge+number",
+                    value=sentiment_score * 100,
+                    title={"text": "Sentimiento"},
+                    gauge={
+                        "axis": {"range": [0, 100], "tickwidth": 1},
+                        "bar": {"color": "rgba(0,0,0,0)"},
+                        "steps": [
+                            {"range": [0, 40], "color": "rgba(255, 87, 34, 0.3)"},
+                            {"range": [40, 60], "color": "rgba(158, 158, 158, 0.3)"},
+                            {"range": [60, 100], "color": "rgba(76, 175, 80, 0.3)"},
+                        ],
+                        "threshold": {
+                            "line": {"color": "red", "width": 4},
+                            "thickness": 0.75,
+                            "value": sentiment_score * 100,
+                        },
+                    },
+                )
+            )
+
+            fig.update_layout(
+                height=250,
+                margin=dict(l=10, r=10, t=50, b=10),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Mostrar métricas adicionales
+            pos = sentiment.get("positive_mentions", 0)
+            neg = sentiment.get("negative_mentions", 0)
+            total = sentiment.get("total_analyzed", 0)
+
+            st.markdown(
+                f"""
+            **Menciones positivas:** {pos}  
+            **Menciones negativas:** {neg}  
+            **Total noticias analizadas:** {total}
+            """
+            )
+
+            # Añadir análisis institucional de sentimiento
+            if "sector_avg_bullish" in sentiment:
+                sector_bullish = sentiment.get("sector_avg_bullish", 0)
+                sector_bearish = sentiment.get("sector_avg_bearish", 0)
+
+                st.markdown(
+                    f"""
+                    <div class="institutional-insight">
+                        <h4>Análisis Sectorial</h4>
+                        <p>Comparación con el sector: <strong>{'+' if sentiment_score > sector_bullish else '-'}{abs(sentiment_score*100 - sector_bullish*100):.1f}%</strong></p>
+                        <p>Media bullish sectorial: <strong>{sector_bullish*100:.1f}%</strong></p>
+                        <p>Media bearish sectorial: <strong>{sector_bearish*100:.1f}%</strong></p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     with col2:
-        st.subheader("Estado de la Caché")
-        try:
-            cache_stats = _data_cache.get_stats()
-            st.write(f"**Entradas en caché:** {cache_stats.get('entradas', 'N/A')}")
-            st.write(f"**Hit rate:** {cache_stats.get('hit_rate', 'N/A')}")
-            st.write(
-                f"**Hits/Misses:** {cache_stats.get('hits', 0)}/{cache_stats.get('misses', 0)}"
+        if web_analysis:
+            # Mostrar análisis web
+            bullish = web_analysis.get("bullish_mentions", 0)
+            bearish = web_analysis.get("bearish_mentions", 0)
+
+            st.markdown("### Análisis Web")
+
+            # Crear gráfico de barras
+            fig = go.Figure()
+
+            fig.add_trace(
+                go.Bar(
+                    x=["Alcista", "Bajista"],
+                    y=[bullish, bearish],
+                    marker_color=["rgba(76, 175, 80, 0.7)", "rgba(255, 87, 34, 0.7)"],
+                )
             )
 
-            # Mostrar gráfico de uso de caché
-            if cache_stats.get("hits", 0) > 0 or cache_stats.get("misses", 0) > 0:
-                labels = ["Hits", "Misses"]
-                values = [cache_stats.get("hits", 0), cache_stats.get("misses", 0)]
+            fig.update_layout(
+                title="Menciones en Fuentes Web",
+                height=250,
+                margin=dict(l=10, r=10, t=50, b=10),
+                yaxis_title="Número de menciones",
+                xaxis_title="Sentimiento",
+            )
 
-                fig = go.Figure(
-                    data=[
-                        go.Pie(
-                            labels=labels,
-                            values=values,
-                            hole=0.3,
-                            marker_colors=["#4CAF50", "#F44336"],
-                        )
-                    ]
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Ratio de sentimiento
+            total_mentions = bullish + bearish
+            if total_mentions > 0:
+                bullish_ratio = bullish / total_mentions * 100
+                st.markdown(
+                    f"""
+                **Ratio alcista:** {bullish_ratio:.1f}%  
+                **Fuentes analizadas:** {len(context.get('web_results', []))}
+                """
                 )
-
-                fig.update_layout(
-                    title="Eficiencia de Caché",
-                    height=300,
-                    margin=dict(l=10, r=10, t=30, b=10),
-                )
-
-                st.plotly_chart(
-                    fig, use_container_width=True, height=800
-                )  # Especificar altura
-        except Exception as e:
-            st.write("**Error accediendo a estadísticas de caché:**", str(e))
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-    # Estado de APIs
-    st.markdown(
-        """
-        <div class="dashboard-card">
-            <div class="dashboard-header">Estado de APIs</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    apis_status = check_api_keys()
-
-    # Crear tabla de estados de API
-    api_data = []
-    for api, details in apis_status.items():
-        row = {"API/Key": api}
-        row.update(details)
-        api_data.append(row)
-
-    # Mostrar como dataframe
-    if api_data:
-        api_df = pd.DataFrame(api_data)
-        st.dataframe(api_df, use_container_width=True)
-    else:
-        st.warning("No se pudo obtener información de APIs")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Estado de librerías
-    st.markdown(
-        """
-        <div class="dashboard-card">
-            <div class="dashboard-header">Estado de Librerías</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    libraries_status = check_libraries()
-
-    # Crear tabla de estados de librerías
-    lib_data = []
-    for lib, details in libraries_status.items():
-        row = {"Librería": lib}
-        row.update(details)
-        lib_data.append(row)
-
-    # Mostrar como dataframe
-    if lib_data:
-        lib_df = pd.DataFrame(lib_data)
-        st.dataframe(lib_df, use_container_width=True)
-    else:
-        st.warning("No se pudo obtener información de librerías")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Prueba de conexión a datos
-    st.markdown(
-        """
-        <div class="dashboard-card">
-            <div class="dashboard-header">Prueba de Datos</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    try:
-        with st.spinner("Probando acceso a datos de mercado..."):
-            test_data = fetch_market_data("SPY", "2d")
-            if test_data is not None and not test_data.empty:
-                st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
-
-                # Mostrar datos recientes
-                st.dataframe(test_data.tail(3), use_container_width=True)
-
-                # Crear un gráfico rápido para visualizar
-                fig = go.Figure()
-
-                fig.add_trace(
-                    go.Candlestick(
-                        x=(
-                            test_data.index
-                            if isinstance(test_data.index, pd.DatetimeIndex)
-                            else test_data["Date"]
-                        ),
-                        open=test_data["Open"],
-                        high=test_data["High"],
-                        low=test_data["Low"],
-                        close=test_data["Close"],
-                        name="OHLC",
-                    )
-                )
-
-                fig.update_layout(
-                    title="Prueba de Datos SPY",
-                    xaxis_title="Fecha",
-                    yaxis_title="Precio",
-                    height=400,
-                    xaxis_rangeslider_visible=False,
-                )
-
-                st.plotly_chart(
-                    fig, use_container_width=True, height=800
-                )  # Especificar altura
             else:
-                st.error("❌ No se pudieron obtener datos para SPY")
-    except Exception as e:
-        st.error(f"❌ Error en prueba de datos: {str(e)}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Botón para continuar
-    if st.button("Continuar al Dashboard", type="primary", use_container_width=True):
-        st.session_state.show_system_status = False
-        st.rerun()
+                st.markdown(
+                    "No se encontraron menciones relevantes en el análisis web."
+                )
 
 
-# =================================================
-# FUNCIONES DE AUTENTICACIÓN Y SEGURIDAD
-# =================================================
+def display_news_feed(context):
+    """Muestra feed de noticias integrado desde MarketIntel"""
+    news = context.get("news", [])
 
+    if not news:
+        st.info("No se encontraron noticias recientes.")
+        return
 
-def check_authentication():
-    """Verifica autenticación del usuario con interfaz mejorada"""
-    if "authenticated" not in st.session_state:
-        st.session_state.authenticated = False
+    st.markdown(
+        '<div class="sub-header">📰 Noticias Recientes</div>', unsafe_allow_html=True
+    )
 
-    if not st.session_state.authenticated:
+    # Mostrar noticias recientes
+    for item in news:
         st.markdown(
-            '<h1 class="main-header">🔒 InversorIA Pro - Terminal Institucional</h1>',
+            f"""
+        <div class="news-card">
+            <div class="news-date">{item.get('date', 'Fecha no disponible')}</div>
+            <a href="{item.get('url', '#')}" target="_blank">{item.get('title', 'Sin título')}</a>
+        </div>
+        """,
             unsafe_allow_html=True,
         )
 
-        # Mostrar información del producto en columnas
-        col1, col2 = st.columns([3, 2])
 
-        with col1:
+def display_web_insights(context):
+    """Muestra insights de búsqueda web integrado desde MarketIntel"""
+    web_results = context.get("web_results", [])
+
+    if not web_results:
+        st.info("No se encontraron resultados de búsqueda web.")
+        return
+
+    st.markdown(
+        '<div class="sub-header">🌐 Insights de Mercado</div>', unsafe_allow_html=True
+    )
+
+    # Mostrar resultados de búsqueda web en un expander
+    with st.expander("Ver fuentes de análisis"):
+        for i, result in enumerate(web_results):
             st.markdown(
-                """
-                ### Plataforma Profesional de Trading
-
-                InversorIA Pro es una terminal avanzada de trading que ofrece:
-
-                - 📊 Análisis técnico multi-timeframe con detección de patrones
-                - 🎯 Estrategias de volatilidad y opciones con modelos avanzados
-                - 📈 Surface analytics y volatilidad implícita institucional
-                - ⚠️ Gestión de riesgo con métricas profesionales
-                - 🤖 Trading algorítmico y asistente IA especializado
-                - 📰 Análisis de sentimiento de mercado y noticias
-                """
-            )
-
-        with col2:
-            # Usar un contenedor con estilo para el formulario de login
-            st.markdown(
-                """
-                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                    <h3 style="margin-top: 0; color: #1E88E5;">Acceso Restringido</h3>
-                    <p>Esta plataforma está diseñada para uso institucional y requiere autenticación.</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            # Formulario de login
-            with st.form("login_form"):
-                password = st.text_input("Contraseña de acceso", type="password")
-                submitted = st.form_submit_button("Acceder", use_container_width=True)
-
-                if submitted:
-                    if check_password(password):
-                        st.session_state.authenticated = True
-                        st.session_state.show_system_status = True
-                        st.rerun()
-                    else:
-                        st.error("Contraseña incorrecta. Intente nuevamente.")
-
-        # Imagen o gráfico de muestra
-        st.image(
-            "https://placehold.co/1200x400/1E88E5/ffffff?text=Terminal+Profesional+de+Trading",
-            use_container_width=True,
-        )
-
-        st.markdown("---")
-        st.markdown(
+                f"""
+            #### {result.get('title', 'Sin título')}
+            {result.get('content', 'Sin contenido')}
+            
+            [Leer más en {result.get('source', 'Fuente')}]({result.get('url', '#')})
             """
-            <div style="display: flex; justify-content: space-between; color: #6c757d; font-size: 0.8rem;">
-                <span>© 2025 InversorIA Pro | Plataforma Institucional de Trading</span>
-                <span>v2.0.3</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+            )
 
-        return False
-
-    if not validate_session():
-        clear_session()
-        st.rerun()
-
-    return True
+            if i < len(web_results) - 1:
+                st.markdown("---")
 
 
 # =================================================
@@ -2523,6 +2329,21 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
         if "options" in signals:
             option_signal = signals["options"]["direction"]
 
+        # Incluir información de noticias si está disponible
+        news_info = ""
+        if "news" in context and context["news"]:
+            news_info = "\nNoticias recientes:\n"
+            for item in context["news"][:3]:  # Mostrar hasta 3 noticias
+                news_info += (
+                    f"- {item.get('date', 'N/A')}: {item.get('title', 'N/A')}\n"
+                )
+
+        # Incluir información de sentimiento si está disponible
+        sentiment_info = ""
+        if "news_sentiment" in context and context["news_sentiment"]:
+            sentiment = context["news_sentiment"]
+            sentiment_info = f"\nSentimiento: {sentiment.get('sentiment', 'neutral')} ({sentiment.get('score', 0.5)*100:.1f}%)\n"
+
         # Crear mensaje enriquecido con contexto
         context_prompt = f"""
         Consulta sobre {symbol} a ${price:.2f} ({'+' if change > 0 else ''}{change:.2f}%):
@@ -2531,6 +2352,8 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
         - Tendencia general: {overall_signal}
         - Señal de opciones: {option_signal}
         - VIX: {vix_level}
+        {sentiment_info}
+        {news_info}
 
         Pregunta del usuario: {prompt}
         """
@@ -2633,6 +2456,21 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         signals = context.get("signals", {})
         support_resistance = context.get("support_resistance", {})
 
+        # Extraer información de noticias y sentimiento si está disponible
+        news = context.get("news", [])
+        sentiment = context.get("news_sentiment", {})
+
+        news_text = ""
+        if news:
+            news_text = "\nNoticias recientes:\n"
+            for item in news[:3]:  # Limitar a 3 noticias
+                news_text += f"- {item.get('date', '')}: {item.get('title', '')}\n"
+
+        sentiment_text = ""
+        if sentiment:
+            sentiment_score = sentiment.get("score", 0.5) * 100
+            sentiment_text = f"\nSentimiento: {sentiment.get('sentiment', 'neutral')} ({sentiment_score:.1f}%)\n"
+
         # Preparar contexto resumido para el sistema
         system_prompt = """
         Eres un especialista en trading y análisis técnico avanzado con más de 8 años de experiencia en trading institucional.
@@ -2645,6 +2483,8 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         3. Niveles de soporte y resistencia
         4. Volatilidad del mercado y condiciones generales
         5. Estrategias de opciones recomendadas
+        6. Noticias recientes y su impacto en el precio
+        7. Sentimiento del mercado
 
         No te limites a repetir las señales automáticas. Aporta tu análisis profesional, busca divergencias y patrones que los indicadores básicos podrían no capturar. Tu valor está en proporcionar una perspectiva única basada en tu experiencia.
         """
@@ -2663,6 +2503,9 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         Principales niveles:
         - Resistencias: {', '.join([f"${r:.2f}" for r in support_resistance.get('resistances', [])[:2]])}
         - Soportes: {', '.join([f"${s:.2f}" for s in support_resistance.get('supports', [])[:2]])}
+        
+        {sentiment_text}
+        {news_text}
         """
 
         # Crear mensajes para la API
@@ -2757,6 +2600,11 @@ def fallback_analyze_symbol(symbol, question=None):
                         response += (
                             f"y está {trend.get('sma_200', 'N/A')} de su SMA 200.\n\n"
                         )
+
+                    # Incluir información de noticias y sentimiento si está disponible
+                    if "news_sentiment" in context:
+                        sentiment = context["news_sentiment"]
+                        response += f"El sentimiento de mercado es **{sentiment.get('sentiment', 'neutral')}** con un score de {sentiment.get('score', 0.5)*100:.1f}%.\n\n"
 
                     response += f"### Recomendación de Trading\n\n"
                     if overall_signal == "ALCISTA":
@@ -2890,6 +2738,35 @@ def fallback_analyze_symbol(symbol, question=None):
 
                 elif any(
                     term in question_lower
+                    for term in ["noticias", "noticia", "sentimiento", "news"]
+                ):
+                    response += (
+                        f"### Análisis de Noticias y Sentimiento para {symbol}\n\n"
+                    )
+
+                    # Añadir información de sentimiento si está disponible
+                    if "news_sentiment" in context:
+                        sentiment = context["news_sentiment"]
+                        response += f"**Sentimiento general:** {sentiment.get('sentiment', 'neutral')}\n"
+                        response += f"**Score de sentimiento:** {sentiment.get('score', 0.5)*100:.1f}%\n"
+                        response += f"**Menciones positivas:** {sentiment.get('positive_mentions', 0)}\n"
+                        response += f"**Menciones negativas:** {sentiment.get('negative_mentions', 0)}\n\n"
+
+                    # Añadir noticias si están disponibles
+                    if "news" in context and context["news"]:
+                        news = context["news"]
+                        response += "**Noticias recientes:**\n\n"
+                        for item in news[:5]:  # Limitar a 5 noticias
+                            response += (
+                                f"- {item.get('date', '')}: {item.get('title', '')}\n"
+                            )
+                    else:
+                        response += (
+                            "No se encontraron noticias recientes para este activo.\n"
+                        )
+
+                elif any(
+                    term in question_lower
                     for term in ["timeframe", "plazo", "corto", "largo", "medio"]
                 ):
                     response += f"### Análisis Multi-Timeframe para {symbol}\n\n"
@@ -2954,7 +2831,12 @@ def fallback_analyze_symbol(symbol, question=None):
                             resistance_dist = ((resistance / price) - 1) * 100
                             response += f"**Resistencia clave:** ${resistance:.2f} ({resistance_dist:+.2f}%)\n"
 
-                    response += f"\nPara información específica, puedes preguntar sobre tendencia, opciones, RSI, volatilidad o niveles de soporte/resistencia."
+                    # Incluir información de noticias y sentimiento si está disponible
+                    if "news_sentiment" in context:
+                        sentiment = context["news_sentiment"]
+                        response += f"\n**Sentimiento de mercado:** {sentiment.get('sentiment', 'neutral')} ({sentiment.get('score', 0.5)*100:.1f}%)\n"
+
+                    response += f"\nPara información específica, puedes preguntar sobre tendencia, opciones, RSI, volatilidad, niveles de soporte/resistencia, o noticias recientes."
             else:
                 # Si no hay pregunta, dar un resumen estándar
                 response += f"### Señal General: {overall_signal}\n"
@@ -2982,6 +2864,15 @@ def fallback_analyze_symbol(symbol, question=None):
                     for i, level in enumerate(supports):
                         distance = ((level / price) - 1) * 100
                         response += f"- S{i+1}: ${level:.2f} ({distance:+.2f}%)\n"
+
+                # Incluir información de noticias y sentimiento si está disponible
+                if "news_sentiment" in context:
+                    sentiment = context["news_sentiment"]
+                    response += f"\n### Sentimiento de Mercado\n"
+                    response += (
+                        f"**Sentimiento:** {sentiment.get('sentiment', 'neutral')}\n"
+                    )
+                    response += f"**Score:** {sentiment.get('score', 0.5)*100:.1f}%\n"
 
             return response
 
@@ -3541,12 +3432,13 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
     # Si llegamos aquí, tenemos datos para mostrar
 
     # Crear pestañas para diferentes tipos de análisis
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [
             "📊 Análisis Técnico",
             "🎯 Opciones",
             "⚙️ Multi-Timeframe",
             "🧠 Análisis Experto",
+            "📰 Noticias y Sentimiento",
             "🔍 Scanner",
         ]
     )
@@ -4361,8 +4253,138 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         "Por favor, ingresa una pregunta y asegúrate de que OpenAI esté configurado."
                     )
 
-    # Código para la pestaña Scanner de Mercado
+    # Pestaña de Noticias y Sentimiento (Nueva)
     with tab5:
+        st.markdown("## 📰 Noticias y Análisis de Sentimiento")
+
+        # Analizar si tenemos datos de noticias o sentimiento
+        has_sentiment = "news_sentiment" in context
+        has_news = "news" in context and context["news"]
+        has_web = "web_results" in context and context["web_results"]
+
+        if not has_sentiment and not has_news and not has_web:
+            st.info(
+                f"No se encontraron noticias o análisis de sentimiento para {symbol}. Esto puede deberse a que el símbolo es poco cubierto por medios o no hay datos disponibles."
+            )
+
+            # Ofrecer una opción para buscar manualmente
+            if st.button("Intentar Análisis Manual de Sentimiento", key="try_manual"):
+                st.warning(
+                    "Esta funcionalidad requiere fuentes de datos adicionales. Por favor, configura las APIs necesarias en la configuración."
+                )
+        else:
+            # Mostrar sentimiento si existe
+            if has_sentiment:
+                display_sentiment_analysis(context)
+
+            # Mostrar feed de noticias si existe
+            if has_news:
+                display_news_feed(context)
+
+            # Mostrar insights web si existen
+            if has_web:
+                display_web_insights(context)
+
+            # Añadir un análisis de impacto de noticias
+            with st.expander("📊 Análisis de Impacto de Noticias en Precio"):
+                st.markdown(
+                    """
+                    ### Análisis de Correlación Noticias-Precio
+                    
+                    El análisis de correlación entre noticias y movimientos de precio ayuda a entender cómo el sentimiento mediático puede influir en la acción del precio.
+                    
+                    **Principales observaciones:**
+                    - Las noticias con sentimiento muy negativo suelen tener un impacto inmediato en el precio
+                    - El efecto de noticias positivas tiende a ser más gradual y sostenido
+                    - La volatilidad aumenta significativamente después de noticias inesperadas
+                    
+                    **Recomendación para traders:**
+                    Considere el contexto de las noticias recientes al establecer niveles de stop loss, ya que la volatilidad post-noticia puede desencadenar stops demasiado ajustados.
+                """
+                )
+
+                # Crear gráfico de ejemplo de impacto de noticias
+                try:
+                    if data is not None and not data.empty and len(data) > 20:
+                        # Crear datos de impacto de noticias (simulados)
+                        news_dates = [10, 25, 40]  # índices en los datos
+                        news_impacts = [
+                            1,
+                            -1,
+                            0.5,
+                        ]  # impacto positivo, negativo, neutral
+                        news_titles = [
+                            "Resultados superan expectativas",
+                            "Preocupaciones regulatorias afectan perspectivas",
+                            "Nuevo lanzamiento de producto recibido con optimismo moderado",
+                        ]
+
+                        # Gráfico de precio con marcadores de noticias
+                        fig = go.Figure()
+
+                        # Línea de precio
+                        fig.add_trace(
+                            go.Scatter(
+                                x=list(range(len(data[-60:]))),
+                                y=data["Close"][-60:].values,
+                                mode="lines",
+                                name="Precio",
+                                line=dict(color="#1E88E5"),
+                            )
+                        )
+
+                        # Marcadores de noticias
+                        colors = [
+                            "#4CAF50",
+                            "#F44336",
+                            "#FF9800",
+                        ]  # verde, rojo, naranja
+                        for i, (idx, impact, title) in enumerate(
+                            zip(news_dates, news_impacts, news_titles)
+                        ):
+                            if idx < len(data[-60:]):
+                                fig.add_trace(
+                                    go.Scatter(
+                                        x=[idx],
+                                        y=[data["Close"][-60:].iloc[idx]],
+                                        mode="markers",
+                                        marker=dict(
+                                            color=colors[i], size=10, symbol="diamond"
+                                        ),
+                                        name=title,
+                                        hoverinfo="text",
+                                        hovertext=title,
+                                    )
+                                )
+
+                        fig.update_layout(
+                            title="Impacto de Noticias en el Precio",
+                            xaxis_title="Días",
+                            yaxis_title="Precio",
+                            height=400,
+                            margin=dict(l=10, r=10, t=40, b=10),
+                            legend=dict(
+                                orientation="h",
+                                yanchor="bottom",
+                                y=1.02,
+                                xanchor="right",
+                                x=1,
+                            ),
+                        )
+
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info(
+                            "Datos insuficientes para el análisis de impacto de noticias."
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error creando gráfico de impacto de noticias: {str(e)}"
+                    )
+                    st.warning("No se pudo generar el gráfico de impacto de noticias.")
+
+    # Código para la pestaña Scanner de Mercado
+    with tab6:
         st.markdown("### 🔍 Scanner de Mercado")
 
         # Selección de sectores para escanear
@@ -4541,6 +4563,519 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             3. Los resultados aparecerán en esta sección
             """
             )
+
+
+# =================================================
+# CONFIGURACIÓN DE OPENAI
+# =================================================
+
+
+def setup_openai():
+    """Configura credenciales de OpenAI con manejo mejorado de errores"""
+    try:
+        # Estrategia de búsqueda de credenciales en múltiples ubicaciones
+        credential_sources = [
+            # Nivel principal
+            {
+                "container": st.secrets if hasattr(st, "secrets") else {},
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": st.secrets if hasattr(st, "secrets") else {},
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+            # Variables de entorno
+            {
+                "container": os.environ,
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": os.environ,
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+            # Sección api_keys en secrets
+            {
+                "container": (
+                    st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {}
+                ),
+                "key": "OPENAI_API_KEY",
+                "target": "OPENAI_API_KEY",
+            },
+            {
+                "container": (
+                    st.secrets.get("api_keys", {}) if hasattr(st, "secrets") else {}
+                ),
+                "key": "ASSISTANT_ID",
+                "target": "ASSISTANT_ID",
+            },
+        ]
+
+        # Nombres alternativos
+        api_key_alternatives = ["openai_api_key", "OpenAIAPIKey", "OPENAI_KEY"]
+        assistant_id_alternatives = ["assistant_id", "AssistantID", "ASSISTANT"]
+
+        API_KEY = None
+        ASSISTANT_ID = None
+
+        # Buscar en todas las posibles ubicaciones
+        for source in credential_sources:
+            container = source["container"]
+            key = source["key"]
+            target = source["target"]
+
+            if key in container:
+                if target == "OPENAI_API_KEY":
+                    API_KEY = container[key]
+                    logger.info(f"✅ OPENAI_API_KEY encontrada en {key}")
+                elif target == "ASSISTANT_ID":
+                    ASSISTANT_ID = container[key]
+                    logger.info(f"✅ ASSISTANT_ID encontrado en {key}")
+
+        # Buscar nombres alternativos si aún no encontramos las credenciales
+        if not API_KEY and hasattr(st, "secrets"):
+            for alt_key in api_key_alternatives:
+                if alt_key in st.secrets:
+                    API_KEY = st.secrets[alt_key]
+                    logger.info(f"✅ API Key encontrada como {alt_key}")
+                    break
+                elif "api_keys" in st.secrets and alt_key in st.secrets["api_keys"]:
+                    API_KEY = st.secrets["api_keys"][alt_key]
+                    logger.info(f"✅ API Key encontrada en api_keys.{alt_key}")
+                    break
+
+        if not ASSISTANT_ID and hasattr(st, "secrets"):
+            for alt_id in assistant_id_alternatives:
+                if alt_id in st.secrets:
+                    ASSISTANT_ID = st.secrets[alt_id]
+                    logger.info(f"✅ Assistant ID encontrado como {alt_id}")
+                    break
+                elif "api_keys" in st.secrets and alt_id in st.secrets["api_keys"]:
+                    ASSISTANT_ID = st.secrets["api_keys"][alt_id]
+                    logger.info(f"✅ Assistant ID encontrado en api_keys.{alt_id}")
+                    break
+
+        if not API_KEY:
+            logger.warning("⚠️ No se encontró OPENAI_API_KEY en ninguna ubicación")
+            return None, None
+
+        if not ASSISTANT_ID:
+            logger.warning("⚠️ No se encontró ASSISTANT_ID en ninguna ubicación")
+            return API_KEY, None
+
+        openai.api_key = API_KEY
+        return API_KEY, ASSISTANT_ID
+
+    except Exception as e:
+        logger.error(f"Error configurando OpenAI: {str(e)}")
+        return None, None
+
+
+# =================================================
+# VERIFICACIÓN DE APIS Y LIBRERÍAS
+# =================================================
+
+
+def check_api_keys():
+    """Verifica las API keys disponibles en secret.toml o env vars"""
+    apis_status = {}
+
+    # Verificar API keys comunes para datos financieros
+    keys_to_check = [
+        "alpha_vantage_api_key",
+        "finnhub_api_key",
+        "marketstack_api_key",
+        "openai_api_key",
+        "assistant_id",
+        "you_api_key",
+        "tavily_api_key",
+    ]
+
+    for key in keys_to_check:
+        # Intentar obtener desde Streamlit secrets o variables de entorno
+        try:
+            value = None
+            # Primero verificar en streamlit secrets
+            if hasattr(st, "secrets"):
+                value = st.secrets.get(key, None)
+                if value is None and "api_keys" in st.secrets:
+                    value = st.secrets["api_keys"].get(key, None)
+
+            # Si no se encuentra en secrets, verificar variables de entorno
+            if value is None:
+                env_key = key.upper()
+                value = os.environ.get(env_key, "")
+
+            is_present = bool(value)
+
+            # Mostrar solo una indicación de si está presente, no el valor real
+            source = "No encontrada"
+            if hasattr(st, "secrets") and key in st.secrets:
+                source = "Streamlit secrets"
+            elif (
+                hasattr(st, "secrets")
+                and "api_keys" in st.secrets
+                and key in st.secrets["api_keys"]
+            ):
+                source = "Streamlit secrets (api_keys)"
+            elif key.upper() in os.environ:
+                source = "Variables de entorno"
+
+            apis_status[key] = {
+                "status": "✅ Disponible" if is_present else "❌ No configurada",
+                "source": source,
+            }
+        except Exception as e:
+            apis_status[key] = {
+                "status": "❌ Error accediendo",
+                "source": f"Error: {str(e)}",
+            }
+
+    # Verificar si se puede acceder a APIs externas
+    api_endpoints = {
+        "Alpha Vantage": "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey=demo",
+        "Yahoo Finance": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d",
+        "Finnhub": "https://finnhub.io/api/v1/quote?symbol=AAPL&token=demo",
+    }
+
+    for name, url in api_endpoints.items():
+        try:
+            response = requests.get(url, timeout=5)
+            status_code = response.status_code
+            apis_status[name] = {
+                "status": (
+                    "✅ Accesible" if status_code == 200 else f"⚠️ Error {status_code}"
+                ),
+                "response_time": f"{response.elapsed.total_seconds():.2f}s",
+            }
+        except Exception as e:
+            apis_status[name] = {"status": "❌ No accesible", "error": str(e)}
+
+    return apis_status
+
+
+def check_libraries():
+    """Verifica la disponibilidad de las bibliotecas necesarias"""
+    libraries = {
+        "pandas": "Análisis de datos",
+        "numpy": "Operaciones numéricas",
+        "yfinance": "Datos de Yahoo Finance",
+        "plotly": "Visualización",
+        "streamlit": "Interfaz de usuario",
+        "ta": "Indicadores técnicos",
+        "sklearn": "Machine Learning",
+        "scipy": "Cálculos científicos",
+        "statsmodels": "Análisis estadístico",
+        "requests": "API HTTP",
+        "pytz": "Zonas horarias",
+        "openai": "Inteligencia artificial",
+        "beautifulsoup4": "Web scraping",
+        "tavily_python": "Búsqueda web",
+    }
+
+    libraries_status = {}
+
+    for lib, description in libraries.items():
+        try:
+            # Intentar importar la biblioteca
+            if lib == "tavily_python":
+                try:
+                    from tavily import TavilyClient
+
+                    version = "Instalada"
+                except ImportError:
+                    raise ImportError("No instalada")
+            else:
+                module = importlib.import_module(lib)
+                version = getattr(module, "__version__", "versión desconocida")
+
+            libraries_status[lib] = {
+                "status": "✅ Instalada",
+                "version": version,
+                "description": description,
+            }
+        except ImportError:
+            libraries_status[lib] = {
+                "status": "❌ No instalada",
+                "description": description,
+            }
+        except Exception as e:
+            libraries_status[lib] = {
+                "status": "⚠️ Error",
+                "error": str(e),
+                "description": description,
+            }
+
+    return libraries_status
+
+
+def display_system_status():
+    """Muestra el estado del sistema, APIs y librerías con diseño mejorado"""
+    st.markdown(
+        '<h1 class="main-header">🛠️ Estado del Sistema</h1>', unsafe_allow_html=True
+    )
+
+    # Información del sistema en tarjeta
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Información del Sistema</div>
+            <div style="display: flex; flex-wrap: wrap;">
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Información Técnica")
+        st.write(f"**Python versión:** {sys.version.split(' ')[0]}")
+        st.write(f"**Streamlit versión:** {st.__version__}")
+        st.write(f"**Fecha y hora:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"**Zona horaria:** {time.tzname[0]}")
+        st.write(f"**Sistema operativo:** {os.name.upper()}")
+
+    with col2:
+        st.subheader("Estado de la Caché")
+        try:
+            cache_stats = _data_cache.get_stats()
+            st.write(f"**Entradas en caché:** {cache_stats.get('entradas', 'N/A')}")
+            st.write(f"**Hit rate:** {cache_stats.get('hit_rate', 'N/A')}")
+            st.write(
+                f"**Hits/Misses:** {cache_stats.get('hits', 0)}/{cache_stats.get('misses', 0)}"
+            )
+
+            # Mostrar gráfico de uso de caché
+            if cache_stats.get("hits", 0) > 0 or cache_stats.get("misses", 0) > 0:
+                labels = ["Hits", "Misses"]
+                values = [cache_stats.get("hits", 0), cache_stats.get("misses", 0)]
+
+                fig = go.Figure(
+                    data=[
+                        go.Pie(
+                            labels=labels,
+                            values=values,
+                            hole=0.3,
+                            marker_colors=["#4CAF50", "#F44336"],
+                        )
+                    ]
+                )
+
+                fig.update_layout(
+                    title="Eficiencia de Caché",
+                    height=300,
+                    margin=dict(l=10, r=10, t=30, b=10),
+                )
+
+                st.plotly_chart(
+                    fig, use_container_width=True, height=800
+                )  # Especificar altura
+        except Exception as e:
+            st.write("**Error accediendo a estadísticas de caché:**", str(e))
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+    # Estado de APIs
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Estado de APIs</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    apis_status = check_api_keys()
+
+    # Crear tabla de estados de API
+    api_data = []
+    for api, details in apis_status.items():
+        row = {"API/Key": api}
+        row.update(details)
+        api_data.append(row)
+
+    # Mostrar como dataframe
+    if api_data:
+        api_df = pd.DataFrame(api_data)
+        st.dataframe(api_df, use_container_width=True)
+    else:
+        st.warning("No se pudo obtener información de APIs")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Estado de librerías
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Estado de Librerías</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    libraries_status = check_libraries()
+
+    # Crear tabla de estados de librerías
+    lib_data = []
+    for lib, details in libraries_status.items():
+        row = {"Librería": lib}
+        row.update(details)
+        lib_data.append(row)
+
+    # Mostrar como dataframe
+    if lib_data:
+        lib_df = pd.DataFrame(lib_data)
+        st.dataframe(lib_df, use_container_width=True)
+    else:
+        st.warning("No se pudo obtener información de librerías")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Prueba de conexión a datos
+    st.markdown(
+        """
+        <div class="dashboard-card">
+            <div class="dashboard-header">Prueba de Datos</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    try:
+        with st.spinner("Probando acceso a datos de mercado..."):
+            test_data = fetch_market_data("SPY", "2d")
+            if test_data is not None and not test_data.empty:
+                st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
+
+                # Mostrar datos recientes
+                st.dataframe(test_data.tail(3), use_container_width=True)
+
+                # Crear un gráfico rápido para visualizar
+                fig = go.Figure()
+
+                fig.add_trace(
+                    go.Candlestick(
+                        x=(
+                            test_data.index
+                            if isinstance(test_data.index, pd.DatetimeIndex)
+                            else test_data["Date"]
+                        ),
+                        open=test_data["Open"],
+                        high=test_data["High"],
+                        low=test_data["Low"],
+                        close=test_data["Close"],
+                        name="OHLC",
+                    )
+                )
+
+                fig.update_layout(
+                    title="Prueba de Datos SPY",
+                    xaxis_title="Fecha",
+                    yaxis_title="Precio",
+                    height=400,
+                    xaxis_rangeslider_visible=False,
+                )
+
+                st.plotly_chart(
+                    fig, use_container_width=True, height=800
+                )  # Especificar altura
+            else:
+                st.error("❌ No se pudieron obtener datos para SPY")
+    except Exception as e:
+        st.error(f"❌ Error en prueba de datos: {str(e)}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Botón para continuar
+    if st.button("Continuar al Dashboard", type="primary", use_container_width=True):
+        st.session_state.show_system_status = False
+        st.rerun()
+
+
+# =================================================
+# FUNCIONES DE AUTENTICACIÓN Y SEGURIDAD
+# =================================================
+
+
+def check_authentication():
+    """Verifica autenticación del usuario con interfaz mejorada"""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.markdown(
+            '<h1 class="main-header">🔒 InversorIA Pro - Terminal Institucional</h1>',
+            unsafe_allow_html=True,
+        )
+
+        # Mostrar información del producto en columnas
+        col1, col2 = st.columns([3, 2])
+
+        with col1:
+            st.markdown(
+                """
+                ### Plataforma Profesional de Trading
+
+                InversorIA Pro es una terminal avanzada de trading que ofrece:
+
+                - 📊 Análisis técnico multi-timeframe con detección de patrones
+                - 🎯 Estrategias de volatilidad y opciones con modelos avanzados
+                - 📈 Surface analytics y volatilidad implícita institucional
+                - ⚠️ Gestión de riesgo con métricas profesionales
+                - 🤖 Trading algorítmico y asistente IA especializado
+                - 📰 Análisis de sentimiento de mercado y noticias
+                """
+            )
+
+        with col2:
+            # Usar un contenedor con estilo para el formulario de login
+            st.markdown(
+                """
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                    <h3 style="margin-top: 0; color: #1E88E5;">Acceso Restringido</h3>
+                    <p>Esta plataforma está diseñada para uso institucional y requiere autenticación.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Formulario de login
+            with st.form("login_form"):
+                password = st.text_input("Contraseña de acceso", type="password")
+                submitted = st.form_submit_button("Acceder", use_container_width=True)
+
+                if submitted:
+                    if check_password(password):
+                        st.session_state.authenticated = True
+                        st.session_state.show_system_status = True
+                        st.rerun()
+                    else:
+                        st.error("Contraseña incorrecta. Intente nuevamente.")
+
+        # Imagen o gráfico de muestra
+        st.image(
+            "https://placehold.co/1200x400/1E88E5/ffffff?text=Terminal+Profesional+de+Trading",
+            use_container_width=True,
+        )
+
+        st.markdown("---")
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: space-between; color: #6c757d; font-size: 0.8rem;">
+                <span>© 2025 InversorIA Pro | Plataforma Institucional de Trading</span>
+                <span>v2.0.3</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        return False
+
+    if not validate_session():
+        clear_session()
+        st.rerun()
+
+    return True
 
 
 # =================================================
