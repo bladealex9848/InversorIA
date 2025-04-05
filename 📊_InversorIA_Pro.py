@@ -1267,7 +1267,7 @@ def create_technical_chart(data, symbol):
 
     # Ajustar layout
     fig.update_layout(
-        height=800,
+        height=800,  # Altura fija para el gráfico completo
         xaxis_rangeslider_visible=False,
         title=f"Análisis Técnico de {symbol}",
         template="plotly_white",
@@ -1275,6 +1275,7 @@ def create_technical_chart(data, symbol):
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
+        margin=dict(l=50, r=50, t=70, b=50),  # Márgenes más adecuados
     )
 
     # Configuración de ejes y rangos
@@ -1974,7 +1975,9 @@ def display_system_status():
                     margin=dict(l=10, r=10, t=30, b=10),
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(
+                    fig, use_container_width=True, height=800
+                )  # Especificar altura
         except Exception as e:
             st.write("**Error accediendo a estadísticas de caché:**", str(e))
 
@@ -2078,7 +2081,9 @@ def display_system_status():
                     xaxis_rangeslider_visible=False,
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(
+                    fig, use_container_width=True, height=800
+                )  # Especificar altura
             else:
                 st.error("❌ No se pudieron obtener datos para SPY")
     except Exception as e:
@@ -3408,11 +3413,44 @@ def analyze_market_data(symbol, timeframe="1d", period="6mo", indicators=True):
         # Añadir indicadores técnicos si se solicita
         if indicators and data is not None and not data.empty:
             try:
-                # Crear instancia del analizador técnico
-                analyzer = TechnicalAnalyzer(data)
+                # Calcular RSI
+                delta = data["Close"].diff()
+                gain = delta.where(delta > 0, 0)
+                loss = -delta.where(delta < 0, 0)
 
-                # Calcular indicadores
-                data = analyzer.add_all_indicators()
+                avg_gain = gain.rolling(window=14).mean()
+                avg_loss = loss.rolling(window=14).mean()
+
+                rs = avg_gain / avg_loss.replace(0, np.finfo(float).eps)
+                data["RSI"] = 100 - (100 / (1 + rs))
+
+                # Calcular medias móviles
+                data["SMA_20"] = data["Close"].rolling(window=20).mean()
+                data["SMA_50"] = data["Close"].rolling(window=50).mean()
+                data["SMA_200"] = data["Close"].rolling(window=200).mean()
+
+                # Calcular MACD
+                ema12 = data["Close"].ewm(span=12, adjust=False).mean()
+                ema26 = data["Close"].ewm(span=26, adjust=False).mean()
+                data["MACD"] = ema12 - ema26
+                data["MACD_Signal"] = data["MACD"].ewm(span=9, adjust=False).mean()
+
+                # Calcular Bandas de Bollinger
+                data["BB_MA20"] = data["SMA_20"]  # Usar SMA20 como línea media
+                rolling_std = data["Close"].rolling(window=20).std()
+                data["BB_Upper"] = data["BB_MA20"] + (2 * rolling_std)
+                data["BB_Lower"] = data["BB_MA20"] - (2 * rolling_std)
+                data["BB_Width"] = (data["BB_Upper"] - data["BB_Lower"]) / data[
+                    "BB_MA20"
+                ]
+
+                # Calcular ATR
+                high_low = data["High"] - data["Low"]
+                high_close = (data["High"] - data["Close"].shift()).abs()
+                low_close = (data["Low"] - data["Close"].shift()).abs()
+
+                tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+                data["ATR"] = tr.rolling(window=14).mean()
 
                 # Detectar patrones si es posible
                 try:
@@ -3521,7 +3559,9 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         st.markdown("### 📈 Gráfico Técnico")
         fig = create_technical_chart(data, symbol)
         if fig:
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(
+                fig, use_container_width=True, height=800
+            )  # Especificar altura
             # Guardar el gráfico activo en el estado
             st.session_state.active_chart = fig
         else:
@@ -3744,7 +3784,9 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 margin=dict(l=10, r=10, b=10, t=30),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(
+                fig, use_container_width=True, height=800
+            )  # Especificar altura
         except Exception as e:
             logger.error(f"Error creando superficie de volatilidad: {str(e)}")
             st.warning(f"No se pudo generar la superficie de volatilidad: {str(e)}")
@@ -3852,6 +3894,23 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     unsafe_allow_html=True,
                 )
 
+        # Mostrar parámetros específicos del símbolo si están disponibles
+        if "options_params" in context:
+            params = context.get("options_params", {})
+            if params:
+                st.markdown("#### Parámetros")
+                for key, value in params.items():
+                    st.markdown(f"**{key}:** {value}")
+        else:
+            # Si no hay parámetros específicos en el contexto, mostrar parámetros genéricos
+            # Crear instancia del gestor de parámetros de opciones
+            options_manager = OptionsParameterManager()
+            params = options_manager.get_symbol_params(symbol)
+            if params:
+                st.markdown("#### Parámetros")
+                for key, value in params.items():
+                    st.markdown(f"**{key}:** {value}")
+
         # Mostrar parámetros de opciones recomendados
         with st.expander("⚙️ Parámetros Recomendados"):
             col1, col2, col3 = st.columns(3)
@@ -3905,55 +3964,89 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
 
         for i, (tf, label) in enumerate(zip(timeframes, labels)):
             try:
-                # Obtener datos para este timeframe
+                # Obtener datos para este timeframe de manera robusta
                 tf_data = analyze_market_data(symbol, tf, "1y")
                 multi_timeframe_data[tf] = tf_data
 
                 if tf_data is not None and not tf_data.empty:
                     last_row = tf_data.iloc[-1]
 
-                    # Determinar señal basada en indicadores
+                    # Determinar señal basada en indicadores con manejo mejorado de valores nulos
                     rsi = last_row.get("RSI")
+                    rsi_value = (
+                        float(rsi) if rsi is not None and not pd.isna(rsi) else None
+                    )
+
                     macd = last_row.get("MACD")
                     macd_signal = last_row.get("MACD_Signal")
+                    macd_value = (
+                        float(macd) if macd is not None and not pd.isna(macd) else None
+                    )
+                    macd_signal_value = (
+                        float(macd_signal)
+                        if macd_signal is not None and not pd.isna(macd_signal)
+                        else None
+                    )
+
                     sma_20 = last_row.get("SMA_20")
                     sma_50 = last_row.get("SMA_50")
+                    sma_20_value = (
+                        float(sma_20)
+                        if sma_20 is not None and not pd.isna(sma_20)
+                        else None
+                    )
+                    sma_50_value = (
+                        float(sma_50)
+                        if sma_50 is not None and not pd.isna(sma_50)
+                        else None
+                    )
 
-                    # Inicializar señales
+                    # Inicializar señales con valores por defecto
                     momentum = "Neutral"
                     trend = "Neutral"
+                    signal = "NEUTRAL"
+                    signal_color = "#9E9E9E"  # Gris por defecto
 
-                    # Determinar momentum
-                    if rsi is not None:
-                        if rsi > 70:
+                    # Determinar momentum solo si el RSI está disponible
+                    if rsi_value is not None:
+                        if rsi_value > 70:
                             momentum = "Sobrecompra"
-                        elif rsi < 30:
+                        elif rsi_value < 30:
                             momentum = "Sobreventa"
 
-                    # Determinar tendencia
-                    if macd is not None and macd_signal is not None:
-                        trend = "Alcista" if macd > macd_signal else "Bajista"
+                    # Determinar tendencia solo si MACD y Signal están disponibles
+                    if macd_value is not None and macd_signal_value is not None:
+                        trend = (
+                            "Alcista" if macd_value > macd_signal_value else "Bajista"
+                        )
 
                     # Determinar señal general
-                    if sma_20 is not None and sma_50 is not None:
-                        sma_cross = "Alcista" if sma_20 > sma_50 else "Bajista"
-                    else:
-                        sma_cross = "N/A"
+                    sma_cross = "N/A"
+                    if sma_20_value is not None and sma_50_value is not None:
+                        sma_cross = (
+                            "Alcista" if sma_20_value > sma_50_value else "Bajista"
+                        )
 
-                    # Mostrar en columna
+                        # Actualizar señal basada en cruce de SMA
+                        if sma_20_value > sma_50_value:
+                            signal = "ALCISTA"
+                            signal_color = "#4CAF50"  # Verde
+                        else:
+                            signal = "BAJISTA"
+                            signal_color = "#F44336"  # Rojo
+
+                    # O si al menos tenemos MACD, usar eso para la señal
+                    elif trend != "Neutral":
+                        if trend == "Alcista":
+                            signal = "ALCISTA"
+                            signal_color = "#4CAF50"  # Verde
+                        else:
+                            signal = "BAJISTA"
+                            signal_color = "#F44336"  # Rojo
+
+                    # Mostrar en columna con manejo mejorado de valores nulos
                     with [col1, col2, col3][i]:
                         st.markdown(f"#### {label}")
-
-                        # Color para la señal general
-                        if trend == "Alcista" and momentum != "Sobrecompra":
-                            signal_color = "#4CAF50"  # Verde
-                            signal = "ALCISTA"
-                        elif trend == "Bajista" and momentum != "Sobreventa":
-                            signal_color = "#F44336"  # Rojo
-                            signal = "BAJISTA"
-                        else:
-                            signal_color = "#9E9E9E"  # Gris
-                            signal = "NEUTRAL"
 
                         # Mostrar señal principal
                         st.markdown(
@@ -3966,8 +4059,8 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         )
 
                         # Mostrar indicadores con manejo seguro de valores nulos
-                        if rsi is not None:
-                            st.markdown(f"**RSI:** {rsi:.1f} ({momentum})")
+                        if rsi_value is not None:
+                            st.markdown(f"**RSI:** {rsi_value:.1f} ({momentum})")
                         else:
                             st.markdown("**RSI:** N/A")
 
@@ -3975,7 +4068,9 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.markdown(f"**SMA Cross:** {sma_cross}")
 
                         # Mostrar botón para ver gráfico
-                        if st.button(f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}"):
+                        if st.button(
+                            f"📈 Ver Gráfico {label}", key=f"btn_tf_{tf}_{i}"
+                        ):  # Añadir índice para hacer key única
                             st.session_state.current_timeframe = tf
                             st.rerun()
                 else:
@@ -4276,6 +4371,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             list(SYMBOLS.keys()),
             default=st.session_state.last_scan_sectors,
             help="Seleccione sectores para buscar oportunidades",
+            key="scanner_tab_sectors",  # Añadir key única
         )
 
         col1, col2 = st.columns([3, 1])
@@ -4462,10 +4558,31 @@ def main():
         # Inicialización para usuario autenticado
         initialize_session_state()
 
-        # Mostrar el estado del sistema al iniciar sesión y luego desactivarlo
-        if st.session_state.get("show_system_status", False):
-            display_system_status()
-            return
+        # Inicializar/actualizar scanner de mercado si es necesario
+        if "scanner" not in st.session_state or st.session_state.scanner is None:
+            try:
+                # Asegurar que analyzer está disponible
+                if "analyzer" not in st.session_state:
+                    st.session_state.analyzer = TechnicalAnalyzer(_data_cache)
+
+                # Crear scanner con SYMBOLS (universo de trading definido)
+                st.session_state.scanner = MarketScanner(
+                    SYMBOLS, st.session_state.analyzer
+                )
+
+                # Si no hay resultados previos, dar valores iniciales
+                if "scan_results" not in st.session_state:
+                    st.session_state.scan_results = pd.DataFrame()
+
+                logger.info("Scanner de mercado inicializado correctamente")
+            except Exception as scanner_error:
+                logger.error(f"Error inicializando scanner: {str(scanner_error)}")
+                st.error(f"Error inicializando scanner: {str(scanner_error)}")
+
+            # Mostrar el estado del sistema al iniciar sesión y luego desactivarlo
+            if st.session_state.get("show_system_status", False):
+                display_system_status()
+                return
 
         # Renderizar sidebar después de mostrar el estado del sistema
         render_sidebar()
@@ -4683,6 +4800,7 @@ def main():
                     list(SYMBOLS.keys()),
                     default=st.session_state.last_scan_sectors,
                     help="Seleccione sectores para buscar oportunidades",
+                    key="scanner_main_sectors",  # Añadir key única
                 )
 
                 # Filtro de señales
@@ -4945,7 +5063,9 @@ def main():
                             margin=dict(l=20, r=20, t=40, b=20),
                         )
 
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(
+                            fig, use_container_width=True, height=800
+                        )  # Especificar altura
                 else:
                     st.info(
                         "No hay resultados que coincidan con los filtros seleccionados."
