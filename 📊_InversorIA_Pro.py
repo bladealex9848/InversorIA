@@ -5011,7 +5011,9 @@ def main():
                         filtered_results["Symbol"].unique().tolist(),
                     )
 
-                    if st.button("Analizar", key="scanner_analyze_btn"):
+                    if st.button(
+                        "Analizar", key="scanner_main_analyze_btn"
+                    ):  # Key única
                         # Actualizar símbolo actual y redirigir a la pestaña de análisis
                         st.session_state.current_symbol = selected_symbol
                         # Redirigir a la primera pestaña (Análisis Individual)
