@@ -1315,22 +1315,24 @@ def create_technical_chart(data, symbol):
     fig.update_layout(
         height=800,
         xaxis_rangeslider_visible=False,
-        title=None,  # Eliminar el título dentro del gráfico
+        title={
+            #'text': f"Análisis Técnico de {symbol}",  # Título principal claro
+            'y': 0.97,                               # Posición elevada 
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': {
+                'size': 20,                          # Tamaño más grande
+                'color': '#1E88E5',                  # Color destacado
+                'family': 'Arial, sans-serif'
+            }
+        },
         template="plotly_white",
         showlegend=True,
-        # Mover la leyenda a la parte inferior del gráfico
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.2,  # Colocarla debajo del gráfico
-            xanchor="center",
-            x=0.5,
-        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
-        margin=dict(
-            l=50, r=50, t=30, b=150
-        ),  # Aumentar margen inferior para la leyenda
+        margin=dict(l=50, r=50, t=70, b=50),
     )
 
     # Configuración de ejes y rangos
@@ -3455,7 +3457,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         display_technical_summary(symbol, data)
 
         # Mostrar gráfico técnico
-        st.markdown(f"### 📈 Análisis Técnico de {symbol}")
+        st.markdown("### 📈 Gráfico Técnico de {symbol}")
         fig = create_technical_chart(data, symbol)
         if fig:
             st.plotly_chart(
