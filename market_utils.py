@@ -2484,18 +2484,25 @@ def analyze_sentiment(symbol: str, news_data: List = None) -> Dict:
 
 
 def get_web_insights(symbol: str) -> Dict:
-    """Obtiene análisis de fuentes web sobre un símbolo"""
+    """Obtiene análisis de fuentes web sobre un símbolo mediante consultas a APIs externas"""
     # Verificar si hay datos en caché
     cache_key = f"web_insights_{symbol}"
     cached_data = _data_cache.get(cache_key)
     if cached_data is not None:
         return cached_data
 
+    web_results = []
+    bullish_mentions = 0
+    bearish_mentions = 0
+
     # Intentar obtener claves API
     try:
         import streamlit as st
+        import requests
+        import json
+        import re
 
-        # Intentar obtener claves de configuración
+        # Obtener claves de API
         you_key = None
         tavily_key = None
 
@@ -2521,23 +2528,321 @@ def get_web_insights(symbol: str) -> Dict:
 
             tavily_key = os.environ.get("TAVILY_API_KEY", None)
 
-        # Para este ejemplo, estamos simulando resultados de análisis web
-        # En una implementación real, se usarían las APIs
+        # Consulta usando YOU API si está disponible
+        if you_key:
+            try:
+                # Preparar la consulta para obtener análisis actual
+                query = f"últimas perspectivas y análisis para el activo {symbol} en bolsa. Quiero conocer la opinión de expertos sobre su tendencia actual"
 
-        # Crear datos de análisis web simulados
-        web_results = [
-            {
-                "title": f"Perspectivas del mercado para {symbol}",
-                "content": f"Los analistas tienen opiniones mixtas sobre {symbol}, con ligero sesgo alcista.",
-                "url": "https://example.com/market",
-                "source": "Market Insights",
-            }
-        ]
+                # Endpoint de la API
+                url = "https://api.you.com/api/search"
 
-        import random
+                # Parámetros de la consulta
+                params = {
+                    "q": query,
+                    "api_key": you_key,
+                }
 
-        bullish_mentions = random.randint(1, 5)
-        bearish_mentions = random.randint(1, 5)
+                # Realizar la solicitud
+                response = requests.get(url, params=params, timeout=10)
+                data = response.json()
+
+                # Procesar resultados
+                if "hits" in data and len(data["hits"]) > 0:
+                    for hit in data["hits"][:5]:  # Limitar a 5 resultados
+                        if "title" in hit and "snippet" in hit:
+                            web_results.append(
+                                {
+                                    "title": hit.get("title", "Sin título"),
+                                    "content": hit.get("snippet", ""),
+                                    "url": hit.get("url", "#"),
+                                    "source": hit.get("source", "YOU Search"),
+                                }
+                            )
+
+                            # Análisis de sentimiento simple basado en palabras clave
+                            content = (
+                                hit.get("title", "") + " " + hit.get("snippet", "")
+                            ).lower()
+
+                            # Palabras alcistas
+                            bullish_words = [
+                                "alcista",
+                                "alcanza",
+                                "subida",
+                                "crecimiento",
+                                "positivo",
+                                "optimista",
+                                "aumenta",
+                                "compra",
+                                "oportunidad",
+                                "superará",
+                                "supera",
+                                "mejor",
+                                "ganancias",
+                                "fuerte",
+                                "rali",
+                                "rally",
+                                "bull",
+                                "bullish",
+                            ]
+
+                            # Palabras bajistas
+                            bearish_words = [
+                                "bajista",
+                                "caída",
+                                "desciende",
+                                "negativo",
+                                "pesimista",
+                                "disminuye",
+                                "venta",
+                                "riesgo",
+                                "peor",
+                                "pérdidas",
+                                "débil",
+                                "bear",
+                                "bearish",
+                                "corrección",
+                                "advertencia",
+                                "precaución",
+                                "preocupación",
+                            ]
+
+                            # Contar menciones
+                            bull_count = sum(
+                                1 for word in bullish_words if word in content
+                            )
+                            bear_count = sum(
+                                1 for word in bearish_words if word in content
+                            )
+
+                            # Actualizar contadores
+                            if bull_count > bear_count:
+                                bullish_mentions += 1
+                            elif bear_count > bull_count:
+                                bearish_mentions += 1
+            except Exception as e:
+                logger.warning(f"Error obteniendo datos de YOU API: {str(e)}")
+
+        # Consulta usando Tavily API si está disponible
+        if tavily_key and (not web_results or len(web_results) < 3):
+            try:
+                # Import condicional para Tavily (si está instalado)
+                try:
+                    from tavily import TavilyClient
+
+                    tavily_client = TavilyClient(api_key=tavily_key)
+
+                    # Realizar búsqueda
+                    query = f"análisis técnico reciente y perspectivas para {symbol} en bolsa"
+                    search_result = tavily_client.search(
+                        query=query,
+                        search_depth="advanced",
+                        include_domains=[
+                            "finance.yahoo.com",
+                            "seekingalpha.com",
+                            "fool.com",
+                            "marketwatch.com",
+                            "bloomberg.com",
+                            "cnbc.com",
+                        ],
+                        max_results=5,
+                    )
+
+                    # Procesar resultados
+                    if "results" in search_result and len(search_result["results"]) > 0:
+                        for result in search_result["results"]:
+                            web_results.append(
+                                {
+                                    "title": result.get("title", "Sin título"),
+                                    "content": result.get("content", ""),
+                                    "url": result.get("url", "#"),
+                                    "source": result.get("source", "Tavily Search"),
+                                }
+                            )
+
+                            # Análisis de sentimiento simple basado en palabras clave
+                            content = (
+                                result.get("title", "")
+                                + " "
+                                + result.get("content", "")
+                            ).lower()
+
+                            # Palabras alcistas
+                            bullish_words = [
+                                "alcista",
+                                "alcanza",
+                                "subida",
+                                "crecimiento",
+                                "positivo",
+                                "optimista",
+                                "aumenta",
+                                "compra",
+                                "oportunidad",
+                                "superará",
+                                "supera",
+                                "mejor",
+                                "ganancias",
+                                "fuerte",
+                                "rali",
+                                "rally",
+                                "bull",
+                                "bullish",
+                            ]
+
+                            # Palabras bajistas
+                            bearish_words = [
+                                "bajista",
+                                "caída",
+                                "desciende",
+                                "negativo",
+                                "pesimista",
+                                "disminuye",
+                                "venta",
+                                "riesgo",
+                                "peor",
+                                "pérdidas",
+                                "débil",
+                                "bear",
+                                "bearish",
+                                "corrección",
+                                "advertencia",
+                                "precaución",
+                                "preocupación",
+                            ]
+
+                            # Contar menciones
+                            bull_count = sum(
+                                1 for word in bullish_words if word in content
+                            )
+                            bear_count = sum(
+                                1 for word in bearish_words if word in content
+                            )
+
+                            # Actualizar contadores
+                            if bull_count > bear_count:
+                                bullish_mentions += 1
+                            elif bear_count > bull_count:
+                                bearish_mentions += 1
+                except ImportError:
+                    # Fallback usando requests si tavily-python no está instalado
+                    url = "https://api.tavily.com/search"
+                    headers = {
+                        "content-type": "application/json",
+                        "x-api-key": tavily_key,
+                    }
+                    payload = {
+                        "query": f"análisis técnico reciente y perspectivas para {symbol} en bolsa",
+                        "search_depth": "advanced",
+                        "include_domains": [
+                            "finance.yahoo.com",
+                            "seekingalpha.com",
+                            "fool.com",
+                            "marketwatch.com",
+                            "bloomberg.com",
+                            "cnbc.com",
+                        ],
+                        "max_results": 5,
+                    }
+
+                    response = requests.post(
+                        url, json=payload, headers=headers, timeout=10
+                    )
+                    search_result = response.json()
+
+                    # Procesar resultados
+                    if "results" in search_result and len(search_result["results"]) > 0:
+                        for result in search_result["results"]:
+                            web_results.append(
+                                {
+                                    "title": result.get("title", "Sin título"),
+                                    "content": result.get("content", ""),
+                                    "url": result.get("url", "#"),
+                                    "source": result.get("source", "Tavily Search"),
+                                }
+                            )
+
+                            # Análisis de sentimiento simple basado en palabras clave
+                            content = (
+                                result.get("title", "")
+                                + " "
+                                + result.get("content", "")
+                            ).lower()
+
+                            # Palabras alcistas y bajistas (mismo análisis de sentimiento)
+                            bullish_words = [
+                                "alcista",
+                                "alcanza",
+                                "subida",
+                                "crecimiento",
+                                "positivo",
+                                "optimista",
+                                "aumenta",
+                                "compra",
+                                "oportunidad",
+                                "superará",
+                                "supera",
+                                "mejor",
+                                "ganancias",
+                                "fuerte",
+                                "rali",
+                                "rally",
+                                "bull",
+                                "bullish",
+                            ]
+
+                            bearish_words = [
+                                "bajista",
+                                "caída",
+                                "desciende",
+                                "negativo",
+                                "pesimista",
+                                "disminuye",
+                                "venta",
+                                "riesgo",
+                                "peor",
+                                "pérdidas",
+                                "débil",
+                                "bear",
+                                "bearish",
+                                "corrección",
+                                "advertencia",
+                                "precaución",
+                                "preocupación",
+                            ]
+
+                            bull_count = sum(
+                                1 for word in bullish_words if word in content
+                            )
+                            bear_count = sum(
+                                1 for word in bearish_words if word in content
+                            )
+
+                            if bull_count > bear_count:
+                                bullish_mentions += 1
+                            elif bear_count > bull_count:
+                                bearish_mentions += 1
+            except Exception as e:
+                logger.warning(f"Error obteniendo datos de Tavily API: {str(e)}")
+
+        # Si no se obtuvieron resultados de ninguna API, proporcionar un resultado simulado
+        if not web_results:
+            web_results.append(
+                {
+                    "title": f"Perspectivas del mercado para {symbol}",
+                    "content": f"Los analistas tienen opiniones mixtas sobre {symbol}, con ligero sesgo alcista.",
+                    "url": "https://example.com/market",
+                    "source": "Market Insights (Simulado)",
+                }
+            )
+
+            import random
+
+            bullish_mentions = random.randint(1, 5)
+            bearish_mentions = random.randint(1, 5)
+            logger.warning(
+                f"Usando datos simulados para {symbol} debido a falta de resultados de APIs"
+            )
 
         # Crear objeto de análisis web
         web_analysis = {
@@ -2553,10 +2858,28 @@ def get_web_insights(symbol: str) -> Dict:
 
     except Exception as e:
         logger.error(f"Error en get_web_insights: {str(e)}")
+        traceback.print_exc()
 
-    # Retornar objeto vacío si todo falla
-    _data_cache.set(cache_key, {})
-    return {}
+        # Crear un resultado mínimo para evitar errores
+        web_results = [
+            {
+                "title": f"Información para {symbol}",
+                "content": "No se pudieron obtener análisis adicionales en este momento.",
+                "url": "#",
+                "source": "Sistema",
+            }
+        ]
+
+        web_analysis = {
+            "bullish_mentions": 1,
+            "bearish_mentions": 1,
+            "sources_count": 1,
+            "web_results": web_results,
+        }
+
+        # Guardar en caché
+        _data_cache.set(cache_key, web_analysis)
+        return web_analysis
 
 
 def clear_cache():
