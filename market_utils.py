@@ -2559,6 +2559,11 @@ def get_web_insights(symbol: str) -> Dict:
     return {}
 
 
+def clear_cache():
+    """Limpia el caché global"""
+    return _data_cache.clear()
+
+
 # =================================================
 # COMPATIBILIDAD CON CÓDIGO LEGADO
 # =================================================
