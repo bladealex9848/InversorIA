@@ -1938,7 +1938,7 @@ def process_message_with_citations(message):
 
 
 def process_expert_analysis(client, assistant_id, symbol, context):
-    """Procesa análisis experto con OpenAI integrando análisis técnico, noticias y sentimiento"""
+    """Procesa análisis experto con OpenAI"""
     if not client or not assistant_id:
         return None
 
@@ -1970,79 +1970,26 @@ def process_expert_analysis(client, assistant_id, symbol, context):
         for key, value in fundamental_data.items():
             fundamentals_text += f"- {key}: {value}\n"
 
-    # MEJORADO: Extraer información de noticias y presentarla de forma más estructurada
+    # Extraer información de noticias si está disponible
     news = context.get("news", [])
     news_text = ""
     if news:
         news_text = "NOTICIAS RECIENTES:\n"
-        for i, item in enumerate(news[:5]):  # Limitar a 5 noticias principales
-            sentiment_indicator = ""
-            if item.get("sentiment", 0.5) > 0.6:
-                sentiment_indicator = "📈 [POSITIVA]"
-            elif item.get("sentiment", 0.5) < 0.4:
-                sentiment_indicator = "📉 [NEGATIVA]"
+        for item in news[:3]:  # Limitar a 3 noticias
+            news_text += f"- {item.get('date', '')}: {item.get('title', '')}\n"
 
-            news_text += f"{i+1}. {sentiment_indicator} {item.get('date', '')}: {item.get('title', '')}\n"
-            if item.get("summary"):
-                news_text += f"   Resumen: {item.get('summary')[:150]}...\n"
-            news_text += f"   Fuente: {item.get('source', 'Desconocida')}\n\n"
-
-    # MEJORADO: Extraer y estructurar análisis de sentimiento
+    # Extraer sentimiento de noticias
     sentiment = context.get("news_sentiment", {})
     sentiment_text = ""
     if sentiment:
         sentiment_score = sentiment.get("score", 0.5) * 100
-        sentiment_label = sentiment.get("sentiment", "neutral").upper()
-        sentiment_text = f"ANÁLISIS DE SENTIMIENTO:\n"
+        sentiment_text = f"SENTIMIENTO: {sentiment.get('sentiment', 'neutral')} ({sentiment_score:.1f}%)\n"
         sentiment_text += (
-            f"- SENTIMIENTO GENERAL: {sentiment_label} ({sentiment_score:.1f}%)\n"
-        )
-        sentiment_text += (
-            f"- Menciones positivas: {sentiment.get('positive_mentions', 0)}\n"
+            f"Menciones positivas: {sentiment.get('positive_mentions', 0)}\n"
         )
         sentiment_text += (
-            f"- Menciones negativas: {sentiment.get('negative_mentions', 0)}\n"
+            f"Menciones negativas: {sentiment.get('negative_mentions', 0)}\n"
         )
-
-        # Añadir ratio positivo/negativo
-        total_mentions = sentiment.get("positive_mentions", 0) + sentiment.get(
-            "negative_mentions", 0
-        )
-        if total_mentions > 0:
-            positive_ratio = (
-                sentiment.get("positive_mentions", 0) / total_mentions * 100
-            )
-            sentiment_text += f"- Ratio positivo: {positive_ratio:.1f}%\n\n"
-
-    # NUEVO: Extraer y estructurar insights web
-    web_analysis = context.get("web_analysis", {})
-    web_insights_text = ""
-    if web_analysis:
-        web_insights_text = "INSIGHTS DE ANALISTAS WEB:\n"
-        bullish = web_analysis.get("bullish_mentions", 0)
-        bearish = web_analysis.get("bearish_mentions", 0)
-        total_mentions = bullish + bearish
-
-        if total_mentions > 0:
-            bullish_ratio = bullish / total_mentions * 100
-            web_insights_text += (
-                f"- Menciones alcistas: {bullish} ({bullish_ratio:.1f}%)\n"
-            )
-            web_insights_text += (
-                f"- Menciones bajistas: {bearish} ({100-bullish_ratio:.1f}%)\n\n"
-            )
-
-        # Incluir extractos de los análisis web más relevantes
-        web_results = web_analysis.get("web_results", [])
-        if web_results:
-            web_insights_text += "EXTRACTOS DE ANÁLISIS RELEVANTES:\n"
-            for i, result in enumerate(web_results[:3]):  # Limitamos a 3 resultados
-                web_insights_text += f"{i+1}. {result.get('title', 'Sin título')}\n"
-                content = result.get("content", "")
-                web_insights_text += f"   {content[:200]}...\n"
-                web_insights_text += (
-                    f"   Fuente: {result.get('source', 'Desconocida')}\n\n"
-                )
 
     # Detectar patrones
     chart_data = pd.DataFrame(context.get("chart_data", []))
@@ -2076,7 +2023,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
     # Crear contenido del prompt enriquecido con toda la información disponible
     prompt = f"""
-    Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis integral considerando TODOS los factores disponibles, incluyendo análisis técnico, noticias, sentimiento de mercado y análisis web para:
+    Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional integral del siguiente activo:
 
     SÍMBOLO: {symbol}
 
@@ -2090,33 +2037,27 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
     {sentiment_text}
 
-    {web_insights_text}
-
     {news_text}
 
     PATRONES TÉCNICOS:
     {patterns_text}
 
     INSTRUCCIONES ESPECÍFICAS:
-    1. Proporciona una evaluación integral que INTEGRE el análisis técnico, el sentimiento de mercado y las noticias recientes en una visión cohesiva.
-    2. Da especial atención a la correlación entre el sentimiento de las noticias y el comportamiento del precio.
-    3. Identifica claramente los niveles de soporte y resistencia clave.
-    4. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
-    5. Evalúa específicamente cómo las noticias recientes se relacionan con el movimiento del precio actual.
-    6. Busca divergencias entre el análisis técnico y el sentimiento de mercado, explicando su posible significado.
-    7. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
-    8. Indica riesgos clave y niveles de stop loss recomendados.
-    9. Evalúa el impacto de las opiniones de analistas y las noticias recientes en tu proyección final.
-    10. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
+    1. Proporciona una evaluación integral que combine análisis técnico, fundamental y sentimiento de mercado.
+    2. Identifica claramente los niveles de soporte y resistencia clave.
+    3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
+    4. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
+    5. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
+    6. Indica riesgos clave y niveles de stop loss recomendados.
+    7. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
 
     FORMATO DE RESPUESTA:
     Por favor, estructura tu respuesta con los siguientes encabezados:
     
     - EVALUACIÓN GENERAL: (Visión general integrada técnica, fundamental y sentimiento)
-    - ANÁLISIS DE NOTICIAS Y SENTIMIENTO: (Evaluación del impacto de noticias y opiniones de analistas)
     - NIVELES CLAVE: (Soportes, resistencias y niveles psicológicos importantes)
     - ANÁLISIS TÉCNICO: (Indicadores y patrones detectados)
-    - CORRELACIÓN TÉCNICO-FUNDAMENTAL: (Cómo se relacionan los aspectos técnicos con noticias y sentimiento)
+    - ANÁLISIS FUNDAMENTAL Y NOTICIAS: (Factores fundamentales y su impacto)
     - ESTRATEGIAS RECOMENDADAS: (Estrategias específicas y operativa sugerida)
     - GESTIÓN DE RIESGO: (Stop loss, take profit y ratios riesgo/recompensa)
     - PROYECCIÓN DE MOVIMIENTO: (Escenarios probables y sus catalizadores)
@@ -2189,7 +2130,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
 
 def display_expert_opinion(expert_opinion):
-    """Muestra la opinión del experto IA con formato mejorado y énfasis en noticias/sentimiento"""
+    """Muestra la opinión del experto IA con formato mejorado"""
     if not expert_opinion:
         return
 
@@ -2198,10 +2139,9 @@ def display_expert_opinion(expert_opinion):
     # Procesamiento mejorado del texto: buscar secciones clave
     sections = {
         "evaluación": "",
-        "noticias": "",  # Nueva sección dedicada a noticias y sentimiento
         "niveles": "",
         "técnico": "",
-        "correlación": "",  # Nueva sección que correlaciona técnico y fundamental
+        "fundamental": "",
         "estrategias": "",
         "riesgo": "",
         "proyección": "",
@@ -2222,19 +2162,14 @@ def display_expert_opinion(expert_opinion):
             if "EVALUACIÓN GENERAL" in line.upper():
                 current_section = "evaluación"
                 continue
-            elif (
-                "ANÁLISIS DE NOTICIAS" in line.upper() or "SENTIMIENTO" in line.upper()
-            ):
-                current_section = "noticias"
-                continue
             elif "NIVELES CLAVE" in line.upper():
                 current_section = "niveles"
                 continue
             elif "ANÁLISIS TÉCNICO" in line.upper():
                 current_section = "técnico"
                 continue
-            elif "CORRELACIÓN" in line.upper():
-                current_section = "correlación"
+            elif "ANÁLISIS FUNDAMENTAL" in line.upper() or "NOTICIAS" in line.upper():
+                current_section = "fundamental"
                 continue
             elif "ESTRATEGIAS RECOMENDADAS" in line.upper():
                 current_section = "estrategias"
@@ -2319,74 +2254,6 @@ def display_expert_opinion(expert_opinion):
                     <div class="expert-title">Analista de Mercados</div>
                 </div>
                 <div class="expert-content">
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # Mostrar cada sección identificada en un formato más estructurado
-        if sections["evaluación"]:
-            st.markdown("### 📊 Evaluación General")
-            st.markdown(sections["evaluación"])
-
-        # Destacar sección de noticias y sentimiento con un estilo especial
-        if sections["noticias"]:
-            st.markdown(
-                """
-                <div style="background-color: rgba(25, 118, 210, 0.05); 
-                           border-left: 4px solid #1976D2; 
-                           padding: 15px; 
-                           border-radius: 0 5px 5px 0; 
-                           margin-bottom: 20px;">
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown("### 📰 Análisis de Noticias y Sentimiento")
-            st.markdown(sections["noticias"])
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        if sections["niveles"]:
-            st.markdown("### 🔍 Niveles Clave")
-            st.markdown(sections["niveles"])
-
-        if sections["técnico"]:
-            st.markdown("### 📈 Análisis Técnico")
-            st.markdown(sections["técnico"])
-
-        # Destacar correlación técnico-fundamental
-        if sections["correlación"]:
-            st.markdown(
-                """
-                <div style="background-color: rgba(76, 175, 80, 0.05); 
-                           border-left: 4px solid #4CAF50; 
-                           padding: 15px; 
-                           border-radius: 0 5px 5px 0; 
-                           margin-bottom: 20px;">
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown("### 🔄 Correlación Técnico-Fundamental")
-            st.markdown(sections["correlación"])
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        if sections["estrategias"]:
-            st.markdown("### 🎯 Estrategias Recomendadas")
-            st.markdown(sections["estrategias"])
-
-        if sections["riesgo"]:
-            st.markdown("### ⚠️ Gestión de Riesgo")
-            st.markdown(sections["riesgo"])
-
-        if sections["proyección"]:
-            st.markdown("### 🔮 Proyección de Movimiento")
-            st.markdown(sections["proyección"])
-
-        st.markdown(
-            f"""
-                </div>
-                <div class="expert-footer">
-                    Análisis generado por IA - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
-                </div>
-            </div>
             """,
             unsafe_allow_html=True,
         )
