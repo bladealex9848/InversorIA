@@ -1315,13 +1315,34 @@ def create_technical_chart(data, symbol):
     fig.update_layout(
         height=800,
         xaxis_rangeslider_visible=False,
-        title=None,
+        title={
+            "text": f"Análisis Técnico de {symbol}",  # Título principal claro
+            "y": 0.97,  # Posición elevada
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+            "font": {
+                "size": 24,  # Tamaño más grande para mejor visibilidad
+                "color": "rgba(30, 136, 229, 0.7)",  # Color azul con 70% de opacidad
+                "family": "Arial, sans-serif",
+            },
+        },
         template="plotly_white",
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        # Ajustar posición de la leyenda para evitar conflicto con el título
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",  # Cambiar a left para moverla al lado izquierdo
+            x=0,  # Alinear al extremo izquierdo
+            bgcolor="rgba(255, 255, 255, 0.8)",  # Fondo semitransparente para la leyenda
+        ),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
-        margin=dict(l=50, r=50, t=70, b=50),
+        margin=dict(
+            l=50, r=50, t=90, b=50
+        ),  # Aumentar margen superior para dar más espacio
     )
 
     # Configuración de ejes y rangos
