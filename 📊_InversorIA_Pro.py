@@ -3786,61 +3786,152 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     unsafe_allow_html=True,
                 )
 
-        # Mostrar parámetros específicos del símbolo si están disponibles
+        # Mostrar parámetros específicos del símbolo en un contenedor estilizado
+        st.markdown(
+            """
+            <style>
+            .parameter-container {
+                background-color: #f8f9fa;
+                border-radius: 10px;
+                padding: 20px;
+                margin: 10px 0;
+                border: 1px solid #e9ecef;
+            }
+            .parameter-title {
+                color: #1f77b4;
+                font-size: 1.2em;
+                font-weight: bold;
+                margin-bottom: 15px;
+            }
+            .parameter-item {
+                background-color: white;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 5px 0;
+                border-left: 4px solid #1f77b4;
+            }
+            </style>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("<div class='parameter-container'>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='parameter-title'>📊 Parámetros del Activo</div>",
+            unsafe_allow_html=True,
+        )
+
         if "options_params" in context:
             params = context.get("options_params", {})
-            if params:
-                st.markdown("#### Parámetros")
-                for key, value in params.items():
-                    st.markdown(f"**{key}:** {value}")
         else:
-            # Si no hay parámetros específicos en el contexto, mostrar parámetros genéricos
-            # Crear instancia del gestor de parámetros de opciones
             options_manager = OptionsParameterManager()
             params = options_manager.get_symbol_params(symbol)
-            if params:
-                st.markdown("#### Parámetros")
-                for key, value in params.items():
-                    st.markdown(f"**{key}:** {value}")
 
-        # Mostrar parámetros de opciones recomendados
+        if params:
+            for key, value in params.items():
+                st.markdown(
+                    f"<div class='parameter-item'><strong>{key}:</strong> {value}</div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("No hay parámetros disponibles para este símbolo")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Mostrar parámetros de opciones recomendados con diseño mejorado
         with st.expander("⚙️ Parámetros Recomendados"):
+            st.markdown(
+                """
+                <style>
+                .recommendation-box {
+                    background-color: #ffffff;
+                    padding: 15px;
+                    border-radius: 8px;
+                    border: 1px solid #e0e0e0;
+                    margin: 10px 0;
+                }
+                .recommendation-title {
+                    color: #2196F3;
+                    font-weight: bold;
+                    margin-bottom: 10px;
+                }
+                .recommendation-content {
+                    color: #424242;
+                }
+                .reasoning {
+                    font-size: 0.9em;
+                    color: #666;
+                    font-style: italic;
+                    margin-top: 8px;
+                }
+                </style>
+            """,
+                unsafe_allow_html=True,
+            )
+
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.markdown("#### Vencimiento")
-                vencimiento = "45 días" if recommendation != "NEUTRAL" else "30-60 días"
-                st.info(f"Recomendado: **{vencimiento}**")
-                st.text(
-                    "Razonamiento: Balance óptimo entre theta decay y tiempo para que se desarrolle el movimiento."
+                st.markdown("<div class='recommendation-box'>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='recommendation-title'>⏳ Vencimiento</div>",
+                    unsafe_allow_html=True,
                 )
+                vencimiento = "45 días" if recommendation != "NEUTRAL" else "30-60 días"
+                st.markdown(
+                    f"<div class='recommendation-content'>Recomendado: <strong>{vencimiento}</strong></div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    "<div class='reasoning'>Balance óptimo entre theta decay y tiempo para que se desarrolle el movimiento.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
 
             with col2:
-                st.markdown("#### Strikes")
+                st.markdown("<div class='recommendation-box'>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='recommendation-title'>🎯 Strikes</div>",
+                    unsafe_allow_html=True,
+                )
                 try:
                     if data is not None and not data.empty:
                         current_price = data["Close"].iloc[-1]
                         if recommendation == "CALL":
-                            strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 1.05:.2f} (5% OTM)"
+                            strikes = f"Comprar: ${current_price:.2f} (ATM)<br>Vender: ${current_price * 1.05:.2f} (5% OTM)"
                         elif recommendation == "PUT":
-                            strikes = f"Comprar: ${current_price:.2f} (ATM)\nVender: ${current_price * 0.95:.2f} (5% OTM)"
+                            strikes = f"Comprar: ${current_price:.2f} (ATM)<br>Vender: ${current_price * 0.95:.2f} (5% OTM)"
                         else:
-                            strikes = f"Put spread: ${current_price * 0.90:.2f}-${current_price * 0.95:.2f}\nCall spread: ${current_price * 1.05:.2f}-${current_price * 1.10:.2f}"
+                            strikes = f"Put spread: ${current_price * 0.90:.2f}-${current_price * 0.95:.2f}<br>Call spread: ${current_price * 1.05:.2f}-${current_price * 1.10:.2f}"
                     else:
                         strikes = "No se pueden calcular sin precio actual"
                 except Exception as e:
                     logger.error(f"Error calculando strikes: {str(e)}")
                     strikes = "Error calculando strikes"
 
-                st.info("Recomendados:")
-                st.text(strikes)
+                st.markdown(
+                    f"<div class='recommendation-content'>{strikes}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
 
             with col3:
-                st.markdown("#### Gestión de Riesgo")
-                st.info("Tamaño de posición: 2-3% del capital")
-                st.text(
-                    f"Stop loss: -50% del valor de la posición\nTake profit: 25-30% del beneficio máximo potencial"
+                st.markdown("<div class='recommendation-box'>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='recommendation-title'>🛡️ Gestión de Riesgo</div>",
+                    unsafe_allow_html=True,
                 )
+                st.markdown(
+                    """
+                    <div class='recommendation-content'>
+                        <strong>Tamaño de posición:</strong> 2-3% del capital<br>
+                        <strong>Stop loss:</strong> -50% del valor de la posición<br>
+                        <strong>Take profit:</strong> 25-30% del beneficio máximo potencial
+                    </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
 
     # Código para la pestaña Multi-Timeframe
     with tab3:
@@ -5538,22 +5629,22 @@ def main():
                     st.dataframe(styled_df, use_container_width=True, height=400)
 
                     # Sección para analizar símbolos del scanner
-                    st.markdown("### 🔬 Análisis Detallado")
+                    # st.markdown("### 🔬 Análisis Detallado")
 
                     # Seleccionar símbolo para análisis detallado
-                    selected_symbol = st.selectbox(
-                        "Seleccionar activo para análisis detallado",
-                        filtered_results["Symbol"].unique().tolist(),
-                    )
+                    # selected_symbol = st.selectbox(
+                    #    "Seleccionar activo para análisis detallado",
+                    #    filtered_results["Symbol"].unique().tolist(),
+                    # )
 
-                    if st.button(
-                        "Analizar", key="scanner_main_analyze_btn"
-                    ):  # Key única
-                        # Actualizar símbolo actual y redirigir a la pestaña de análisis
-                        st.session_state.current_symbol = selected_symbol
-                        # Redirigir a la primera pestaña (Análisis Individual)
-                        st.experimental_set_query_params(tab="análisis")
-                        st.rerun()
+                    # if st.button(
+                    #    "Analizar", key="scanner_main_analyze_btn"
+                    # ):  # Key única
+                    # Actualizar símbolo actual y redirigir a la pestaña de análisis
+                    #    st.session_state.current_symbol = selected_symbol
+                    # Redirigir a la primera pestaña (Análisis Individual)
+                    #    st.experimental_set_query_params(tab="análisis")
+                    #    st.rerun()
 
                     # Tabla de comparación entre sectores
                     if len(selected_sectors) > 1:
