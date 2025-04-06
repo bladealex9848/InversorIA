@@ -2247,6 +2247,9 @@ def get_api_keys_from_secrets():
 def get_market_context(symbol: str) -> Dict:
     """Obtiene contexto completo de mercado para un símbolo"""
     try:
+        # Obtener claves API directamente
+        api_keys = get_api_keys_from_secrets()
+
         # Definir timeframes a analizar
         timeframes = ["1d", "1wk", "1mo"]
 
@@ -2283,10 +2286,10 @@ def get_market_context(symbol: str) -> Dict:
         options_params = options_manager.get_symbol_params(symbol)
         volatility_adjustments = options_manager.get_volatility_adjustments(vix_level)
 
-        # Integrar noticias y análisis de sentimiento - NUEVAS FUNCIONES
-        news_data = fetch_news_data(symbol)
+        # Integrar noticias y análisis de sentimiento con las claves obtenidas
+        news_data = fetch_news_data(symbol, api_keys)
         sentiment_data = analyze_sentiment(symbol, news_data)
-        web_analysis = get_web_insights(symbol)
+        web_analysis = get_web_insights(symbol, api_keys)
 
         # Construir respuesta
         context = {
@@ -2319,7 +2322,7 @@ def get_market_context(symbol: str) -> Dict:
         return {"error": str(e)}
 
 
-def fetch_news_data(symbol: str) -> List:
+def fetch_news_data(symbol: str, api_keys: Dict = None) -> List:
     """Obtiene noticias recientes para un símbolo usando Alpha Vantage o Finnhub"""
     # Verificar si hay datos en caché
     cache_key = f"news_{symbol}"
@@ -2335,11 +2338,18 @@ def fetch_news_data(symbol: str) -> List:
         alpha_key = None
         finnhub_key = None
 
-        # Buscar en secrets.toml
+        # Utilizar claves proporcionadas en el parámetro api_keys
+        if api_keys:
+            alpha_key = api_keys.get("alpha_vantage")
+            finnhub_key = api_keys.get("finnhub")
+
+        # Buscar en secrets.toml si no se proporcionaron claves
         if hasattr(st, "secrets"):
             if "api_keys" in st.secrets:
-                alpha_key = st.secrets.api_keys.get("alpha_vantage_api_key", None)
-                finnhub_key = st.secrets.api_keys.get("finnhub_api_key", None)
+                if not alpha_key:
+                    alpha_key = st.secrets.api_keys.get("alpha_vantage_api_key", None)
+                if not finnhub_key:
+                    finnhub_key = st.secrets.api_keys.get("finnhub_api_key", None)
 
             # Buscar en nivel principal
             if not alpha_key:
@@ -2348,14 +2358,13 @@ def fetch_news_data(symbol: str) -> List:
                 finnhub_key = st.secrets.get("FINNHUB_API_KEY", None)
 
         # Buscar en variables de entorno
-        if not alpha_key:
+        if not alpha_key or not finnhub_key:
             import os
 
-            alpha_key = os.environ.get("ALPHA_VANTAGE_API_KEY", None)
-        if not finnhub_key:
-            import os
-
-            finnhub_key = os.environ.get("FINNHUB_API_KEY", None)
+            if not alpha_key:
+                alpha_key = os.environ.get("ALPHA_VANTAGE_API_KEY", None)
+            if not finnhub_key:
+                finnhub_key = os.environ.get("FINNHUB_API_KEY", None)
 
         # Intentar Alpha Vantage primero
         if alpha_key:
@@ -2483,7 +2492,7 @@ def analyze_sentiment(symbol: str, news_data: List = None) -> Dict:
     return sentiment_result
 
 
-def get_web_insights(symbol: str) -> Dict:
+def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
     """Obtiene análisis de fuentes web sobre un símbolo mediante consultas a APIs externas"""
     # Verificar si hay datos en caché
     cache_key = f"web_insights_{symbol}"
@@ -2506,11 +2515,18 @@ def get_web_insights(symbol: str) -> Dict:
         you_key = None
         tavily_key = None
 
-        # Buscar en secrets.toml
+        # Utilizar claves proporcionadas en el parámetro api_keys
+        if api_keys:
+            you_key = api_keys.get("you")
+            tavily_key = api_keys.get("tavily")
+
+        # Buscar en secrets.toml si no se proporcionaron claves
         if hasattr(st, "secrets"):
             if "api_keys" in st.secrets:
-                you_key = st.secrets.api_keys.get("you_api_key", None)
-                tavily_key = st.secrets.api_keys.get("tavily_api_key", None)
+                if not you_key:
+                    you_key = st.secrets.api_keys.get("you_api_key", None)
+                if not tavily_key:
+                    tavily_key = st.secrets.api_keys.get("tavily_api_key", None)
 
             # Buscar en nivel principal
             if not you_key:
@@ -2519,14 +2535,13 @@ def get_web_insights(symbol: str) -> Dict:
                 tavily_key = st.secrets.get("TAVILY_API_KEY", None)
 
         # Buscar en variables de entorno
-        if not you_key:
+        if not you_key or not tavily_key:
             import os
 
-            you_key = os.environ.get("YOU_API_KEY", None)
-        if not tavily_key:
-            import os
-
-            tavily_key = os.environ.get("TAVILY_API_KEY", None)
+            if not you_key:
+                you_key = os.environ.get("YOU_API_KEY", None)
+            if not tavily_key:
+                tavily_key = os.environ.get("TAVILY_API_KEY", None)
 
         # Consulta usando YOU API si está disponible
         if you_key:
