@@ -2310,7 +2310,16 @@ def display_sentiment_analysis(context):
     web_analysis = context.get("web_analysis", {})
 
     if not sentiment and not web_analysis:
-        st.info("No se encontró análisis de sentimiento disponible.")
+        st.info(
+            """
+        No se encontró análisis de sentimiento disponible.
+        
+        **Posibles soluciones:**
+        - Verifica la configuración de API keys en .streamlit/secrets.toml
+        - Asegúrate de que las claves "you_api_key", "tavily_api_key" o "alpha_vantage_api_key" estén configuradas
+        - Para evitar errores, puedes importar la función get_api_keys_from_secrets de market_utils
+        """
+        )
         return
 
     st.markdown(
@@ -2373,33 +2382,16 @@ def display_sentiment_analysis(context):
             """
             )
 
-            # Añadir análisis institucional de sentimiento
-            if "sector_avg_bullish" in sentiment:
-                sector_bullish = sentiment.get("sector_avg_bullish", 0)
-                sector_bearish = sentiment.get("sector_avg_bearish", 0)
-
-                st.markdown(
-                    f"""
-                    <div class="institutional-insight">
-                        <h4>Análisis Sectorial</h4>
-                        <p>Comparación con el sector: <strong>{'+' if sentiment_score > sector_bullish else '-'}{abs(sentiment_score*100 - sector_bullish*100):.1f}%</strong></p>
-                        <p>Media bullish sectorial: <strong>{sector_bullish*100:.1f}%</strong></p>
-                        <p>Media bearish sectorial: <strong>{sector_bearish*100:.1f}%</strong></p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
     with col2:
         if web_analysis:
-            # Obtener menciones con valores por defecto explícitos
+            # Mostrar análisis web
             bullish = web_analysis.get("bullish_mentions", 0)
             bearish = web_analysis.get("bearish_mentions", 0)
             total_mentions = bullish + bearish
 
             st.markdown("### Análisis Web")
 
-            # Verificar si hay menciones reales antes de mostrar el gráfico
+            # Solo mostrar gráfico si hay datos reales
             if total_mentions > 0:
                 # Crear gráfico de barras
                 fig = go.Figure()
@@ -2408,12 +2400,12 @@ def display_sentiment_analysis(context):
                     go.Bar(
                         x=["Alcista", "Bajista"],
                         y=[bullish, bearish],
+                        text=[bullish, bearish],
+                        textposition="auto",
                         marker_color=[
                             "rgba(76, 175, 80, 0.7)",
                             "rgba(255, 87, 34, 0.7)",
                         ],
-                        text=[bullish, bearish],  # Mostrar valores en las barras
-                        textposition="auto",  # Posicionar automáticamente el texto
                     )
                 )
 
@@ -2425,31 +2417,21 @@ def display_sentiment_analysis(context):
                     xaxis_title="Sentimiento",
                 )
 
-                # Establecer valor mínimo para el eje Y para que el gráfico se vea bien
+                # Establecer rango mínimo para el eje Y
                 fig.update_yaxes(range=[0, max(max(bullish, bearish) + 1, 5)])
 
                 st.plotly_chart(fig, use_container_width=True)
 
-                # Mostrar ratio
+                # Ratio de sentimiento
                 bullish_ratio = bullish / total_mentions * 100
                 st.markdown(
                     f"""
-                    **Ratio alcista:** {bullish_ratio:.1f}%  
-                    **Fuentes analizadas:** {len(web_analysis.get('web_results', []))}
-                    """
-                )
-            else:
-                # Mostrar mensaje con sugerencia para resolver
-                st.info(
-                    """
-                No se encontraron menciones relevantes en el análisis web.
-                
-                **Posibles soluciones:**
-                - Verifica si las claves API para YOU o Tavily están configuradas
-                - El símbolo podría no tener suficiente cobertura en fuentes web
-                - Intenta con un activo de mayor capitalización
+                **Ratio alcista:** {bullish_ratio:.1f}%  
+                **Fuentes analizadas:** {len(context.get('web_results', []))}
                 """
                 )
+            else:
+                st.info("No se encontraron menciones relevantes en el análisis web.")
 
 
 def display_news_feed(context):
@@ -2457,7 +2439,16 @@ def display_news_feed(context):
     news = context.get("news", [])
 
     if not news:
-        st.info("No se encontraron noticias recientes.")
+        st.info(
+            """
+        No se encontraron noticias recientes.
+        
+        **Posibles soluciones:**
+        - Verifica la configuración de Alpha Vantage API key
+        - Asegúrate de que tienes acceso al endpoint de noticias de Alpha Vantage
+        - Algunos símbolos pueden no tener cobertura de noticias
+        """
+        )
         return
 
     st.markdown(

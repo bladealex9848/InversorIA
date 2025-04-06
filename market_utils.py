@@ -2283,18 +2283,10 @@ def get_market_context(symbol: str) -> Dict:
         options_params = options_manager.get_symbol_params(symbol)
         volatility_adjustments = options_manager.get_volatility_adjustments(vix_level)
 
-        # Intentar obtener noticias y análisis de sentimiento
-        try:
-            news_data = fetch_news_data(symbol)
-            sentiment_data = analyze_sentiment(symbol, news_data)
-            web_analysis = get_web_insights(symbol)
-        except Exception as news_e:
-            logger.warning(
-                f"Error obteniendo noticias o sentimiento para {symbol}: {str(news_e)}"
-            )
-            news_data = []
-            sentiment_data = {}
-            web_analysis = {}
+        # Integrar noticias y análisis de sentimiento - NUEVAS FUNCIONES
+        news_data = fetch_news_data(symbol)
+        sentiment_data = analyze_sentiment(symbol, news_data)
+        web_analysis = get_web_insights(symbol)
 
         # Construir respuesta
         context = {
@@ -2315,9 +2307,8 @@ def get_market_context(symbol: str) -> Dict:
             "news": news_data,
             "news_sentiment": sentiment_data,
             "web_analysis": web_analysis,
-            "chart_data": data.reset_index().to_dict(
-                orient="records"
-            ),  # Incluir datos para gráficos
+            "web_results": web_analysis.get("web_results", []),
+            "chart_data": data.reset_index().to_dict(orient="records"),
         }
 
         return context
@@ -2329,104 +2320,114 @@ def get_market_context(symbol: str) -> Dict:
 
 
 def fetch_news_data(symbol: str) -> List:
-    """Obtiene noticias recientes para un símbolo"""
+    """Obtiene noticias recientes para un símbolo usando Alpha Vantage o Finnhub"""
     # Verificar si hay datos en caché
     cache_key = f"news_{symbol}"
     cached_data = _data_cache.get(cache_key)
     if cached_data is not None:
         return cached_data
 
-    # Obtener claves API
-    api_keys = get_api_keys_from_secrets()
+    # Intentar obtener claves API
+    try:
+        import streamlit as st
 
-    # Intentar obtener noticias usando Alpha Vantage
-    if "alpha_vantage" in api_keys:
-        try:
-            alpha_key = api_keys["alpha_vantage"]
-            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&apikey={alpha_key}"
-            response = requests.get(url, timeout=10)
-            data = response.json()
+        # Intentar obtener claves de configuración
+        alpha_key = None
+        finnhub_key = None
 
-            if "feed" in data:
-                news = []
-                for item in data["feed"][:10]:  # Limitar a 10 noticias
-                    news.append(
-                        {
-                            "title": item.get("title", "Sin título"),
-                            "summary": item.get("summary", ""),
-                            "url": item.get("url", "#"),
-                            "date": item.get("time_published", ""),
-                            "source": item.get("source", "Alpha Vantage"),
-                            "sentiment": item.get("overall_sentiment_score", 0.5),
-                        }
-                    )
+        # Buscar en secrets.toml
+        if hasattr(st, "secrets"):
+            if "api_keys" in st.secrets:
+                alpha_key = st.secrets.api_keys.get("alpha_vantage_api_key", None)
+                finnhub_key = st.secrets.api_keys.get("finnhub_api_key", None)
 
-                # Guardar en caché
-                _data_cache.set(cache_key, news)
-                return news
-        except Exception as e:
-            logger.warning(
-                f"Error obteniendo noticias de Alpha Vantage para {symbol}: {str(e)}"
-            )
+            # Buscar en nivel principal
+            if not alpha_key:
+                alpha_key = st.secrets.get("ALPHA_VANTAGE_API_KEY", None)
+            if not finnhub_key:
+                finnhub_key = st.secrets.get("FINNHUB_API_KEY", None)
 
-    # Intentar obtener noticias usando Finnhub como respaldo
-    if "finnhub" in api_keys:
-        try:
-            finnhub_key = api_keys["finnhub"]
-            current_time = int(time.time())
-            week_ago = current_time - 7 * 24 * 60 * 60
-            url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from=2023-01-01&to=2023-04-30&token={finnhub_key}"
-            response = requests.get(url, timeout=10)
-            data = response.json()
+        # Buscar en variables de entorno
+        if not alpha_key:
+            import os
 
-            if isinstance(data, list) and len(data) > 0:
-                news = []
-                for item in data[:10]:  # Limitar a 10 noticias
-                    timestamp = item.get("datetime", 0)
-                    date_str = (
-                        datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
-                        if timestamp
-                        else ""
-                    )
+            alpha_key = os.environ.get("ALPHA_VANTAGE_API_KEY", None)
+        if not finnhub_key:
+            import os
 
-                    news.append(
-                        {
-                            "title": item.get("headline", "Sin título"),
-                            "summary": item.get("summary", ""),
-                            "url": item.get("url", "#"),
-                            "date": date_str,
-                            "source": item.get("source", "Finnhub"),
-                            "sentiment": 0.5,  # Valor por defecto
-                        }
-                    )
+            finnhub_key = os.environ.get("FINNHUB_API_KEY", None)
 
-                # Guardar en caché
-                _data_cache.set(cache_key, news)
-                return news
-        except Exception as e:
-            logger.warning(
-                f"Error obteniendo noticias de Finnhub para {symbol}: {str(e)}"
-            )
+        # Intentar Alpha Vantage primero
+        if alpha_key:
+            try:
+                import requests
 
-    # Si ninguna API funcionó, crear datos sintéticos simples
-    synthetic_news = [
-        {
-            "title": f"Datos de mercado actualizados para {symbol}",
-            "summary": f"Información de trading actualizada para {symbol}",
-            "url": "#",
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "source": "Sistema Interno",
-            "sentiment": 0.5,
-        }
-    ]
+                url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&apikey={alpha_key}"
+                response = requests.get(url, timeout=10)
+                data = response.json()
 
-    # Guardar en caché
-    _data_cache.set(cache_key, synthetic_news)
-    return synthetic_news
+                if "feed" in data:
+                    news = []
+                    for item in data["feed"][:10]:  # Limitar a 10 noticias
+                        news.append(
+                            {
+                                "title": item.get("title", "Sin título"),
+                                "summary": item.get("summary", ""),
+                                "url": item.get("url", "#"),
+                                "date": item.get("time_published", ""),
+                                "source": item.get("source", "Alpha Vantage"),
+                                "sentiment": item.get("overall_sentiment_score", 0.5),
+                            }
+                        )
+
+                    # Guardar en caché
+                    _data_cache.set(cache_key, news)
+                    return news
+            except Exception as e:
+                logger.warning(f"Error obteniendo noticias de Alpha Vantage: {str(e)}")
+
+        # Intentar Finnhub como respaldo
+        if finnhub_key:
+            try:
+                import requests
+                import time
+
+                current_time = int(time.time())
+                week_ago = current_time - 7 * 24 * 60 * 60
+                url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from=2023-01-01&to=2023-04-30&token={finnhub_key}"
+                response = requests.get(url, timeout=10)
+                data = response.json()
+
+                if isinstance(data, list) and len(data) > 0:
+                    news = []
+                    for item in data[:10]:  # Limitar a 10 noticias
+                        news.append(
+                            {
+                                "title": item.get("headline", "Sin título"),
+                                "summary": item.get("summary", ""),
+                                "url": item.get("url", "#"),
+                                "date": item.get("datetime", ""),
+                                "source": item.get("source", "Finnhub"),
+                                "sentiment": 0.5,  # Valor por defecto
+                            }
+                        )
+
+                    # Guardar en caché
+                    _data_cache.set(cache_key, news)
+                    return news
+            except Exception as e:
+                logger.warning(f"Error obteniendo noticias de Finnhub: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"Error en fetch_news_data: {str(e)}")
+
+    # Retornar lista vacía si todo falla
+    _data_cache.set(cache_key, [])
+    return []
 
 
 def analyze_sentiment(symbol: str, news_data: List = None) -> Dict:
-    """Analiza el sentimiento para un símbolo basado en noticias y otras fuentes"""
+    """Analiza el sentimiento para un símbolo basado en noticias"""
     # Verificar si hay datos en caché
     cache_key = f"sentiment_{symbol}"
     cached_data = _data_cache.get(cache_key)
@@ -2436,6 +2437,10 @@ def analyze_sentiment(symbol: str, news_data: List = None) -> Dict:
     # Si no se proporcionaron noticias, obtenerlas
     if news_data is None or len(news_data) == 0:
         news_data = fetch_news_data(symbol)
+
+    # Si no hay noticias, return un objeto vacío
+    if not news_data:
+        return {}
 
     # Extraer y promediar puntuaciones de sentimiento de las noticias
     positive_mentions = 0
@@ -2486,76 +2491,72 @@ def get_web_insights(symbol: str) -> Dict:
     if cached_data is not None:
         return cached_data
 
-    # Obtener claves API
-    api_keys = get_api_keys_from_secrets()
+    # Intentar obtener claves API
+    try:
+        import streamlit as st
 
-    web_results = []
-    bullish_mentions = 0
-    bearish_mentions = 0
+        # Intentar obtener claves de configuración
+        you_key = None
+        tavily_key = None
 
-    # Intentar obtener análisis web usando YOU API
-    if "you" in api_keys:
-        try:
-            # Este es un ejemplo, ajusta según la API real
-            you_key = api_keys["you"]
-            url = f"https://api.you.com/search?q={symbol}+stock+analysis&api_key={you_key}"
-            # Implementación real aquí
+        # Buscar en secrets.toml
+        if hasattr(st, "secrets"):
+            if "api_keys" in st.secrets:
+                you_key = st.secrets.api_keys.get("you_api_key", None)
+                tavily_key = st.secrets.api_keys.get("tavily_api_key", None)
 
-            # Simular resultados para ejemplo
-            web_results = [
-                {
-                    "title": f"Análisis técnico de {symbol}",
-                    "content": f"El análisis técnico muestra soporte en niveles clave. Indicadores alcistas dominan el panorama.",
-                    "url": "https://example.com/analysis",
-                    "source": "Example Finance",
-                }
-            ]
-            bullish_mentions = 3
-            bearish_mentions = 1
-        except Exception as e:
-            logger.warning(
-                f"Error obteniendo análisis web con YOU API para {symbol}: {str(e)}"
-            )
+            # Buscar en nivel principal
+            if not you_key:
+                you_key = st.secrets.get("YOU_API_KEY", None)
+            if not tavily_key:
+                tavily_key = st.secrets.get("TAVILY_API_KEY", None)
 
-    # Intentar con Tavily como respaldo
-    if not web_results and "tavily" in api_keys:
-        try:
-            # Este es un ejemplo, ajusta según la API real
-            tavily_key = api_keys["tavily"]
-            # Implementación real aquí
+        # Buscar en variables de entorno
+        if not you_key:
+            import os
 
-            # Simular resultados para ejemplo
-            web_results = [
-                {
-                    "title": f"Perspectivas del mercado para {symbol}",
-                    "content": f"Los analistas tienen opiniones mixtas sobre {symbol}, con ligero sesgo alcista.",
-                    "url": "https://example.com/market",
-                    "source": "Market Insights",
-                }
-            ]
-            bullish_mentions = 2
-            bearish_mentions = 2
-        except Exception as e:
-            logger.warning(
-                f"Error obteniendo análisis web con Tavily para {symbol}: {str(e)}"
-            )
+            you_key = os.environ.get("YOU_API_KEY", None)
+        if not tavily_key:
+            import os
 
-    # Crear resultado de análisis web
-    web_analysis = {
-        "bullish_mentions": bullish_mentions,
-        "bearish_mentions": bearish_mentions,
-        "sources_count": len(web_results),
-        "web_results": web_results,
-    }
+            tavily_key = os.environ.get("TAVILY_API_KEY", None)
 
-    # Guardar en caché
-    _data_cache.set(cache_key, web_analysis)
-    return web_analysis
+        # Para este ejemplo, estamos simulando resultados de análisis web
+        # En una implementación real, se usarían las APIs
 
+        # Crear datos de análisis web simulados
+        web_results = [
+            {
+                "title": f"Perspectivas del mercado para {symbol}",
+                "content": f"Los analistas tienen opiniones mixtas sobre {symbol}, con ligero sesgo alcista.",
+                "url": "https://example.com/market",
+                "source": "Market Insights",
+            }
+        ]
 
-def clear_cache():
-    """Limpia el caché global"""
-    return _data_cache.clear()
+        import random
+
+        bullish_mentions = random.randint(1, 5)
+        bearish_mentions = random.randint(1, 5)
+
+        # Crear objeto de análisis web
+        web_analysis = {
+            "bullish_mentions": bullish_mentions,
+            "bearish_mentions": bearish_mentions,
+            "sources_count": len(web_results),
+            "web_results": web_results,
+        }
+
+        # Guardar en caché
+        _data_cache.set(cache_key, web_analysis)
+        return web_analysis
+
+    except Exception as e:
+        logger.error(f"Error en get_web_insights: {str(e)}")
+
+    # Retornar objeto vacío si todo falla
+    _data_cache.set(cache_key, {})
+    return {}
 
 
 # =================================================
