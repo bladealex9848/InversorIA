@@ -2323,7 +2323,7 @@ def get_market_context(symbol: str) -> Dict:
 
 
 def fetch_news_data(symbol: str, api_keys: Dict = None) -> List:
-    """Obtiene noticias recientes para un símbolo usando Alpha Vantage o Finnhub"""
+    """Obtiene noticias recientes para un símbolo usando múltiples fuentes con respaldo de Yahoo Finance"""
     # Verificar si hay datos en caché
     cache_key = f"news_{symbol}"
     cached_data = _data_cache.get(cache_key)
@@ -2375,7 +2375,7 @@ def fetch_news_data(symbol: str, api_keys: Dict = None) -> List:
                 response = requests.get(url, timeout=10)
                 data = response.json()
 
-                if "feed" in data:
+                if "feed" in data and data["feed"]:
                     news = []
                     for item in data["feed"][:10]:  # Limitar a 10 noticias
                         news.append(
@@ -2426,6 +2426,177 @@ def fetch_news_data(symbol: str, api_keys: Dict = None) -> List:
                     return news
             except Exception as e:
                 logger.warning(f"Error obteniendo noticias de Finnhub: {str(e)}")
+
+        # Intentar obtener noticias directamente de Yahoo Finance
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            from datetime import datetime
+
+            # Construir URL de noticias de Yahoo Finance
+            yahoo_url = f"https://finance.yahoo.com/quote/{symbol}/news"
+
+            # Simular un navegador para evitar bloqueos
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+
+            # Realizar solicitud
+            response = requests.get(yahoo_url, headers=headers, timeout=10)
+
+            # Verificar respuesta exitosa
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                # Buscar elementos de noticia - ajustar selectores según la estructura actual de Yahoo Finance
+                news_items = soup.select("li.js-stream-content")
+
+                if news_items:
+                    news = []
+                    for item in news_items[:10]:  # Limitar a 10 noticias
+                        # Extraer título, normalmente en un h3
+                        title_element = item.select_one("h3")
+                        title = (
+                            title_element.text.strip()
+                            if title_element
+                            else "Sin título"
+                        )
+
+                        # Extraer enlace
+                        link_element = item.select_one("a")
+                        url = (
+                            link_element["href"]
+                            if link_element and "href" in link_element.attrs
+                            else "#"
+                        )
+                        # Convertir enlaces relativos a absolutos
+                        if url.startswith("/"):
+                            url = f"https://finance.yahoo.com{url}"
+
+                        # Extraer descripción
+                        summary_element = item.select_one("p")
+                        summary = (
+                            summary_element.text.strip() if summary_element else ""
+                        )
+
+                        # Extraer fecha
+                        date_element = item.select_one("span")
+                        date_str = date_element.text.strip() if date_element else ""
+
+                        # Análisis simple de sentimiento
+                        sentiment_value = 0.5  # Neutral por defecto
+                        text_for_sentiment = f"{title} {summary}".lower()
+
+                        # Palabras positivas y negativas
+                        positive_words = [
+                            "buy",
+                            "bullish",
+                            "up",
+                            "surge",
+                            "growth",
+                            "positive",
+                            "rise",
+                            "gain",
+                        ]
+                        negative_words = [
+                            "sell",
+                            "bearish",
+                            "down",
+                            "fall",
+                            "drop",
+                            "decline",
+                            "negative",
+                            "loss",
+                        ]
+
+                        # Contar palabras
+                        positive_count = sum(
+                            1 for word in positive_words if word in text_for_sentiment
+                        )
+                        negative_count = sum(
+                            1 for word in negative_words if word in text_for_sentiment
+                        )
+
+                        # Ajustar sentimiento
+                        if positive_count > negative_count:
+                            sentiment_value = 0.7
+                        elif negative_count > positive_count:
+                            sentiment_value = 0.3
+
+                        # Añadir noticia
+                        news.append(
+                            {
+                                "title": title,
+                                "summary": summary,
+                                "url": url,
+                                "date": date_str,
+                                "source": "Yahoo Finance",
+                                "sentiment": sentiment_value,
+                            }
+                        )
+
+                    # Si encontramos noticias, guardar en caché y retornar
+                    if news:
+                        _data_cache.set(cache_key, news)
+                        return news
+
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias de Yahoo Finance: {str(e)}")
+
+        # Intentar DuckDuckGo Search como último respaldo
+        try:
+            # Intentar importar duckduckgo_search
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                logger.warning(
+                    "duckduckgo_search no está instalado. Intenta pip install duckduckgo-search"
+                )
+                raise ImportError("duckduckgo_search no está instalado")
+
+            # Crear cliente DDGS
+            ddgs = DDGS()
+
+            # Realizar búsqueda de noticias
+            keywords = f"{symbol} stock news financial"
+            results = list(ddgs.news(keywords, max_results=10))
+
+            if results:
+                news = []
+                for item in results:
+                    # Calcular un sentimiento básico (neutral por defecto)
+                    sentiment_value = 0.5
+
+                    # Análisis simple de sentimiento basado en palabras clave
+                    title_lower = item.get("title", "").lower()
+                    if any(
+                        word in title_lower
+                        for word in ["up", "rise", "gain", "bull", "positive", "growth"]
+                    ):
+                        sentiment_value = 0.7  # Positivo
+                    elif any(
+                        word in title_lower
+                        for word in ["down", "fall", "drop", "bear", "negative", "loss"]
+                    ):
+                        sentiment_value = 0.3  # Negativo
+
+                    news.append(
+                        {
+                            "title": item.get("title", "Sin título"),
+                            "summary": item.get("body", ""),
+                            "url": item.get("url", "#"),
+                            "date": item.get("date", ""),
+                            "source": item.get("source", "DuckDuckGo"),
+                            "sentiment": sentiment_value,
+                        }
+                    )
+
+                # Guardar en caché
+                _data_cache.set(cache_key, news)
+                return news
+
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias de DuckDuckGo: {str(e)}")
 
     except Exception as e:
         logger.error(f"Error en fetch_news_data: {str(e)}")
@@ -2493,7 +2664,7 @@ def analyze_sentiment(symbol: str, news_data: List = None) -> Dict:
 
 
 def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
-    """Obtiene análisis de fuentes web sobre un símbolo mediante consultas a APIs externas"""
+    """Obtiene análisis de fuentes web sobre un símbolo mediante consultas a múltiples APIs con respaldo de Yahoo Finance"""
     # Verificar si hay datos en caché
     cache_key = f"web_insights_{symbol}"
     cached_data = _data_cache.get(cache_key)
@@ -2503,6 +2674,196 @@ def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
     web_results = []
     bullish_mentions = 0
     bearish_mentions = 0
+
+    # Palabras alcistas y bajistas para análisis de sentimiento
+    bullish_words = [
+        "alcista",
+        "alcanza",
+        "subida",
+        "crecimiento",
+        "positivo",
+        "optimista",
+        "aumenta",
+        "compra",
+        "oportunidad",
+        "superará",
+        "supera",
+        "mejor",
+        "ganancias",
+        "fuerte",
+        "rali",
+        "rally",
+        "bull",
+        "bullish",
+        "up",
+        "higher",
+        "gain",
+        "upgrade",
+        "surges",
+        "rises",
+        "climbing",
+        "jumped",
+        "outperform",
+    ]
+
+    bearish_words = [
+        "bajista",
+        "caída",
+        "desciende",
+        "negativo",
+        "pesimista",
+        "disminuye",
+        "venta",
+        "riesgo",
+        "peor",
+        "pérdidas",
+        "débil",
+        "bear",
+        "bearish",
+        "corrección",
+        "advertencia",
+        "precaución",
+        "preocupación",
+        "down",
+        "fall",
+        "drop",
+        "decline",
+        "plunge",
+        "downgrade",
+        "underperform",
+        "lower",
+        "loss",
+        "crash",
+        "risk",
+        "sell",
+        "warning",
+    ]
+
+    # Función para analizar sentimiento en texto
+    def analyze_text_sentiment(text):
+        if not text:
+            return 0, 0
+
+        text = text.lower()
+        bull_count = sum(1 for word in bullish_words if word in text)
+        bear_count = sum(1 for word in bearish_words if word in text)
+        return bull_count, bear_count
+
+    # Intentar obtener datos de Yahoo Finance primero
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        import re
+
+        # URLs para obtener análisis de Yahoo Finance
+        urls = [
+            f"https://finance.yahoo.com/quote/{symbol}/analysis",  # Página de análisis
+            f"https://finance.yahoo.com/quote/{symbol}",  # Página principal que contiene resumen
+        ]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+
+        for yahoo_url in urls:
+            try:
+                response = requests.get(yahoo_url, headers=headers, timeout=10)
+
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, "html.parser")
+
+                    # Extraer información relevante según la URL
+                    if "analysis" in yahoo_url:
+                        # Buscar secciones de análisis como recomendaciones de analistas
+                        analysis_sections = soup.select(
+                            'section[data-test="analyst-rating-section"]'
+                        )
+
+                        for section in analysis_sections:
+                            title_element = section.select_one("h2")
+                            title = (
+                                title_element.text.strip()
+                                if title_element
+                                else "Análisis de Yahoo Finance"
+                            )
+
+                            # Extraer contenido de análisis
+                            content_elements = section.select(
+                                "p, span.Fz\(m\)"
+                            )  # Ajustar selectores según la estructura
+                            content = " ".join(
+                                [
+                                    el.text.strip()
+                                    for el in content_elements
+                                    if el.text.strip()
+                                ]
+                            )
+
+                            if content:
+                                web_results.append(
+                                    {
+                                        "title": title,
+                                        "content": content,
+                                        "url": yahoo_url,
+                                        "source": "Yahoo Finance Analysis",
+                                    }
+                                )
+
+                                # Analizar sentimiento
+                                bull_count, bear_count = analyze_text_sentiment(content)
+                                if bull_count > bear_count:
+                                    bullish_mentions += 1
+                                elif bear_count > bull_count:
+                                    bearish_mentions += 1
+
+                    else:  # Página principal
+                        # Extraer información del resumen y recomendaciones
+                        summary_sections = soup.select(
+                            'div#quote-summary, div[data-test="summary-section"]'
+                        )
+
+                        for section in summary_sections:
+                            # Buscar tabla de resumen
+                            rows = section.select("tr")
+
+                            summary_content = []
+                            for row in rows:
+                                label = row.select_one("td:nth-child(1)")
+                                value = row.select_one("td:nth-child(2)")
+
+                                if label and value:
+                                    summary_content.append(
+                                        f"{label.text.strip()}: {value.text.strip()}"
+                                    )
+
+                            if summary_content:
+                                content_text = "\n".join(summary_content)
+                                web_results.append(
+                                    {
+                                        "title": f"Resumen de {symbol}",
+                                        "content": content_text,
+                                        "url": yahoo_url,
+                                        "source": "Yahoo Finance Summary",
+                                    }
+                                )
+
+                                # Analizar sentimiento
+                                bull_count, bear_count = analyze_text_sentiment(
+                                    content_text
+                                )
+                                if bull_count > bear_count:
+                                    bullish_mentions += 1
+                                elif bear_count > bull_count:
+                                    bearish_mentions += 1
+
+            except Exception as yahoo_error:
+                logger.warning(
+                    f"Error obteniendo datos de {yahoo_url}: {str(yahoo_error)}"
+                )
+                continue
+
+    except Exception as e:
+        logger.warning(f"Error general accediendo a Yahoo Finance: {str(e)}")
 
     # Intentar obtener claves API
     try:
@@ -2578,58 +2939,8 @@ def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
                             # Análisis de sentimiento simple basado en palabras clave
                             content = (
                                 hit.get("title", "") + " " + hit.get("snippet", "")
-                            ).lower()
-
-                            # Palabras alcistas
-                            bullish_words = [
-                                "alcista",
-                                "alcanza",
-                                "subida",
-                                "crecimiento",
-                                "positivo",
-                                "optimista",
-                                "aumenta",
-                                "compra",
-                                "oportunidad",
-                                "superará",
-                                "supera",
-                                "mejor",
-                                "ganancias",
-                                "fuerte",
-                                "rali",
-                                "rally",
-                                "bull",
-                                "bullish",
-                            ]
-
-                            # Palabras bajistas
-                            bearish_words = [
-                                "bajista",
-                                "caída",
-                                "desciende",
-                                "negativo",
-                                "pesimista",
-                                "disminuye",
-                                "venta",
-                                "riesgo",
-                                "peor",
-                                "pérdidas",
-                                "débil",
-                                "bear",
-                                "bearish",
-                                "corrección",
-                                "advertencia",
-                                "precaución",
-                                "preocupación",
-                            ]
-
-                            # Contar menciones
-                            bull_count = sum(
-                                1 for word in bullish_words if word in content
                             )
-                            bear_count = sum(
-                                1 for word in bearish_words if word in content
-                            )
+                            bull_count, bear_count = analyze_text_sentiment(content)
 
                             # Actualizar contadores
                             if bull_count > bear_count:
@@ -2681,58 +2992,8 @@ def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
                                 result.get("title", "")
                                 + " "
                                 + result.get("content", "")
-                            ).lower()
-
-                            # Palabras alcistas
-                            bullish_words = [
-                                "alcista",
-                                "alcanza",
-                                "subida",
-                                "crecimiento",
-                                "positivo",
-                                "optimista",
-                                "aumenta",
-                                "compra",
-                                "oportunidad",
-                                "superará",
-                                "supera",
-                                "mejor",
-                                "ganancias",
-                                "fuerte",
-                                "rali",
-                                "rally",
-                                "bull",
-                                "bullish",
-                            ]
-
-                            # Palabras bajistas
-                            bearish_words = [
-                                "bajista",
-                                "caída",
-                                "desciende",
-                                "negativo",
-                                "pesimista",
-                                "disminuye",
-                                "venta",
-                                "riesgo",
-                                "peor",
-                                "pérdidas",
-                                "débil",
-                                "bear",
-                                "bearish",
-                                "corrección",
-                                "advertencia",
-                                "precaución",
-                                "preocupación",
-                            ]
-
-                            # Contar menciones
-                            bull_count = sum(
-                                1 for word in bullish_words if word in content
                             )
-                            bear_count = sum(
-                                1 for word in bearish_words if word in content
-                            )
+                            bull_count, bear_count = analyze_text_sentiment(content)
 
                             # Actualizar contadores
                             if bull_count > bear_count:
@@ -2782,57 +3043,10 @@ def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
                                 result.get("title", "")
                                 + " "
                                 + result.get("content", "")
-                            ).lower()
-
-                            # Palabras alcistas y bajistas (mismo análisis de sentimiento)
-                            bullish_words = [
-                                "alcista",
-                                "alcanza",
-                                "subida",
-                                "crecimiento",
-                                "positivo",
-                                "optimista",
-                                "aumenta",
-                                "compra",
-                                "oportunidad",
-                                "superará",
-                                "supera",
-                                "mejor",
-                                "ganancias",
-                                "fuerte",
-                                "rali",
-                                "rally",
-                                "bull",
-                                "bullish",
-                            ]
-
-                            bearish_words = [
-                                "bajista",
-                                "caída",
-                                "desciende",
-                                "negativo",
-                                "pesimista",
-                                "disminuye",
-                                "venta",
-                                "riesgo",
-                                "peor",
-                                "pérdidas",
-                                "débil",
-                                "bear",
-                                "bearish",
-                                "corrección",
-                                "advertencia",
-                                "precaución",
-                                "preocupación",
-                            ]
-
-                            bull_count = sum(
-                                1 for word in bullish_words if word in content
                             )
-                            bear_count = sum(
-                                1 for word in bearish_words if word in content
-                            )
+                            bull_count, bear_count = analyze_text_sentiment(content)
 
+                            # Actualizar contadores
                             if bull_count > bear_count:
                                 bullish_mentions += 1
                             elif bear_count > bull_count:
@@ -2840,8 +3054,101 @@ def get_web_insights(symbol: str, api_keys: Dict = None) -> Dict:
             except Exception as e:
                 logger.warning(f"Error obteniendo datos de Tavily API: {str(e)}")
 
-        # Si no se obtuvieron resultados de ninguna API, proporcionar un resultado simulado
+        # Intentar DuckDuckGo como último respaldo antes de usar datos simulados
+        if not web_results or len(web_results) < 3:
+            try:
+                # Intentar importar duckduckgo_search
+                try:
+                    from duckduckgo_search import DDGS
+                except ImportError:
+                    logger.warning(
+                        "duckduckgo_search no está instalado. Intenta pip install duckduckgo-search"
+                    )
+                    raise ImportError("duckduckgo_search no está instalado")
+
+                ddgs = DDGS()
+
+                # Buscar en la web análisis financieros del símbolo
+                keywords = f"{symbol} stock market analysis forecast outlook"
+                # Primero intentar con búsqueda web normal
+                web_search_results = list(
+                    ddgs.text(keywords, region="wt-wt", safesearch="off", max_results=5)
+                )
+
+                if web_search_results:
+                    for result in web_search_results:
+                        # Extraer información
+                        title = result.get("title", "Sin título")
+                        content = result.get(
+                            "body", ""
+                        )  # DuckDuckGo usa 'body' para el contenido
+                        url = result.get(
+                            "href", "#"
+                        )  # DuckDuckGo usa 'href' para la URL
+                        source = result.get("source", "DuckDuckGo")
+
+                        web_results.append(
+                            {
+                                "title": title,
+                                "content": content,
+                                "url": url,
+                                "source": source,
+                            }
+                        )
+
+                        # Análisis de sentimiento
+                        bull_count, bear_count = analyze_text_sentiment(
+                            title + " " + content
+                        )
+
+                        # Actualizar contadores
+                        if bull_count > bear_count:
+                            bullish_mentions += 1
+                        elif bear_count > bull_count:
+                            bearish_mentions += 1
+
+                # Si aún necesitamos más resultados, probar búsqueda de noticias
+                if len(web_results) < 3:
+                    news_keywords = f"{symbol} stock price analysis"
+                    news_results = list(
+                        ddgs.news(news_keywords, region="wt-wt", max_results=3)
+                    )
+
+                    if news_results:
+                        for result in news_results:
+                            title = result.get("title", "Sin título")
+                            content = result.get("body", "")
+                            url = result.get("url", "#")
+                            source = result.get("source", "DuckDuckGo News")
+
+                            web_results.append(
+                                {
+                                    "title": title,
+                                    "content": content,
+                                    "url": url,
+                                    "source": source,
+                                }
+                            )
+
+                            # Análisis de sentimiento
+                            bull_count, bear_count = analyze_text_sentiment(
+                                title + " " + content
+                            )
+
+                            # Actualizar contadores
+                            if bull_count > bear_count:
+                                bullish_mentions += 1
+                            elif bear_count > bull_count:
+                                bearish_mentions += 1
+
+            except Exception as e:
+                logger.warning(f"Error obteniendo datos de DuckDuckGo: {str(e)}")
+
+        # Si no se obtuvieron resultados de ninguna fuente, proporcionar un resultado simulado
         if not web_results:
+            logger.warning(
+                f"Todas las fuentes fallaron para {symbol}, usando datos simulados"
+            )
             web_results.append(
                 {
                     "title": f"Perspectivas del mercado para {symbol}",
