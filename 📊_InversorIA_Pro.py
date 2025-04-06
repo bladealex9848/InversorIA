@@ -1323,7 +1323,7 @@ def create_technical_chart(data, symbol):
             "yanchor": "top",
             "font": {
                 "size": 24,  # Tamaño más grande para mejor visibilidad
-                "color": "rgba(30, 136, 229, 0.7)",  # Color azul con 70% de opacidad
+                "color": "rgba(30, 136, 229, 0.9)",  # Color azul con 70% de opacidad
                 "family": "Arial, sans-serif",
             },
         },
@@ -1341,7 +1341,7 @@ def create_technical_chart(data, symbol):
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
         margin=dict(
-            l=50, r=50, t=90, b=50
+            l=50, r=50, t=120, b=50
         ),  # Aumentar margen superior para dar más espacio
     )
 
