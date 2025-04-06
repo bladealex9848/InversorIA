@@ -249,33 +249,98 @@ _data_cache = MarketDataCache()
 
 
 def get_api_keys_from_secrets():
-    """Obtener claves API desde el archivo secrets.toml de Streamlit"""
-    api_keys = {}
-
+    """Obtiene claves API de secrets.toml con manejo mejorado"""
     try:
-        # Intentar obtener las claves de API de Streamlit secrets
-        if "api_keys" in st.secrets:
-            if "YOU_API_KEY" in st.secrets["api_keys"]:
-                api_keys["you"] = st.secrets["api_keys"]["YOU_API_KEY"]
+        # Importar streamlit
+        import streamlit as st
 
-            if "TAVILY_API_KEY" in st.secrets["api_keys"]:
-                api_keys["tavily"] = st.secrets["api_keys"]["TAVILY_API_KEY"]
+        # Inicializar diccionario de claves
+        api_keys = {}
 
-            # APIs adicionales que podrían ser útiles
-            if "ALPHA_VANTAGE_API_KEY" in st.secrets["api_keys"]:
-                api_keys["alpha_vantage"] = st.secrets["api_keys"][
-                    "ALPHA_VANTAGE_API_KEY"
-                ]
+        # Verificar si existe la sección api_keys en secrets
+        if hasattr(st, "secrets"):
+            # Comprobar claves en el nivel api_keys
+            if "api_keys" in st.secrets:
+                # YOU API
+                if "you_api_key" in st.secrets.api_keys:
+                    api_keys["you"] = st.secrets.api_keys.you_api_key
 
-            if "FINNHUB_API_KEY" in st.secrets["api_keys"]:
-                api_keys["finnhub"] = st.secrets["api_keys"]["FINNHUB_API_KEY"]
+                # Tavily API
+                if "tavily_api_key" in st.secrets.api_keys:
+                    api_keys["tavily"] = st.secrets.api_keys.tavily_api_key
 
-            if "MARKETSTACK_API_KEY" in st.secrets["api_keys"]:
-                api_keys["marketstack"] = st.secrets["api_keys"]["MARKETSTACK_API_KEY"]
+                # Alpha Vantage API
+                if "alpha_vantage_api_key" in st.secrets.api_keys:
+                    api_keys["alpha_vantage"] = (
+                        st.secrets.api_keys.alpha_vantage_api_key
+                    )
+
+                # Finnhub API
+                if "finnhub_api_key" in st.secrets.api_keys:
+                    api_keys["finnhub"] = st.secrets.api_keys.finnhub_api_key
+
+                # MarketStack API
+                if "marketstack_api_key" in st.secrets.api_keys:
+                    api_keys["marketstack"] = st.secrets.api_keys.marketstack_api_key
+
+            # Comprobar claves en el nivel principal (para retrocompatibilidad)
+            # YOU API - alternate names
+            for key in ["YOU_API_KEY", "you_api_key", "YOU_KEY"]:
+                if key in st.secrets:
+                    api_keys["you"] = st.secrets[key]
+                    break
+
+            # Tavily API - alternate names
+            for key in ["TAVILY_API_KEY", "tavily_api_key", "TAVILY_KEY"]:
+                if key in st.secrets:
+                    api_keys["tavily"] = st.secrets[key]
+                    break
+
+            # Alpha Vantage API - alternate names
+            for key in [
+                "ALPHA_VANTAGE_API_KEY",
+                "alpha_vantage_api_key",
+                "ALPHAVANTAGE_KEY",
+            ]:
+                if key in st.secrets:
+                    api_keys["alpha_vantage"] = st.secrets[key]
+                    break
+
+            # Finnhub API - alternate names
+            for key in ["FINNHUB_API_KEY", "finnhub_api_key", "FINNHUB_KEY"]:
+                if key in st.secrets:
+                    api_keys["finnhub"] = st.secrets[key]
+                    break
+
+            # MarketStack API - alternate names
+            for key in [
+                "MARKETSTACK_API_KEY",
+                "marketstack_api_key",
+                "MARKETSTACK_KEY",
+            ]:
+                if key in st.secrets:
+                    api_keys["marketstack"] = st.secrets[key]
+                    break
+
+        # Comprobar variables de entorno como última opción
+        import os
+
+        for env_name, key_name in [
+            ("YOU_API_KEY", "you"),
+            ("TAVILY_API_KEY", "tavily"),
+            ("ALPHA_VANTAGE_API_KEY", "alpha_vantage"),
+            ("FINNHUB_API_KEY", "finnhub"),
+            ("MARKETSTACK_API_KEY", "marketstack"),
+        ]:
+            if env_name in os.environ and key_name not in api_keys:
+                api_keys[key_name] = os.environ[env_name]
 
         return api_keys
+
     except Exception as e:
-        logger.error(f"Error cargando claves API desde secrets: {str(e)}")
+        import logging
+
+        logging.error(f"Error obteniendo API keys: {str(e)}")
         return {}
 
 
@@ -957,7 +1022,7 @@ def validate_and_fix_data(data: pd.DataFrame) -> pd.DataFrame:
     if "Volume" in data.columns:
         data["Volume"] = data["Volume"].abs()
 
-    # Rellenar valores NaN - Corregido para evitar método deprecado
+    # Rellenar valores NaN - Utilizando métodos recomendados en lugar de fillna(method=...)
     data = data.ffill().bfill().fillna(0)
 
     return data
