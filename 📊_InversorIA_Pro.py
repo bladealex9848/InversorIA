@@ -5314,42 +5314,53 @@ def main():
                     elif option_signal == "PUT":
                         signal_color = "#F44336"  # rojo
 
-                    # Crear sección de señal general fuerte si corresponde
-                    strong_signal_html = ""
+                    # Definir HTML para la señal estándar primero
+                    option_signal_html = f"""
+                    <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
+                    <p><strong>VIX:</strong> {vix_level} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
+                    """
+
+                    # Crear HTML para la señal general fuerte si corresponde
+                    strong_signal_block = ""
                     if overall_signal in ["compra_fuerte", "venta_fuerte"]:
                         strong_signal_type = (
-                            "COMPRA_FUERTE"
+                            "COMPRA FUERTE"
                             if overall_signal == "compra_fuerte"
-                            else "VENTA_FUERTE"
+                            else "VENTA FUERTE"
                         )
                         strong_signal_color = (
                             "#4CAF50"
                             if overall_signal == "compra_fuerte"
                             else "#F44336"
                         )
-                        strong_signal_html = f"""
-                        <div style="margin-top: 10px; margin-bottom: 10px; padding: 8px; background-color: {strong_signal_color}22; border-radius: 4px; border-left: 3px solid {strong_signal_color};">
+                        strong_signal_bg = (
+                            "#E8F5E9"
+                            if overall_signal == "compra_fuerte"
+                            else "#FFEBEE"
+                        )
+
+                        strong_signal_block = f"""
+                        <div style="margin-top: 5px; margin-bottom: 10px; padding: 8px; background-color: {strong_signal_bg}; border-radius: 4px; border-left: 3px solid {strong_signal_color};">
                             <p style="margin: 0; font-weight: 600; color: {strong_signal_color};">
-                                <span style="font-size: 16px;">⚠️ Señal General: {strong_signal_type}</span>
+                                ⚠️ Señal General: {strong_signal_type}
                             </p>
                         </div>
                         """
 
-                    # Mostrar tarjeta con contexto actual
-                    st.markdown(
-                        f"""
-                        <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
-                            <h3 style="margin-top:0; display: flex; justify-content: space-between;">
-                                <span>{company_name}</span> 
-                                <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
-                            </h3>
-                            {strong_signal_html}
-                            <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
-                            <p><strong>VIX:</strong> {vix_level} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    # Construir el HTML completo para la tarjeta
+                    card_html = f"""
+                    <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
+                        <h3 style="margin-top:0; display: flex; justify-content: space-between;">
+                            <span>{company_name}</span> 
+                            <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
+                        </h3>
+                        {strong_signal_block}
+                        {option_signal_html}
+                    </div>
+                    """
+
+                    # Mostrar la tarjeta usando markdown
+                    st.markdown(card_html, unsafe_allow_html=True)
                 else:
                     # Mostrar tarjeta con información mínima cuando no hay contexto
                     st.markdown(
