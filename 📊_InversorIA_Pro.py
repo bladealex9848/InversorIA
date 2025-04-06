@@ -2771,6 +2771,7 @@ def fallback_analyze_symbol(symbol, question=None):
                 ):
                     response += f"### Análisis Multi-Timeframe para {symbol}\n\n"
 
+                    # Donde muestras la alineación de timeframes
                     if "multi_timeframe" in context:
                         multi_tf = context["multi_timeframe"]
                         if "consolidated" in multi_tf:
@@ -2782,22 +2783,23 @@ def fallback_analyze_symbol(symbol, question=None):
                             response += f"**Alineación de timeframes: {cons.get('timeframe_alignment', 'N/A')}**\n"
                             response += f"**Recomendación: {cons.get('options_recommendation', 'N/A')}**\n\n"
 
-                        response += "**Análisis por timeframe:**\n\n"
+                            # Añadir esta sección para mostrar todos los timeframes
+                            response += "**Análisis por timeframe:**\n\n"
 
-                        for tf, analysis in multi_tf.items():
-                            if (
-                                tf != "consolidated"
-                                and isinstance(analysis, dict)
-                                and "overall" in analysis
-                            ):
-                                response += (
-                                    f"**{tf}:** {analysis['overall']['signal']} "
-                                )
-                                response += f"({analysis['overall']['confidence']})"
-                                if "options" in analysis:
-                                    response += f" → Opciones: {analysis['options']['direction']}\n"
-                                else:
-                                    response += "\n"
+                            for tf, analysis in multi_tf.items():
+                                if (
+                                    tf != "consolidated"
+                                    and isinstance(analysis, dict)
+                                    and "overall" in analysis
+                                ):
+                                    response += (
+                                        f"**{tf}:** {analysis['overall']['signal']} "
+                                    )
+                                    response += f"({analysis['overall']['confidence']})"
+                                    if "options" in analysis:
+                                        response += f" → Opciones: {analysis['options']['direction']}\n"
+                                    else:
+                                        response += "\n"
                     else:
                         response += "Información multi-timeframe no disponible para este activo."
 
@@ -4073,6 +4075,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         weekly = multi_timeframe_data.get("1wk")
         monthly = multi_timeframe_data.get("1mo")
 
+        # Modificar la parte de la tabla de alineación de timeframes
         try:
             if (
                 daily is not None
@@ -4098,7 +4101,6 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     )
                     else "bajista"
                 )
-
                 weekly_trend = (
                     "alcista"
                     if (
@@ -4109,7 +4111,6 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     )
                     else "bajista"
                 )
-
                 monthly_trend = (
                     "alcista"
                     if (
@@ -4137,13 +4138,29 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     alignment_color = "#9E9E9E"
 
                 # Obtener valores de RSI y BB_Width con manejo de nulos
-                daily_rsi = daily_last.get("RSI", 50)
+                daily_rsi = daily_last.get("RSI", None)
                 daily_rsi_condition = "Neutral"
                 if daily_rsi is not None:
                     if daily_rsi > 70:
                         daily_rsi_condition = "Sobrecompra"
                     elif daily_rsi < 30:
                         daily_rsi_condition = "Sobreventa"
+
+                weekly_rsi = weekly_last.get("RSI", None)
+                weekly_rsi_condition = "Neutral"
+                if weekly_rsi is not None:
+                    if weekly_rsi > 70:
+                        weekly_rsi_condition = "Sobrecompra"
+                    elif weekly_rsi < 30:
+                        weekly_rsi_condition = "Sobreventa"
+
+                monthly_rsi = monthly_last.get("RSI", None)
+                monthly_rsi_condition = "Neutral"
+                if monthly_rsi is not None:
+                    if monthly_rsi > 70:
+                        monthly_rsi_condition = "Sobrecompra"
+                    elif monthly_rsi < 30:
+                        monthly_rsi_condition = "Sobreventa"
 
                 monthly_bb_width = monthly_last.get("BB_Width", 0.04)
                 volatility_condition = "Normal"
@@ -4153,7 +4170,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     elif monthly_bb_width < 0.03:
                         volatility_condition = "Baja"
 
-                # Mostrar matriz de alineación
+                # Mostrar matriz de alineación con TODOS los timeframes
                 st.markdown(
                     f"""
                     <div style="background-color: {alignment_color}22; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;">
@@ -4169,6 +4186,18 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                                 <td><strong>Diario</strong></td>
                                 <td style="color: {'green' if daily_trend == 'alcista' else 'red'};">{daily_trend.upper()}</td>
                                 <td>{daily_rsi_condition}</td>                                
+                                <td>{volatility_condition}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Semanal</strong></td>
+                                <td style="color: {'green' if weekly_trend == 'alcista' else 'red'};">{weekly_trend.upper()}</td>
+                                <td>{weekly_rsi_condition}</td>                                
+                                <td>{volatility_condition}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mensual</strong></td>
+                                <td style="color: {'green' if monthly_trend == 'alcista' else 'red'};">{monthly_trend.upper()}</td>
+                                <td>{monthly_rsi_condition}</td>                                
                                 <td>{volatility_condition}</td>
                             </tr>
                         </table>
