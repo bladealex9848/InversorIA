@@ -1315,18 +1315,7 @@ def create_technical_chart(data, symbol):
     fig.update_layout(
         height=800,
         xaxis_rangeslider_visible=False,
-        title={
-            #'text': f"Análisis Técnico de {symbol}",  # Título principal claro
-            'y': 0.97,                               # Posición elevada 
-            'x': 0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {
-                'size': 20,                          # Tamaño más grande
-                'color': '#1E88E5',                  # Color destacado
-                'family': 'Arial, sans-serif'
-            }
-        },
+        title=None,
         template="plotly_white",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -3457,7 +3446,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         display_technical_summary(symbol, data)
 
         # Mostrar gráfico técnico
-        st.markdown("### 📈 Gráfico Técnico de {symbol}")
+        st.markdown(f"### 📈 Gráfico Técnico de {symbol}")
         fig = create_technical_chart(data, symbol)
         if fig:
             st.plotly_chart(
