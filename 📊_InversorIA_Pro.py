@@ -125,6 +125,7 @@ class NumpyEncoder(json.JSONEncoder):
 
 # Información de símbolos y nombres completos
 COMPANY_INFO = {
+    # Tecnología
     "AAPL": {
         "name": "Apple Inc.",
         "sector": "Tecnología",
@@ -175,6 +176,7 @@ COMPANY_INFO = {
         "sector": "Tecnología",
         "description": "Software de gestión de relaciones con clientes",
     },
+    # Finanzas
     "JPM": {
         "name": "JPMorgan Chase & Co.",
         "sector": "Finanzas",
@@ -185,6 +187,47 @@ COMPANY_INFO = {
         "sector": "Finanzas",
         "description": "Institución bancaria multinacional",
     },
+    "WFC": {
+        "name": "Wells Fargo & Co.",
+        "sector": "Finanzas",
+        "description": "Servicios bancarios y financieros",
+    },
+    "C": {
+        "name": "Citigroup Inc.",
+        "sector": "Finanzas",
+        "description": "Banca de inversión y servicios financieros",
+    },
+    "GS": {
+        "name": "Goldman Sachs Group Inc.",
+        "sector": "Finanzas",
+        "description": "Banca de inversión y gestión de activos",
+    },
+    "MS": {
+        "name": "Morgan Stanley",
+        "sector": "Finanzas",
+        "description": "Servicios financieros y banca de inversión",
+    },
+    "V": {
+        "name": "Visa Inc.",
+        "sector": "Finanzas",
+        "description": "Servicios de pagos electrónicos",
+    },
+    "MA": {
+        "name": "Mastercard Inc.",
+        "sector": "Finanzas",
+        "description": "Tecnología de pagos globales",
+    },
+    "AXP": {
+        "name": "American Express Co.",
+        "sector": "Finanzas",
+        "description": "Servicios financieros y tarjetas de crédito",
+    },
+    "BLK": {
+        "name": "BlackRock Inc.",
+        "sector": "Finanzas",
+        "description": "Gestión de inversiones y servicios financieros",
+    },
+    # ETFs e Índices
     "SPY": {
         "name": "SPDR S&P 500 ETF Trust",
         "sector": "ETF",
@@ -204,6 +247,430 @@ COMPANY_INFO = {
         "name": "iShares Russell 2000 ETF",
         "sector": "ETF",
         "description": "ETF que sigue el índice Russell 2000 de small caps",
+    },
+    "EFA": {
+        "name": "iShares MSCI EAFE ETF",
+        "sector": "ETF",
+        "description": "ETF que sigue acciones internacionales desarrolladas",
+    },
+    "VWO": {
+        "name": "Vanguard FTSE Emerging Markets ETF",
+        "sector": "ETF",
+        "description": "ETF que sigue mercados emergentes",
+    },
+    "XLE": {
+        "name": "Energy Select Sector SPDR Fund",
+        "sector": "ETF",
+        "description": "ETF del sector energético",
+    },
+    "XLF": {
+        "name": "Financial Select Sector SPDR Fund",
+        "sector": "ETF",
+        "description": "ETF del sector financiero",
+    },
+    "XLV": {
+        "name": "Health Care Select Sector SPDR Fund",
+        "sector": "ETF",
+        "description": "ETF del sector sanitario",
+    },
+    # Energía
+    "XOM": {
+        "name": "Exxon Mobil Corp.",
+        "sector": "Energía",
+        "description": "Compañía integrada de petróleo y gas",
+    },
+    "CVX": {
+        "name": "Chevron Corporation",
+        "sector": "Energía",
+        "description": "Producción y refinación de petróleo",
+    },
+    "SHEL": {
+        "name": "Shell PLC",
+        "sector": "Energía",
+        "description": "Multinacional energética integrada",
+    },
+    "TTE": {
+        "name": "TotalEnergies SE",
+        "sector": "Energía",
+        "description": "Compañía energética multinacional",
+    },
+    "COP": {
+        "name": "ConocoPhillips",
+        "sector": "Energía",
+        "description": "Exploración y producción de petróleo y gas",
+    },
+    "EOG": {
+        "name": "EOG Resources Inc.",
+        "sector": "Energía",
+        "description": "Exploración y producción de petróleo",
+    },
+    "PXD": {
+        "name": "Pioneer Natural Resources Co.",
+        "sector": "Energía",
+        "description": "Compañía de exploración y producción de petróleo",
+    },
+    "DVN": {
+        "name": "Devon Energy Corp.",
+        "sector": "Energía",
+        "description": "Compañía independiente de petróleo y gas",
+    },
+    "MPC": {
+        "name": "Marathon Petroleum Corp.",
+        "sector": "Energía",
+        "description": "Refinación y comercialización de petróleo",
+    },
+    "PSX": {
+        "name": "Phillips 66",
+        "sector": "Energía",
+        "description": "Refinación de petróleo y productos químicos",
+    },
+    # Salud
+    "JNJ": {
+        "name": "Johnson & Johnson",
+        "sector": "Salud",
+        "description": "Productos farmacéuticos y dispositivos médicos",
+    },
+    "UNH": {
+        "name": "UnitedHealth Group Inc.",
+        "sector": "Salud",
+        "description": "Seguros médicos y servicios de salud",
+    },
+    "PFE": {
+        "name": "Pfizer Inc.",
+        "sector": "Salud",
+        "description": "Farmacéutica multinacional",
+    },
+    "MRK": {
+        "name": "Merck & Co Inc.",
+        "sector": "Salud",
+        "description": "Compañía farmacéutica global",
+    },
+    "ABBV": {
+        "name": "AbbVie Inc.",
+        "sector": "Salud",
+        "description": "Biotecnología y productos farmacéuticos",
+    },
+    "LLY": {
+        "name": "Eli Lilly and Co.",
+        "sector": "Salud",
+        "description": "Farmacéutica especializada en medicamentos innovadores",
+    },
+    "AMGN": {
+        "name": "Amgen Inc.",
+        "sector": "Salud",
+        "description": "Biotecnología y terapias médicas",
+    },
+    "BMY": {
+        "name": "Bristol-Myers Squibb Co.",
+        "sector": "Salud",
+        "description": "Compañía biofarmacéutica global",
+    },
+    "GILD": {
+        "name": "Gilead Sciences Inc.",
+        "sector": "Salud",
+        "description": "Biotecnología especializada en antivirales",
+    },
+    "TMO": {
+        "name": "Thermo Fisher Scientific Inc.",
+        "sector": "Salud",
+        "description": "Equipamiento científico y servicios de laboratorio",
+    },
+    # Consumo Discrecional
+    "MCD": {
+        "name": "McDonald's Corp.",
+        "sector": "Consumo Discrecional",
+        "description": "Cadena mundial de restaurantes de comida rápida",
+    },
+    "SBUX": {
+        "name": "Starbucks Corp.",
+        "sector": "Consumo Discrecional",
+        "description": "Cadena internacional de cafeterías",
+    },
+    "NKE": {
+        "name": "Nike Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Fabricante de calzado y ropa deportiva",
+    },
+    "TGT": {
+        "name": "Target Corporation",
+        "sector": "Consumo Discrecional",
+        "description": "Cadena minorista de grandes almacenes",
+    },
+    "HD": {
+        "name": "Home Depot Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Minorista de mejoras para el hogar",
+    },
+    "LOW": {
+        "name": "Lowe's Companies Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Minorista de artículos para el hogar",
+    },
+    "TJX": {
+        "name": "TJX Companies Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Minorista de ropa y artículos para el hogar",
+    },
+    "ROST": {
+        "name": "Ross Stores Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Minorista de descuento de ropa y hogar",
+    },
+    "CMG": {
+        "name": "Chipotle Mexican Grill Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Cadena de restaurantes de comida rápida mexicana",
+    },
+    "DHI": {
+        "name": "D.R. Horton Inc.",
+        "sector": "Consumo Discrecional",
+        "description": "Constructora residencial",
+    },
+    # Cripto ETFs
+    "BITO": {
+        "name": "ProShares Bitcoin Strategy ETF",
+        "sector": "Cripto ETF",
+        "description": "ETF vinculado a futuros de Bitcoin",
+    },
+    "GBTC": {
+        "name": "Grayscale Bitcoin Trust",
+        "sector": "Cripto ETF",
+        "description": "Fideicomiso de inversión en Bitcoin",
+    },
+    "ETHE": {
+        "name": "Grayscale Ethereum Trust",
+        "sector": "Cripto ETF",
+        "description": "Fideicomiso de inversión en Ethereum",
+    },
+    "ARKW": {
+        "name": "ARK Next Generation Internet ETF",
+        "sector": "Cripto ETF",
+        "description": "ETF con exposición a blockchain y cripto",
+    },
+    "BLOK": {
+        "name": "Amplify Transformational Data Sharing ETF",
+        "sector": "Cripto ETF",
+        "description": "ETF enfocado en tecnologías blockchain",
+    },
+    # Materias Primas
+    "GLD": {
+        "name": "SPDR Gold Shares",
+        "sector": "Materias Primas",
+        "description": "ETF respaldado por oro físico",
+    },
+    "SLV": {
+        "name": "iShares Silver Trust",
+        "sector": "Materias Primas",
+        "description": "ETF respaldado por plata física",
+    },
+    "USO": {
+        "name": "United States Oil Fund",
+        "sector": "Materias Primas",
+        "description": "ETF vinculado al precio del petróleo",
+    },
+    "UNG": {
+        "name": "United States Natural Gas Fund",
+        "sector": "Materias Primas",
+        "description": "ETF vinculado al precio del gas natural",
+    },
+    "CORN": {
+        "name": "Teucrium Corn Fund",
+        "sector": "Materias Primas",
+        "description": "ETF vinculado a futuros de maíz",
+    },
+    "SOYB": {
+        "name": "Teucrium Soybean Fund",
+        "sector": "Materias Primas",
+        "description": "ETF vinculado a futuros de soja",
+    },
+    "WEAT": {
+        "name": "Teucrium Wheat Fund",
+        "sector": "Materias Primas",
+        "description": "ETF vinculado a futuros de trigo",
+    },
+    # Bonos
+    "AGG": {
+        "name": "iShares Core U.S. Aggregate Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos de grado de inversión",
+    },
+    "BND": {
+        "name": "Vanguard Total Bond Market ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos de amplio mercado",
+    },
+    "IEF": {
+        "name": "iShares 7-10 Year Treasury Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos del Tesoro a 7-10 años",
+    },
+    "TLT": {
+        "name": "iShares 20+ Year Treasury Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos del Tesoro a largo plazo",
+    },
+    "LQD": {
+        "name": "iShares iBoxx $ Investment Grade Corporate Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos corporativos grado inversión",
+    },
+    "HYG": {
+        "name": "iShares iBoxx $ High Yield Corporate Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos de alto rendimiento",
+    },
+    "JNK": {
+        "name": "SPDR Bloomberg High Yield Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos basura",
+    },
+    "TIP": {
+        "name": "iShares TIPS Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos protegidos contra inflación",
+    },
+    "MUB": {
+        "name": "iShares National Muni Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos municipales",
+    },
+    "SHY": {
+        "name": "iShares 1-3 Year Treasury Bond ETF",
+        "sector": "Bonos",
+        "description": "ETF de bonos del Tesoro a corto plazo",
+    },
+    # Inmobiliario
+    "VNQ": {
+        "name": "Vanguard Real Estate ETF",
+        "sector": "Inmobiliario",
+        "description": "ETF del sector inmobiliario",
+    },
+    "XLRE": {
+        "name": "Real Estate Select Sector SPDR Fund",
+        "sector": "Inmobiliario",
+        "description": "ETF de bienes raíces",
+    },
+    "REIT": {
+        "name": "iShares Global REIT ETF",
+        "sector": "Inmobiliario",
+        "description": "ETF global de REITs",
+    },
+    "HST": {
+        "name": "Host Hotels & Resorts Inc.",
+        "sector": "Inmobiliario",
+        "description": "REIT de hoteles de lujo",
+    },
+    "EQR": {
+        "name": "Equity Residential",
+        "sector": "Inmobiliario",
+        "description": "REIT de apartamentos residenciales",
+    },
+    "AVB": {
+        "name": "AvalonBay Communities Inc.",
+        "sector": "Inmobiliario",
+        "description": "REIT de comunidades residenciales",
+    },
+    "PLD": {
+        "name": "Prologis Inc.",
+        "sector": "Inmobiliario",
+        "description": "REIT de almacenes logísticos",
+    },
+    "SPG": {
+        "name": "Simon Property Group Inc.",
+        "sector": "Inmobiliario",
+        "description": "REIT de centros comerciales",
+    },
+    "AMT": {
+        "name": "American Tower Corporation",
+        "sector": "Inmobiliario",
+        "description": "REIT de torres de comunicaciones",
+    },
+    # Volatilidad
+    "VXX": {
+        "name": "iPath Series B S&P 500 VIX Short-Term Futures ETN",
+        "sector": "Volatilidad",
+        "description": "Vinculado a futuros de VIX a corto plazo",
+    },
+    "UVXY": {
+        "name": "ProShares Ultra VIX Short-Term Futures ETF",
+        "sector": "Volatilidad",
+        "description": "ETF apalancado vinculado al VIX",
+    },
+    "SVXY": {
+        "name": "ProShares Short VIX Short-Term Futures ETF",
+        "sector": "Volatilidad",
+        "description": "ETF inverso vinculado al VIX",
+    },
+    "VIXY": {
+        "name": "ProShares VIX Short-Term Futures ETF",
+        "sector": "Volatilidad",
+        "description": "Exposición directa a futuros del VIX",
+    },
+    # Forex (Principales pares por volumen)
+    "EURUSD": {
+        "name": "Euro/Dólar Estadounidense",
+        "sector": "Forex",
+        "description": "Par más negociado del mundo",
+    },
+    "USDJPY": {
+        "name": "Dólar Estadounidense/Yen Japonés",
+        "sector": "Forex",
+        "description": "Par clave de Asia con alta liquidez",
+    },
+    "GBPUSD": {
+        "name": "Libra Esterlina/Dólar Estadounidense",
+        "sector": "Forex",
+        "description": "Volátil par influenciado por política del Reino Unido",
+    },
+    "USDCHF": {
+        "name": "Dólar Estadounidense/Franco Suizo",
+        "sector": "Forex",
+        "description": "Par considerado 'refugio seguro'",
+    },
+    "AUDUSD": {
+        "name": "Dólar Australiano/Dólar Estadounidense",
+        "sector": "Forex",
+        "description": "Vinculado a materias primas y China",
+    },
+    "USDCAD": {
+        "name": "Dólar Estadounidense/Dólar Canadiense",
+        "sector": "Forex",
+        "description": "Par sensible al precio del petróleo",
+    },
+    "NZDUSD": {
+        "name": "Dólar Neozelandés/Dólar Estadounidense",
+        "sector": "Forex",
+        "description": "Conocido como 'kiwi', volátil en sesiones asiáticas",
+    },
+    "EURGBP": {
+        "name": "Euro/Libra Esterlina",
+        "sector": "Forex",
+        "description": "Par clave europeo con alta liquidez",
+    },
+    "EURJPY": {
+        "name": "Euro/Yen Japonés",
+        "sector": "Forex",
+        "description": "Cruce importante entre economías principales",
+    },
+    "GBPJPY": {
+        "name": "Libra Esterlina/Yen Japonés",
+        "sector": "Forex",
+        "description": "Par volátil popular entre traders intradía",
+    },
+    "USDCNH": {
+        "name": "Dólar Estadounidense/Yuan Chino",
+        "sector": "Forex",
+        "description": "Par clave para exposición a China",
+    },
+    "USDINR": {
+        "name": "Dólar Estadounidense/Rupia India",
+        "sector": "Forex",
+        "description": "Par emergente con creciente importancia",
+    },
+    "USDTRY": {
+        "name": "Dólar Estadounidense/Lira Turca",
+        "sector": "Forex",
+        "description": "Par emergente de alta volatilidad",
     },
 }
 
@@ -253,6 +720,21 @@ SYMBOLS = {
         "AMT",
     ],
     "Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
+    "Forex": [
+        "EURUSD",
+        "USDJPY",
+        "GBPUSD",
+        "USDCHF",
+        "AUDUSD",
+        "USDCAD",
+        "NZDUSD",
+        "EURGBP",
+        "EURJPY",
+        "GBPJPY",
+        "USDCNH",
+        "USDINR",
+        "USDTRY",
+    ],
 }
 
 # Estilos personalizados
