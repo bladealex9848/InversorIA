@@ -5339,13 +5339,8 @@ def main():
                             else "#FFEBEE"
                         )
 
-                        strong_signal_block = f"""
-                        <div style="margin-top: 5px; margin-bottom: 10px; padding: 8px; background-color: {strong_signal_bg}; border-radius: 4px; border-left: 3px solid {strong_signal_color};">
-                            <p style="margin: 0; font-weight: 600; color: {strong_signal_color};">
-                                ⚠️ Señal General: {strong_signal_type}
-                            </p>
-                        </div>
-                        """
+                        # Versión simplificada usando una única línea de HTML
+                        strong_signal_block = f'<div style="background-color: {strong_signal_bg}; margin-bottom: 10px; padding: 8px; border-radius: 4px; border-left: 3px solid {strong_signal_color};"><p style="margin: 0; font-weight: 600; color: {strong_signal_color};">⚠️ Señal General: {strong_signal_type}</p></div>'
 
                     # Construir el HTML completo para la tarjeta
                     card_html = f"""
