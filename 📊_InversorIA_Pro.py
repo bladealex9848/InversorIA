@@ -5289,6 +5289,7 @@ def main():
                 option_signal = "NEUTRAL"
                 option_strategy = "N/A"
                 vix_level = "N/A"
+                overall_signal = "NEUTRAL"
 
                 # Mostrar tarjeta de contexto
                 if context and "error" not in context:
@@ -5296,6 +5297,10 @@ def main():
                     change = context.get("change_percent", 0)
                     signals = context.get("signals", {})
                     vix_level = context.get("vix_level", "N/A")
+
+                    # Obtener señal general (overall)
+                    if "overall" in signals:
+                        overall_signal = signals["overall"]["signal"]
 
                     # Determinar señal de opciones
                     if "options" in signals:
@@ -5309,6 +5314,27 @@ def main():
                     elif option_signal == "PUT":
                         signal_color = "#F44336"  # rojo
 
+                    # Crear sección de señal general fuerte si corresponde
+                    strong_signal_html = ""
+                    if overall_signal in ["compra_fuerte", "venta_fuerte"]:
+                        strong_signal_type = (
+                            "COMPRA_FUERTE"
+                            if overall_signal == "compra_fuerte"
+                            else "VENTA_FUERTE"
+                        )
+                        strong_signal_color = (
+                            "#4CAF50"
+                            if overall_signal == "compra_fuerte"
+                            else "#F44336"
+                        )
+                        strong_signal_html = f"""
+                        <div style="margin-top: 10px; margin-bottom: 10px; padding: 8px; background-color: {strong_signal_color}22; border-radius: 4px; border-left: 3px solid {strong_signal_color};">
+                            <p style="margin: 0; font-weight: 600; color: {strong_signal_color};">
+                                <span style="font-size: 16px;">⚠️ Señal General: {strong_signal_type}</span>
+                            </p>
+                        </div>
+                        """
+
                     # Mostrar tarjeta con contexto actual
                     st.markdown(
                         f"""
@@ -5317,6 +5343,7 @@ def main():
                                 <span>{company_name}</span> 
                                 <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
                             </h3>
+                            {strong_signal_html}
                             <p><strong>Señal:</strong> <span style="color:{signal_color}">{option_signal}</span> ({option_strategy})</p>
                             <p><strong>VIX:</strong> {vix_level} | <strong>Volatilidad:</strong> {signals.get('volatility', {}).get('volatility_state', 'Normal')}</p>
                         </div>
