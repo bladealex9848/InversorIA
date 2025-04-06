@@ -2392,46 +2392,63 @@ def display_sentiment_analysis(context):
 
     with col2:
         if web_analysis:
-            # Mostrar análisis web
+            # Obtener menciones con valores por defecto explícitos
             bullish = web_analysis.get("bullish_mentions", 0)
             bearish = web_analysis.get("bearish_mentions", 0)
+            total_mentions = bullish + bearish
 
             st.markdown("### Análisis Web")
 
-            # Crear gráfico de barras
-            fig = go.Figure()
-
-            fig.add_trace(
-                go.Bar(
-                    x=["Alcista", "Bajista"],
-                    y=[bullish, bearish],
-                    marker_color=["rgba(76, 175, 80, 0.7)", "rgba(255, 87, 34, 0.7)"],
-                )
-            )
-
-            fig.update_layout(
-                title="Menciones en Fuentes Web",
-                height=250,
-                margin=dict(l=10, r=10, t=50, b=10),
-                yaxis_title="Número de menciones",
-                xaxis_title="Sentimiento",
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-            # Ratio de sentimiento
-            total_mentions = bullish + bearish
+            # Verificar si hay menciones reales antes de mostrar el gráfico
             if total_mentions > 0:
+                # Crear gráfico de barras
+                fig = go.Figure()
+
+                fig.add_trace(
+                    go.Bar(
+                        x=["Alcista", "Bajista"],
+                        y=[bullish, bearish],
+                        marker_color=[
+                            "rgba(76, 175, 80, 0.7)",
+                            "rgba(255, 87, 34, 0.7)",
+                        ],
+                        text=[bullish, bearish],  # Mostrar valores en las barras
+                        textposition="auto",  # Posicionar automáticamente el texto
+                    )
+                )
+
+                fig.update_layout(
+                    title="Menciones en Fuentes Web",
+                    height=250,
+                    margin=dict(l=10, r=10, t=50, b=10),
+                    yaxis_title="Número de menciones",
+                    xaxis_title="Sentimiento",
+                )
+
+                # Establecer valor mínimo para el eje Y para que el gráfico se vea bien
+                fig.update_yaxes(range=[0, max(max(bullish, bearish) + 1, 5)])
+
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Mostrar ratio
                 bullish_ratio = bullish / total_mentions * 100
                 st.markdown(
                     f"""
-                **Ratio alcista:** {bullish_ratio:.1f}%  
-                **Fuentes analizadas:** {len(context.get('web_results', []))}
-                """
+                    **Ratio alcista:** {bullish_ratio:.1f}%  
+                    **Fuentes analizadas:** {len(web_analysis.get('web_results', []))}
+                    """
                 )
             else:
-                st.markdown(
-                    "No se encontraron menciones relevantes en el análisis web."
+                # Mostrar mensaje con sugerencia para resolver
+                st.info(
+                    """
+                No se encontraron menciones relevantes en el análisis web.
+                
+                **Posibles soluciones:**
+                - Verifica si las claves API para YOU o Tavily están configuradas
+                - El símbolo podría no tener suficiente cobertura en fuentes web
+                - Intenta con un activo de mayor capitalización
+                """
                 )
 
 
@@ -5155,18 +5172,18 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 )
 
                 # Sección para analizar activos del scanner
-                st.markdown("#### 🔍 Analizar Activo del Scanner")
+                # st.markdown("#### 🔍 Analizar Activo del Scanner")
 
                 # Lista de símbolos del scanner como selectbox
-                symbol_list = filtered_results["Symbol"].unique().tolist()
-                selected_scanner_symbol = st.selectbox(
-                    "Seleccionar activo para análisis", symbol_list
-                )
+                # symbol_list = filtered_results["Symbol"].unique().tolist()
+                # selected_scanner_symbol = st.selectbox(
+                #    "Seleccionar activo para análisis", symbol_list
+                # )
 
-                if st.button("Ver Análisis Detallado", key="scanner_analyze_btn"):
-                    # Cambiar símbolo activo y recargar la página
-                    st.session_state.current_symbol = selected_scanner_symbol
-                    st.rerun()
+                # if st.button("Ver Análisis Detallado", key="scanner_analyze_btn"):
+                # Cambiar símbolo activo y recargar la página
+                #    st.session_state.current_symbol = selected_scanner_symbol
+                #    st.rerun()
             else:
                 st.info(
                     "No hay resultados que coincidan con el filtro seleccionado. Prueba con otro filtro o escanea más sectores."
