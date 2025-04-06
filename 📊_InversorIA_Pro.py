@@ -922,11 +922,7 @@ def create_technical_chart(data, symbol):
         shared_xaxes=True,
         vertical_spacing=0.03,
         row_heights=[0.6, 0.2, 0.2],
-        subplot_titles=(
-            f"{symbol} - OHLC con Medias Móviles y Bandas Bollinger",
-            "MACD",
-            "RSI",
-        ),
+        subplot_titles=("", "MACD", "RSI"),  # Quitar el título del primer subplot
     )
 
     # Determinar los datos del eje X
@@ -1317,15 +1313,26 @@ def create_technical_chart(data, symbol):
 
     # Ajustar layout
     fig.update_layout(
-        height=800,  # Altura fija para el gráfico completo
+        height=800,
         xaxis_rangeslider_visible=False,
-        title=f"Análisis Técnico de {symbol}",
+        title={
+            "text": f"Análisis Técnico de {symbol}",  # Título principal claro
+            "y": 0.97,  # Posición elevada
+            "x": 0.5,
+            "xanchor": "center",
+            "yanchor": "top",
+            "font": {
+                "size": 20,  # Tamaño más grande
+                "color": "#1E88E5",  # Color destacado
+                "family": "Arial, sans-serif",
+            },
+        },
         template="plotly_white",
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         hovermode="x unified",
         hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
-        margin=dict(l=50, r=50, t=70, b=50),  # Márgenes más adecuados
+        margin=dict(l=50, r=50, t=70, b=50),
     )
 
     # Configuración de ejes y rangos
