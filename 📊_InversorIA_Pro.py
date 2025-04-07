@@ -31,6 +31,7 @@ import openai
 import traceback
 import logging
 import base64
+import re
 from typing import Dict, List, Tuple, Any, Optional
 
 # Configurar logging
@@ -2057,18 +2058,33 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     else:
         patterns_text = "No hay datos suficientes para detectar patrones técnicos."
 
-    # Combinación de información fundamental
-    combined_fundamental = f"""INFORMACIÓN FUNDAMENTAL Y NOTICIAS:
+    # Ejemplo de estructura requerida
+    example_structure = """
+Ejemplo de estructura EXACTA requerida:
 
-SENTIMIENTO DE MERCADO:
-{sentiment_text}
+## EVALUACIÓN GENERAL
+(Texto de evaluación general...)
 
-NOTICIAS RELEVANTES:
-{news_text}
+## NIVELES CLAVE
+(Texto de niveles clave...)
 
-ANÁLISIS DE ANALISTAS:
-{web_insights_text}
+## ANÁLISIS TÉCNICO
+(Texto de análisis técnico...)
 
+## ANÁLISIS FUNDAMENTAL Y NOTICIAS
+(Texto de análisis fundamental y noticias...)
+
+## ESTRATEGIAS RECOMENDADAS
+(Texto de estrategias recomendadas...)
+
+## GESTIÓN DE RIESGO
+(Texto de gestión de riesgo...)
+
+## PROYECCIÓN DE MOVIMIENTO
+(Texto de proyección de movimiento...)
+
+## RECOMENDACIÓN FINAL: CALL/PUT/NEUTRAL
+(Texto de recomendación final...)
 """
 
     # Crear contenido del prompt enriquecido con toda la información disponible
@@ -2083,9 +2099,17 @@ ANÁLISIS DE ANALISTAS:
     - Señal técnica: {overall_signal}
     - Señal de opciones: {option_signal}
 
+    INFORMACIÓN FUNDAMENTAL:
     {fundamentals_text}
 
-    {combined_fundamental}
+    SENTIMIENTO DE MERCADO:
+    {sentiment_text}
+
+    NOTICIAS RELEVANTES:
+    {news_text}
+
+    ANÁLISIS DE ANALISTAS:
+    {web_insights_text}
 
     PATRONES TÉCNICOS:
     {patterns_text}
@@ -2094,28 +2118,34 @@ ANÁLISIS DE ANALISTAS:
     1. Proporciona una evaluación integral que combine análisis técnico, fundamental y sentimiento de mercado.
     2. Identifica claramente los niveles de soporte y resistencia clave.
     3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
-    4. ES OBLIGATORIO incluir una sección detallada titulada "ANÁLISIS FUNDAMENTAL Y NOTICIAS" que analice el impacto de las noticias y el sentimiento en el precio.
-    5. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
-    6. Evalúa el sentimiento de mercado basado en noticias e insights de analistas.
-    7. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
-    8. Indica riesgos clave y niveles de stop loss recomendados.
-    9. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
+    4. INCLUYE OBLIGATORIAMENTE UNA SECCIÓN DEDICADA AL "ANÁLISIS FUNDAMENTAL Y NOTICIAS" QUE DEBE EVALUAR EL IMPACTO DE LAS NOTICIAS, SENTIMIENTO Y ANÁLISIS DE ANALISTAS EN EL PRECIO.
+    5. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
+    6. Indica riesgos clave y niveles de stop loss recomendados.
+    7. Concluye con una proyección de movimiento y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
 
     FORMATO DE RESPUESTA:
-    Tu respuesta DEBE incluir EXACTAMENTE estas secciones, con ESTOS títulos exactos, en ESTE orden:
+    DEBES estructurar tu respuesta EXACTAMENTE con estos encabezados y en este orden:
     
-    - EVALUACIÓN GENERAL: (Visión general integrada técnica, fundamental y sentimiento)
-    - NIVELES CLAVE: (Soportes, resistencias y niveles psicológicos importantes)
-    - ANÁLISIS TÉCNICO: (Indicadores y patrones detectados)
-    - ANÁLISIS FUNDAMENTAL Y NOTICIAS: (Factores fundamentales, noticias y su impacto en el precio)
-    - ESTRATEGIAS RECOMENDADAS: (Estrategias específicas y operativa sugerida)
-    - GESTIÓN DE RIESGO: (Stop loss, take profit y ratios riesgo/recompensa)
-    - PROYECCIÓN DE MOVIMIENTO: (Escenarios probables y sus catalizadores)
-    - RECOMENDACIÓN FINAL: (CALL, PUT o NEUTRAL con horizonte temporal) - ESTE ENCABEZADO ES INDISPENSABLE
+    ## EVALUACIÓN GENERAL
     
-    NO OMITAS NINGUNA DE ESTAS SECCIONES. Asegúrate de que ANÁLISIS FUNDAMENTAL Y NOTICIAS tenga su propia sección independiente.
+    ## NIVELES CLAVE
     
-    El análisis debe ser conciso, directo y con información accionable específica para un trader profesional. Todo el formato debe ser compatible con Markdown para exportación.
+    ## ANÁLISIS TÉCNICO
+    
+    ## ANÁLISIS FUNDAMENTAL Y NOTICIAS
+    
+    ## ESTRATEGIAS RECOMENDADAS
+    
+    ## GESTIÓN DE RIESGO
+    
+    ## PROYECCIÓN DE MOVIMIENTO
+    
+    ## RECOMENDACIÓN FINAL: (CALL/PUT/NEUTRAL)
+    
+    ES CRÍTICO QUE INCLUYAS LA SECCIÓN "ANÁLISIS FUNDAMENTAL Y NOTICIAS". No combinar esta información en otras secciones.
+    El formato debe ser estrictamente Markdown, sin usar comillas triples ni marcas HTML. No uses asteriscos dobles en la recomendación final.
+    
+    {example_structure}
     """
 
     try:
@@ -2205,52 +2235,43 @@ def display_expert_opinion(expert_opinion):
     recommendation_type = "NEUTRAL"
 
     try:
+        # Limpiar el texto completo de marcadores de código, HTML y formateo markdown
+        expert_opinion = re.sub(r"```.*?```", "", expert_opinion, flags=re.DOTALL)
+        expert_opinion = expert_opinion.replace("```", "")
+        expert_opinion = re.sub(r"<.*?>", "", expert_opinion)
+
         # Intentar identificar secciones en el texto
         lines = expert_opinion.split("\n")
         for line in lines:
             line = line.strip()
 
-            # Detectar secciones por encabezados de manera más robusta
-            if (
-                "EVALUACIÓN GENERAL" in line.upper()
-                or "EVALUACION GENERAL" in line.upper()
-            ):
+            # Detectar secciones por encabezados (más flexible ahora)
+            if re.search(r"##?\s*EVALUACI[OÓ]N\s*GENERAL", line.upper()):
                 current_section = "evaluación"
                 continue
-            elif "NIVELES CLAVE" in line.upper():
+            elif re.search(r"##?\s*NIVELES\s*CLAVE", line.upper()):
                 current_section = "niveles"
                 continue
-            elif (
-                "ANÁLISIS TÉCNICO" in line.upper() or "ANALISIS TECNICO" in line.upper()
-            ):
+            elif re.search(r"##?\s*AN[AÁ]LISIS\s*T[EÉ]CNICO", line.upper()):
                 current_section = "técnico"
                 continue
-            elif (
-                "ANÁLISIS FUNDAMENTAL" in line.upper()
-                or "ANALISIS FUNDAMENTAL" in line.upper()
-            ) or ("NOTICIAS" in line.upper() and "ANÁLISIS" in line.upper()):
+            elif re.search(
+                r"##?\s*AN[AÁ]LISIS\s*FUNDAMENTAL", line.upper()
+            ) or re.search(r"##?\s*NOTICIAS", line.upper()):
                 current_section = "fundamental"
                 continue
-            elif "ESTRATEGIAS RECOMENDADAS" in line.upper():
+            elif re.search(r"##?\s*ESTRATEGIAS", line.upper()):
                 current_section = "estrategias"
                 continue
-            elif (
-                "GESTIÓN DE RIESGO" in line.upper()
-                or "GESTION DE RIESGO" in line.upper()
-                or "STOP LOSS" in line.upper()
-            ):
+            elif re.search(
+                r"##?\s*GESTI[OÓ]N\s*DE\s*RIESGO", line.upper()
+            ) or re.search(r"##?\s*STOP\s*LOSS", line.upper()):
                 current_section = "riesgo"
                 continue
-            elif (
-                "PROYECCIÓN DE MOVIMIENTO" in line.upper()
-                or "PROYECCION DE MOVIMIENTO" in line.upper()
-            ):
+            elif re.search(r"##?\s*PROYECCI[OÓ]N", line.upper()):
                 current_section = "proyección"
                 continue
-            elif (
-                "RECOMENDACIÓN FINAL" in line.upper()
-                or "RECOMENDACION FINAL" in line.upper()
-            ):
+            elif re.search(r"##?\s*RECOMENDACI[OÓ]N\s*FINAL", line.upper()):
                 current_section = "recomendación"
 
                 # Extraer la recomendación final (CALL, PUT o NEUTRAL)
@@ -2337,13 +2358,14 @@ def display_expert_opinion(expert_opinion):
     # Mostrar recomendación final en un box destacado si existe
     if final_recommendation:
         # Limpiar posibles marcadores de código o formato no deseado
-        cleaned_recommendation = final_recommendation.replace("```", "").strip()
+        clean_recommendation = re.sub(r"[\*\`]", "", final_recommendation)
 
+        # Usar la recomendación como texto plano en el HTML
         st.markdown(
             f"""
             <div class="recommendation-box {recommendation_class}">
                 <h2>RECOMENDACIÓN: {recommendation_type}</h2>
-                <p>{cleaned_recommendation}</p>
+                <p>{clean_recommendation}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2352,7 +2374,7 @@ def display_expert_opinion(expert_opinion):
     # Si no se identificaron secciones, mostrar el texto completo
     if all(not v for v in sections.values()):
         # Limpiar el texto completo de marcadores de código
-        cleaned_opinion = expert_opinion.replace("```", "").strip()
+        cleaned_opinion = re.sub(r"[\*\`]", "", expert_opinion)
 
         st.markdown(
             f"""
@@ -2386,39 +2408,39 @@ def display_expert_opinion(expert_opinion):
         )
 
         # Mostrar cada sección identificada en un formato más estructurado
-        # Limpiando posibles marcadores de código
+        # Limpiando posibles marcadores de código, utilizando regex para eliminar caracteres especiales
         if sections["evaluación"]:
-            cleaned_text = sections["evaluación"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["evaluación"])
             st.markdown("### 📊 Evaluación General")
             st.markdown(cleaned_text)
 
         if sections["niveles"]:
-            cleaned_text = sections["niveles"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["niveles"])
             st.markdown("### 🔍 Niveles Clave")
             st.markdown(cleaned_text)
 
         if sections["técnico"]:
-            cleaned_text = sections["técnico"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["técnico"])
             st.markdown("### 📈 Análisis Técnico")
             st.markdown(cleaned_text)
 
         if sections["fundamental"]:
-            cleaned_text = sections["fundamental"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["fundamental"])
             st.markdown("### 📰 Análisis Fundamental y Noticias")
             st.markdown(cleaned_text)
 
         if sections["estrategias"]:
-            cleaned_text = sections["estrategias"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["estrategias"])
             st.markdown("### 🎯 Estrategias Recomendadas")
             st.markdown(cleaned_text)
 
         if sections["riesgo"]:
-            cleaned_text = sections["riesgo"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["riesgo"])
             st.markdown("### ⚠️ Gestión de Riesgo")
             st.markdown(cleaned_text)
 
         if sections["proyección"]:
-            cleaned_text = sections["proyección"].replace("```", "").strip()
+            cleaned_text = re.sub(r"[\*\`]", "", sections["proyección"])
             st.markdown("### 🔮 Proyección de Movimiento")
             st.markdown(cleaned_text)
 
