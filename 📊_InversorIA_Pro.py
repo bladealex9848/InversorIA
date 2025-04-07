@@ -6062,6 +6062,42 @@ def main():
                         </h3>
                         {strong_signal_block}
                         {option_signal_html}
+                        
+                        <hr style="border: 0; height: 1px; background-color: rgba(255, 255, 255, 0.1); margin: 10px 0;">
+                        <div style="margin-top: 10px;">
+                            <div style="color: #1E88E5; font-weight: bold; margin-bottom: 8px;">📊 Parámetros del Activo</div>
+                    """
+
+                    # Obtener los parámetros del activo
+                    if "options_params" in context:
+                        params = context.get("options_params", {})
+                    else:
+                        try:
+                            options_manager = OptionsParameterManager()
+                            params = options_manager.get_symbol_params(symbol)
+                        except:
+                            params = {}
+
+                    # Si hay parámetros, mostrarlos
+                    if params:
+                        for key, value in params.items():
+                            card_html += f"""
+                            <div style="background-color: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 5px; margin: 5px 0; 
+                                    border-left: 3px solid #1E88E5; font-size: 0.9rem;">
+                                <span style="font-weight: 600;">{key}:</span>
+                                <span style="float: right;">{value}</span>
+                            </div>
+                            """
+                    else:
+                        card_html += """
+                            <div style="padding: 8px; text-align: center; color: rgba(255, 255, 255, 0.6);">
+                                No hay parámetros disponibles para este símbolo
+                            </div>
+                        """
+
+                    # Cerrar la sección de parámetros y el div principal
+                    card_html += """
+                        </div>
                     </div>
                     """
 
