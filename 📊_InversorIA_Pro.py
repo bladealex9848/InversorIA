@@ -6053,7 +6053,7 @@ def main():
                         # Versión simplificada usando una única línea de HTML
                         strong_signal_block = f'<div style="background-color: {strong_signal_bg}; margin-bottom: 10px; padding: 8px; border-radius: 4px; border-left: 3px solid {strong_signal_color};"><p style="margin: 0; font-weight: 600; color: {strong_signal_color};">⚠️ Señal General: {strong_signal_type}</p></div>'
 
-                    # Primera parte - Información principal del activo (mantener como estaba)
+                    # Mantener la parte superior como estaba (información principal)
                     card_html = f"""
                     <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
                         <h3 style="margin-top:0; display: flex; justify-content: space-between;">
@@ -6068,47 +6068,34 @@ def main():
                     # Mostrar la primera parte
                     st.markdown(card_html, unsafe_allow_html=True)
 
-                    # Segunda parte - Parámetros del activo (renderizar por separado)
-                    # Obtener los parámetros del activo
+                    # Para los parámetros del activo, usar componentes nativos de Streamlit
+                    # Título con icono
+                    st.markdown("### 📊 Parámetros del Activo")
+
+                    # Obtener parámetros del activo
                     if "options_params" in context:
                         params = context.get("options_params", {})
                     else:
                         try:
                             options_manager = OptionsParameterManager()
                             params = options_manager.get_symbol_params(symbol)
-                        except Exception as e:
+                        except:
                             params = {}
 
-                    # Construir HTML para parámetros
-                    params_html = """
-                    <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;">
-                        <div style="color: #1E88E5; font-weight: bold; margin-bottom: 8px;">📊 Parámetros del Activo</div>
-                    """
-
-                    # Si hay parámetros, mostrarlos
+                    # Mostrar parámetros como elementos de Streamlit
                     if params:
+                        # Usar método nativo de Streamlit con columnas
                         for key, value in params.items():
-                            params_html += f"""
-                            <div style="background-color: rgba(255, 255, 255, 0.05); padding: 8px; border-radius: 5px; margin: 5px 0; 
-                                    border-left: 3px solid #1E88E5; font-size: 0.9rem;">
-                                <span style="font-weight: 600;">{key}:</span>
-                                <span style="float: right;">{value}</span>
-                            </div>
-                            """
+                            col1, col2 = st.columns([3, 2])
+                            with col1:
+                                st.markdown(f"**{key}**")
+                            with col2:
+                                st.markdown(
+                                    f"<div style='text-align:right'>{value}</div>",
+                                    unsafe_allow_html=True,
+                                )
                     else:
-                        params_html += """
-                            <div style="padding: 8px; text-align: center; color: rgba(255, 255, 255, 0.6);">
-                                No hay parámetros disponibles para este símbolo
-                            </div>
-                        """
-
-                    # Cerrar el div principal
-                    params_html += """
-                    </div>
-                    """
-
-                    # Mostrar los parámetros como un componente separado
-                    st.markdown(params_html, unsafe_allow_html=True)
+                        st.info("No hay parámetros disponibles para este símbolo")
                 else:
                     # Mostrar tarjeta con información mínima cuando no hay contexto
                     st.markdown(
