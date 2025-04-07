@@ -1939,7 +1939,7 @@ def process_message_with_citations(message):
 
 
 def process_expert_analysis(client, assistant_id, symbol, context):
-    """Procesa análisis experto con OpenAI"""
+    """Procesa análisis experto con OpenAI asegurando una sección de análisis fundamental"""
     if not client or not assistant_id:
         return None
 
@@ -2057,6 +2057,20 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     else:
         patterns_text = "No hay datos suficientes para detectar patrones técnicos."
 
+    # Combinación de información fundamental
+    combined_fundamental = f"""INFORMACIÓN FUNDAMENTAL Y NOTICIAS:
+
+SENTIMIENTO DE MERCADO:
+{sentiment_text}
+
+NOTICIAS RELEVANTES:
+{news_text}
+
+ANÁLISIS DE ANALISTAS:
+{web_insights_text}
+
+"""
+
     # Crear contenido del prompt enriquecido con toda la información disponible
     prompt = f"""
     Como Especialista en Trading y Análisis Técnico Avanzado, realiza un análisis profesional integral del siguiente activo:
@@ -2071,11 +2085,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
     {fundamentals_text}
 
-    {sentiment_text}
-
-    {web_insights_text}
-
-    {news_text}
+    {combined_fundamental}
 
     PATRONES TÉCNICOS:
     {patterns_text}
@@ -2084,23 +2094,26 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     1. Proporciona una evaluación integral que combine análisis técnico, fundamental y sentimiento de mercado.
     2. Identifica claramente los niveles de soporte y resistencia clave.
     3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
-    4. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
-    5. Evalúa el sentimiento de mercado basado en noticias e insights de analistas.
-    6. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
-    7. Indica riesgos clave y niveles de stop loss recomendados.
-    8. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
+    4. ES OBLIGATORIO incluir una sección detallada titulada "ANÁLISIS FUNDAMENTAL Y NOTICIAS" que analice el impacto de las noticias y el sentimiento en el precio.
+    5. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
+    6. Evalúa el sentimiento de mercado basado en noticias e insights de analistas.
+    7. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
+    8. Indica riesgos clave y niveles de stop loss recomendados.
+    9. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
 
     FORMATO DE RESPUESTA:
-    Por favor, estructura tu respuesta con los siguientes encabezados:
+    Tu respuesta DEBE incluir EXACTAMENTE estas secciones, con ESTOS títulos exactos, en ESTE orden:
     
     - EVALUACIÓN GENERAL: (Visión general integrada técnica, fundamental y sentimiento)
     - NIVELES CLAVE: (Soportes, resistencias y niveles psicológicos importantes)
     - ANÁLISIS TÉCNICO: (Indicadores y patrones detectados)
-    - ANÁLISIS FUNDAMENTAL Y NOTICIAS: (Factores fundamentales y su impacto)
+    - ANÁLISIS FUNDAMENTAL Y NOTICIAS: (Factores fundamentales, noticias y su impacto en el precio)
     - ESTRATEGIAS RECOMENDADAS: (Estrategias específicas y operativa sugerida)
     - GESTIÓN DE RIESGO: (Stop loss, take profit y ratios riesgo/recompensa)
     - PROYECCIÓN DE MOVIMIENTO: (Escenarios probables y sus catalizadores)
     - RECOMENDACIÓN FINAL: (CALL, PUT o NEUTRAL con horizonte temporal) - ESTE ENCABEZADO ES INDISPENSABLE
+    
+    NO OMITAS NINGUNA DE ESTAS SECCIONES. Asegúrate de que ANÁLISIS FUNDAMENTAL Y NOTICIAS tenga su propia sección independiente.
     
     El análisis debe ser conciso, directo y con información accionable específica para un trader profesional. Todo el formato debe ser compatible con Markdown para exportación.
     """
@@ -2197,29 +2210,47 @@ def display_expert_opinion(expert_opinion):
         for line in lines:
             line = line.strip()
 
-            # Detectar secciones por encabezados
-            if "EVALUACIÓN GENERAL" in line.upper():
+            # Detectar secciones por encabezados de manera más robusta
+            if (
+                "EVALUACIÓN GENERAL" in line.upper()
+                or "EVALUACION GENERAL" in line.upper()
+            ):
                 current_section = "evaluación"
                 continue
             elif "NIVELES CLAVE" in line.upper():
                 current_section = "niveles"
                 continue
-            elif "ANÁLISIS TÉCNICO" in line.upper():
+            elif (
+                "ANÁLISIS TÉCNICO" in line.upper() or "ANALISIS TECNICO" in line.upper()
+            ):
                 current_section = "técnico"
                 continue
-            elif "ANÁLISIS FUNDAMENTAL" in line.upper() or "NOTICIAS" in line.upper():
+            elif (
+                "ANÁLISIS FUNDAMENTAL" in line.upper()
+                or "ANALISIS FUNDAMENTAL" in line.upper()
+            ) or ("NOTICIAS" in line.upper() and "ANÁLISIS" in line.upper()):
                 current_section = "fundamental"
                 continue
             elif "ESTRATEGIAS RECOMENDADAS" in line.upper():
                 current_section = "estrategias"
                 continue
-            elif "GESTIÓN DE RIESGO" in line.upper() or "STOP LOSS" in line.upper():
+            elif (
+                "GESTIÓN DE RIESGO" in line.upper()
+                or "GESTION DE RIESGO" in line.upper()
+                or "STOP LOSS" in line.upper()
+            ):
                 current_section = "riesgo"
                 continue
-            elif "PROYECCIÓN DE MOVIMIENTO" in line.upper():
+            elif (
+                "PROYECCIÓN DE MOVIMIENTO" in line.upper()
+                or "PROYECCION DE MOVIMIENTO" in line.upper()
+            ):
                 current_section = "proyección"
                 continue
-            elif "RECOMENDACIÓN FINAL" in line.upper():
+            elif (
+                "RECOMENDACIÓN FINAL" in line.upper()
+                or "RECOMENDACION FINAL" in line.upper()
+            ):
                 current_section = "recomendación"
 
                 # Extraer la recomendación final (CALL, PUT o NEUTRAL)
