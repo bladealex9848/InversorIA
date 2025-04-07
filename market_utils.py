@@ -773,6 +773,354 @@ class OptionsParameterManager:
                 "volumen_min": "2M",
                 "distance_spot_strike": "2-4 puntos",
             },
+            "EOG": {
+                "costo_strike": "$0.50-$0.70",
+                "volumen_min": "4M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "PXD": {
+                "costo_strike": "$0.45-$0.65",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "DVN": {
+                "costo_strike": "$0.55-$0.75",
+                "volumen_min": "3.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "MPC": {
+                "costo_strike": "$0.50-$0.70",
+                "volumen_min": "3M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "PSX": {
+                "costo_strike": "$0.50-$0.70",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            # Salud
+            "JNJ": {
+                "costo_strike": "$0.40-$0.60",
+                "volumen_min": "6M",
+                "distance_spot_strike": "4-6 puntos",
+            },
+            "UNH": {
+                "costo_strike": "$1.00-$1.50",
+                "volumen_min": "5M",
+                "distance_spot_strike": "10-15 puntos",
+            },
+            "PFE": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "5M",
+                "distance_spot_strike": "2-3 puntos",
+            },
+            "MRK": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "4M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "ABBV": {
+                "costo_strike": "$0.40-$0.60",
+                "volumen_min": "3M",
+                "distance_spot_strike": "4-6 puntos",
+            },
+            "LLY": {
+                "costo_strike": "$1.20-$1.80",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "10-15 puntos",
+            },
+            "AMGN": {
+                "costo_strike": "$0.50-$0.70",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "5-8 puntos",
+            },
+            "BMY": {
+                "costo_strike": "$0.25-$0.45",
+                "volumen_min": "3M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            "GILD": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "TMO": {
+                "costo_strike": "$0.70-$1.00",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "6-10 puntos",
+            },
+            # Consumo Discrecional
+            "MCD": {
+                "costo_strike": "$0.40-$0.60",
+                "volumen_min": "3.5M",
+                "distance_spot_strike": "4-6 puntos",
+            },
+            "SBUX": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "4M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "NKE": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "3.5M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            "TGT": {
+                "costo_strike": "$0.40-$0.60",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "HD": {
+                "costo_strike": "$0.60-$0.80",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "5-8 puntos",
+            },
+            "LOW": {
+                "costo_strike": "$0.50-$0.70",
+                "volumen_min": "2M",
+                "distance_spot_strike": "4-6 puntos",
+            },
+            "TJX": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "ROST": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "CMG": {
+                "costo_strike": "$0.80-$1.20",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "8-12 puntos",
+            },
+            "DHI": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            # Cripto ETFs
+            "ETHE": {
+                "costo_strike": "$0.25-$0.40",
+                "volumen_min": "1M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "ARKW": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "750K",
+                "distance_spot_strike": "4-6 puntos",
+            },
+            "BLOK": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            # Materias Primas
+            "UNG": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "2M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            "CORN": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "750K",
+                "distance_spot_strike": "1-3 puntos",
+            },
+            "SOYB": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "750K",
+                "distance_spot_strike": "1-3 puntos",
+            },
+            "WEAT": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "750K",
+                "distance_spot_strike": "1-3 puntos",
+            },
+            # Bonos
+            "AGG": {
+                "costo_strike": "$0.10-$0.20",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "BND": {
+                "costo_strike": "$0.10-$0.20",
+                "volumen_min": "1M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "IEF": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "1M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "TLT": {
+                "costo_strike": "$0.20-$0.30",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "2-3 puntos",
+            },
+            "LQD": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "HYG": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "JNK": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "TIP": {
+                "costo_strike": "$0.10-$0.20",
+                "volumen_min": "1M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "MUB": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "1M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "SHY": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "1M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            # Inmobiliario
+            "VNQ": {
+                "costo_strike": "$0.25-$0.40",
+                "volumen_min": "2M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            "XLRE": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "1.5M",
+                "distance_spot_strike": "2-3 puntos",
+            },
+            "REIT": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "1M",
+                "distance_spot_strike": "2-3 puntos",
+            },
+            "HST": {
+                "costo_strike": "$0.15-$0.25",
+                "volumen_min": "1M",
+                "distance_spot_strike": "1-2 puntos",
+            },
+            "EQR": {
+                "costo_strike": "$0.20-$0.35",
+                "volumen_min": "1M",
+                "distance_spot_strike": "2-3 puntos",
+            },
+            "AVB": {
+                "costo_strike": "$0.30-$0.45",
+                "volumen_min": "750K",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "PLD": {
+                "costo_strike": "$0.25-$0.40",
+                "volumen_min": "1M",
+                "distance_spot_strike": "2-4 puntos",
+            },
+            "SPG": {
+                "costo_strike": "$0.30-$0.45",
+                "volumen_min": "1M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            "AMT": {
+                "costo_strike": "$0.35-$0.50",
+                "volumen_min": "1M",
+                "distance_spot_strike": "3-5 puntos",
+            },
+            # Volatilidad
+            "VXX": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "3M",
+                "distance_spot_strike": "4-8 puntos",
+            },
+            "UVXY": {
+                "costo_strike": "$0.35-$0.55",
+                "volumen_min": "4M",
+                "distance_spot_strike": "5-10 puntos",
+            },
+            "SVXY": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "2M",
+                "distance_spot_strike": "4-8 puntos",
+            },
+            "VIXY": {
+                "costo_strike": "$0.30-$0.50",
+                "volumen_min": "2.5M",
+                "distance_spot_strike": "4-8 puntos",
+            },
+            # Forex
+            "EURUSD": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "30M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDJPY": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "25M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "GBPUSD": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "20M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDCHF": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "15M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "AUDUSD": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "15M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDCAD": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "15M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "NZDUSD": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "10M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "EURGBP": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "15M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "EURJPY": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "20M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "GBPJPY": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "15M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDCNH": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "10M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDINR": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "8M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
+            "USDTRY": {
+                "costo_strike": "$0.05-$0.15",
+                "volumen_min": "8M",
+                "distance_spot_strike": "0.5-1 puntos",
+            },
         }
 
         # Recomendaciones generales
