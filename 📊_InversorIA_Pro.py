@@ -2818,7 +2818,7 @@ def display_options_analysis(symbol, options_data):
 
 
 def display_asset_info(symbol, price=None, change=None):
-    """Muestra información básica del activo incluso cuando no hay datos de mercado"""
+    """Muestra información básica del activo compatible con modo claro y oscuro"""
     # Obtener información completa de la empresa/activo
     company_info = get_company_info(symbol)
 
@@ -2830,35 +2830,44 @@ def display_asset_info(symbol, price=None, change=None):
     # Estimar precio y cambio si no están disponibles
     price_display = f"${price:.2f}" if price is not None else "N/A"
     change_display = f"{change:+.2f}%" if change is not None else ""
+
+    # Color condicional para cambio
     change_color = (
         "green"
         if change is not None and change >= 0
-        else "red" if change is not None else "inherit"
+        else "red" if change is not None and change < 0 else "inherit"
     )
 
-    # Mostrar tarjeta de información del activo
-    st.markdown(
-        f"""
-        <div class="asset-card">
-            <div class="asset-header">
-                <h2 class="asset-name">{full_name} ({symbol})</h2>
-                <h2 class="asset-price" style="color: {change_color};">{price_display} <span style="font-size: 0.8em;">{change_display}</span></h2>
-            </div>
-            <p>{description}</p>
-            <div class="asset-details">
-                <div class="asset-detail-item">
-                    <div class="asset-detail-label">Sector</div>
-                    <div class="asset-detail-value">{sector}</div>
-                </div>
-                <div class="asset-detail-item">
-                    <div class="asset-detail-label">Última Actualización</div>
-                    <div class="asset-detail-value">{datetime.now().strftime('%H:%M:%S')}</div>
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Usar st.container() con estilos nativos de Streamlit que se adaptan al modo oscuro/claro
+    with st.container():
+        # Encabezado del activo
+        col1, col2 = st.columns([3, 1])
+
+        with col1:
+            st.markdown(f"## {full_name} ({symbol})")
+
+        with col2:
+            st.markdown(
+                f"<h2 style='text-align: right; color: {change_color};'>{price_display} <span style='font-size: 0.8em;'>{change_display}</span></h2>",
+                unsafe_allow_html=True,
+            )
+
+        # Descripción y detalles
+        st.markdown(description)
+
+        # Mostrar detalles adicionales
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown(f"**Sector:** {sector}")
+
+        with col2:
+            st.markdown(
+                f"**Última Actualización:** {datetime.now().strftime('%H:%M:%S')}"
+            )
+
+        # Línea separadora
+        st.markdown("---")
 
 
 # =================================================
