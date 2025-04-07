@@ -30,6 +30,7 @@ import requests
 import openai
 import traceback
 import logging
+import base64
 from typing import Dict, List, Tuple, Any, Optional
 
 # Configurar logging
@@ -1975,8 +1976,17 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     news_text = ""
     if news:
         news_text = "NOTICIAS RECIENTES:\n"
-        for item in news[:3]:  # Limitar a 3 noticias
-            news_text += f"- {item.get('date', '')}: {item.get('title', '')}\n"
+        for i, item in enumerate(news[:5]):  # Limitar a 5 noticias principales
+            sentiment_indicator = ""
+            if item.get("sentiment", 0.5) > 0.6:
+                sentiment_indicator = "📈 [POSITIVA]"
+            elif item.get("sentiment", 0.5) < 0.4:
+                sentiment_indicator = "📉 [NEGATIVA]"
+
+            news_text += f"{i+1}. {sentiment_indicator} {item.get('title', '')}\n"
+            if item.get("summary"):
+                news_text += f"   Resumen: {item.get('summary')[:150]}...\n"
+            news_text += f"   Fuente: {item.get('source', 'Desconocida')}\n\n"
 
     # Extraer sentimiento de noticias
     sentiment = context.get("news_sentiment", {})
@@ -1990,6 +2000,32 @@ def process_expert_analysis(client, assistant_id, symbol, context):
         sentiment_text += (
             f"Menciones negativas: {sentiment.get('negative_mentions', 0)}\n"
         )
+
+        # Añadir ratio positivo/negativo
+        total_mentions = sentiment.get("positive_mentions", 0) + sentiment.get(
+            "negative_mentions", 0
+        )
+        if total_mentions > 0:
+            positive_ratio = (
+                sentiment.get("positive_mentions", 0) / total_mentions * 100
+            )
+            sentiment_text += f"Ratio positivo: {positive_ratio:.1f}%\n"
+
+    # Extraer insights web del mercado
+    web_analysis = context.get("web_analysis", {})
+    web_insights_text = ""
+    if web_analysis:
+        web_results = web_analysis.get("web_results", [])
+        if web_results:
+            web_insights_text = "INSIGHTS DEL MERCADO:\n"
+            for i, result in enumerate(web_results[:3]):  # Limitamos a 3 resultados
+                web_insights_text += f"{i+1}. {result.get('title', 'Sin título')}\n"
+                content = result.get("content", "")
+                if content:
+                    web_insights_text += f"   {content[:200]}...\n"
+                web_insights_text += (
+                    f"   Fuente: {result.get('source', 'Desconocida')}\n\n"
+                )
 
     # Detectar patrones
     chart_data = pd.DataFrame(context.get("chart_data", []))
@@ -2037,6 +2073,8 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
     {sentiment_text}
 
+    {web_insights_text}
+
     {news_text}
 
     PATRONES TÉCNICOS:
@@ -2047,9 +2085,10 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     2. Identifica claramente los niveles de soporte y resistencia clave.
     3. Analiza los indicadores técnicos principales (RSI, MACD, medias móviles).
     4. Evalúa cómo se relacionan las noticias recientes con el movimiento del precio.
-    5. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
-    6. Indica riesgos clave y niveles de stop loss recomendados.
-    7. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
+    5. Evalúa el sentimiento de mercado basado en noticias e insights de analistas.
+    6. Sugiere estrategias específicas para traders institucionales, especialmente con opciones.
+    7. Indica riesgos clave y niveles de stop loss recomendados.
+    8. Concluye con una proyección de movimiento con rangos de precio y una RECOMENDACIÓN FINAL clara (CALL, PUT o NEUTRAL).
 
     FORMATO DE RESPUESTA:
     Por favor, estructura tu respuesta con los siguientes encabezados:
@@ -2063,7 +2102,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     - PROYECCIÓN DE MOVIMIENTO: (Escenarios probables y sus catalizadores)
     - RECOMENDACIÓN FINAL: (CALL, PUT o NEUTRAL con horizonte temporal) - ESTE ENCABEZADO ES INDISPENSABLE
     
-    El análisis debe ser conciso, directo y con información accionable específica para un trader profesional.
+    El análisis debe ser conciso, directo y con información accionable específica para un trader profesional. Todo el formato debe ser compatible con Markdown para exportación.
     """
 
     try:
@@ -2130,7 +2169,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
 
 def display_expert_opinion(expert_opinion):
-    """Muestra la opinión del experto IA con formato mejorado"""
+    """Muestra la opinión del experto IA con formato mejorado y opción de exportar a MD"""
     if not expert_opinion:
         return
 
@@ -2212,6 +2251,57 @@ def display_expert_opinion(expert_opinion):
         if recommendation_type == "CALL"
         else "put" if recommendation_type == "PUT" else ""
     )
+
+    # Botón para exportar a Markdown
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        if st.button("📥 Exportar MD", help="Descargar análisis en formato Markdown"):
+            # Crear contenido Markdown para descargar
+            markdown_content = f"# Análisis de Trading: {recommendation_type} - {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+
+            # Agregar secciones al markdown
+            for section_name, section_content in sections.items():
+                if section_content:
+                    # Convertir nombre de sección a título
+                    title_mapping = {
+                        "evaluación": "## Evaluación General",
+                        "niveles": "## Niveles Clave",
+                        "técnico": "## Análisis Técnico",
+                        "fundamental": "## Análisis Fundamental y Noticias",
+                        "estrategias": "## Estrategias Recomendadas",
+                        "riesgo": "## Gestión de Riesgo",
+                        "proyección": "## Proyección de Movimiento",
+                        "recomendación": f"## Recomendación Final: {recommendation_type}",
+                    }
+
+                    # Añadir título y contenido
+                    markdown_content += f"{title_mapping.get(section_name, '## ' + section_name.capitalize())}\n\n"
+                    markdown_content += f"{section_content}\n\n"
+
+            # Añadir pie de página
+            markdown_content += f"---\n*Análisis generado por InversorIA Pro - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}*"
+
+            # Convertir a bytes para descargar
+            b64 = base64.b64encode(markdown_content.encode()).decode()
+
+            # Crear enlace de descarga
+            href = f'<a href="data:file/markdown;base64,{b64}" download="analisis_trading_{datetime.now().strftime("%Y%m%d_%H%M")}.md">Haga clic aquí si la descarga no comienza automáticamente</a>'
+
+            # Mostrar enlace y disparar descarga
+            st.markdown(href, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <script>
+                    var link = document.createElement('a');
+                    link.href = "data:file/markdown;base64,{b64}";
+                    link.download = "analisis_trading_{datetime.now().strftime('%Y%m%d_%H%M')}.md";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                </script>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # Mostrar recomendación final en un box destacado si existe
     if final_recommendation:
