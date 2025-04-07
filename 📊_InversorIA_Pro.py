@@ -2305,11 +2305,14 @@ def display_expert_opinion(expert_opinion):
 
     # Mostrar recomendación final en un box destacado si existe
     if final_recommendation:
+        # Limpiar posibles marcadores de código o formato no deseado
+        cleaned_recommendation = final_recommendation.replace("```", "").strip()
+
         st.markdown(
             f"""
             <div class="recommendation-box {recommendation_class}">
                 <h2>RECOMENDACIÓN: {recommendation_type}</h2>
-                {final_recommendation}
+                <p>{cleaned_recommendation}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2317,6 +2320,9 @@ def display_expert_opinion(expert_opinion):
 
     # Si no se identificaron secciones, mostrar el texto completo
     if all(not v for v in sections.values()):
+        # Limpiar el texto completo de marcadores de código
+        cleaned_opinion = expert_opinion.replace("```", "").strip()
+
         st.markdown(
             f"""
             <div class="expert-container">
@@ -2325,7 +2331,7 @@ def display_expert_opinion(expert_opinion):
                     <div class="expert-title">Analista de Mercados</div>
                 </div>
                 <div class="expert-content">
-                    {expert_opinion}
+                    {cleaned_opinion}
                 </div>
                 <div class="expert-footer">
                     Análisis generado por IA - {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
@@ -2349,33 +2355,41 @@ def display_expert_opinion(expert_opinion):
         )
 
         # Mostrar cada sección identificada en un formato más estructurado
+        # Limpiando posibles marcadores de código
         if sections["evaluación"]:
+            cleaned_text = sections["evaluación"].replace("```", "").strip()
             st.markdown("### 📊 Evaluación General")
-            st.markdown(sections["evaluación"])
+            st.markdown(cleaned_text)
 
         if sections["niveles"]:
+            cleaned_text = sections["niveles"].replace("```", "").strip()
             st.markdown("### 🔍 Niveles Clave")
-            st.markdown(sections["niveles"])
+            st.markdown(cleaned_text)
 
         if sections["técnico"]:
+            cleaned_text = sections["técnico"].replace("```", "").strip()
             st.markdown("### 📈 Análisis Técnico")
-            st.markdown(sections["técnico"])
+            st.markdown(cleaned_text)
 
         if sections["fundamental"]:
+            cleaned_text = sections["fundamental"].replace("```", "").strip()
             st.markdown("### 📰 Análisis Fundamental y Noticias")
-            st.markdown(sections["fundamental"])
+            st.markdown(cleaned_text)
 
         if sections["estrategias"]:
+            cleaned_text = sections["estrategias"].replace("```", "").strip()
             st.markdown("### 🎯 Estrategias Recomendadas")
-            st.markdown(sections["estrategias"])
+            st.markdown(cleaned_text)
 
         if sections["riesgo"]:
+            cleaned_text = sections["riesgo"].replace("```", "").strip()
             st.markdown("### ⚠️ Gestión de Riesgo")
-            st.markdown(sections["riesgo"])
+            st.markdown(cleaned_text)
 
         if sections["proyección"]:
+            cleaned_text = sections["proyección"].replace("```", "").strip()
             st.markdown("### 🔮 Proyección de Movimiento")
-            st.markdown(sections["proyección"])
+            st.markdown(cleaned_text)
 
         st.markdown(
             f"""
