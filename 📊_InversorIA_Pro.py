@@ -4461,35 +4461,71 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     unsafe_allow_html=True,
                 )
 
-        # Mostrar parámetros específicos del símbolo en un contenedor estilizado
+        # Estilos para parámetros del activo
         st.markdown(
             """
             <style>
+            /* Estilos adaptados para modo claro y oscuro */
             .parameter-container {
-                background-color: #f8f9fa;
+                background-color: rgba(255, 255, 255, 0.1);
                 border-radius: 10px;
                 padding: 20px;
                 margin: 10px 0;
-                border: 1px solid #e9ecef;
+                border: 1px solid rgba(255, 255, 255, 0.2);
             }
+            
             .parameter-title {
-                color: #1f77b4;
+                color: #1E88E5;
                 font-size: 1.2em;
                 font-weight: bold;
                 margin-bottom: 15px;
             }
+            
             .parameter-item {
-                background-color: white;
+                background-color: rgba(255, 255, 255, 0.05);
                 padding: 10px;
                 border-radius: 5px;
-                margin: 5px 0;
-                border-left: 4px solid #1f77b4;
+                margin: 8px 0;
+                border-left: 4px solid #1E88E5;
+            }
+            
+            /* Estilos para parámetros recomendados */
+            .recommendation-box {
+                background-color: rgba(255, 255, 255, 0.05);
+                padding: 15px;
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                margin: 10px 0;
+            }
+            
+            .recommendation-title {
+                color: #2196F3;
+                font-weight: bold;
+                margin-bottom: 10px;
+            }
+            
+            .recommendation-content {
+                color: inherit;
+            }
+            
+            .reasoning {
+                font-size: 0.9em;
+                color: rgba(255, 255, 255, 0.6);
+                font-style: italic;
+                margin-top: 8px;
+            }
+            
+            /* En modo oscuro, asegurarse de que los valores sean legibles */
+            .dark-mode .parameter-item strong,
+            .dark-mode .recommendation-content strong {
+                color: rgba(255, 255, 255, 0.9);
             }
             </style>
-        """,
+            """,
             unsafe_allow_html=True,
         )
 
+        # Luego usa el mismo código para mostrar los parámetros
         st.markdown("<div class='parameter-container'>", unsafe_allow_html=True)
         st.markdown(
             "<div class='parameter-title'>📊 Parámetros del Activo</div>",
@@ -4513,36 +4549,9 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Mostrar parámetros de opciones recomendados con diseño mejorado
+        # Para los parámetros recomendados, usa este estilo modificado
         with st.expander("⚙️ Parámetros Recomendados"):
-            st.markdown(
-                """
-                <style>
-                .recommendation-box {
-                    background-color: #ffffff;
-                    padding: 15px;
-                    border-radius: 8px;
-                    border: 1px solid #e0e0e0;
-                    margin: 10px 0;
-                }
-                .recommendation-title {
-                    color: #2196F3;
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                }
-                .recommendation-content {
-                    color: #424242;
-                }
-                .reasoning {
-                    font-size: 0.9em;
-                    color: #666;
-                    font-style: italic;
-                    margin-top: 8px;
-                }
-                </style>
-            """,
-                unsafe_allow_html=True,
-            )
+            # El CSS ya está incluido en el bloque anterior
 
             col1, col2, col3 = st.columns(3)
 
