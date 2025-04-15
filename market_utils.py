@@ -193,7 +193,7 @@ def validate_and_fix_data(data: pd.DataFrame) -> pd.DataFrame:
         data["Volume"] = data["Volume"].abs()
 
     # Rellenar valores NaN
-    data = data.fillna(method="ffill").fillna(method="bfill").fillna(0)
+    data = data.ffill().bfill().fillna(0)
 
     return data
 
@@ -218,15 +218,18 @@ def _get_api_key(key_name: str) -> str:
 
 
 def _generate_synthetic_data(symbol: str, periods: int = 180) -> pd.DataFrame:
-    """Genera datos sintéticos para fallback de interfaz"""
+    """Genera datos sintéticos robustos para fallback de interfaz"""
     try:
         # Crear datos determinísticos pero realistas basados en el símbolo
         seed_value = sum(ord(c) for c in symbol)
         np.random.seed(seed_value)
 
+        # Asegurar un mínimo de períodos para evitar advertencias de datos insuficientes
+        min_periods = max(periods, 250)  # Al menos 250 días para cubrir SMA200
+
         # Fechas para los días solicitados hasta hoy
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=periods)
+        start_date = end_date - timedelta(days=min_periods)
         dates = pd.date_range(start=start_date, end=end_date, freq="D")
 
         # Precio base variable según símbolo
@@ -240,10 +243,19 @@ def _generate_synthetic_data(symbol: str, periods: int = 180) -> pd.DataFrame:
         volatility = 0.01 + (seed_value % 10) / 100
         trend = 0.0005 * ((seed_value % 10) - 5)  # Entre -0.0025 y +0.0025
 
-        # Generar serie de precios
-        for _ in range(len(dates)):
+        # Generar serie de precios con ciclos y patrones realistas
+        for i in range(len(dates)):
+            # Añadir ciclos y estacionalidad
+            cycle1 = 0.001 * np.sin(i / 20)  # Ciclo de 20 días
+            cycle2 = 0.002 * np.sin(i / 60)  # Ciclo de 60 días
+            cycle3 = 0.003 * np.sin(i / 120)  # Ciclo de 120 días
+
+            # Ruido aleatorio con tendencia
             noise = np.random.normal(trend, volatility)
-            price *= 1 + noise
+
+            # Combinar todos los factores
+            daily_change = noise + cycle1 + cycle2 + cycle3
+            price *= 1 + daily_change
             prices.append(max(price, 0.01))  # Evitar precios negativos
 
         # Crear DataFrame OHLCV sintético
@@ -261,9 +273,29 @@ def _generate_synthetic_data(symbol: str, periods: int = 180) -> pd.DataFrame:
         df["Volume"] = [int(1e6 * (1 + np.random.normal(0, 0.3))) for _ in prices]
         df["Adj Close"] = df["Close"]
 
+        # Precalcular algunos indicadores técnicos básicos para evitar cálculos posteriores
+        # SMA
+        for period in [20, 50, 200]:
+            df[f"SMA_{period}"] = df["Close"].rolling(window=period).mean()
+
+        # RSI
+        delta = df["Close"].diff()
+        gain = delta.where(delta > 0, 0).rolling(window=14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
+        rs = gain / loss
+        df["RSI"] = 100 - (100 / (1 + rs))
+
+        # MACD
+        ema12 = df["Close"].ewm(span=12, adjust=False).mean()
+        ema26 = df["Close"].ewm(span=26, adjust=False).mean()
+        df["MACD"] = ema12 - ema26
+        df["MACD_signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+
         # Flag para identificar como sintético
         df.attrs["synthetic"] = True
-        logger.info(f"Datos sintéticos generados para {symbol}")
+        logger.info(
+            f"Datos sintéticos robustos generados para {symbol} con {len(df)} períodos"
+        )
 
         return df
 
@@ -271,13 +303,22 @@ def _generate_synthetic_data(symbol: str, periods: int = 180) -> pd.DataFrame:
         logger.error(f"Error generando datos sintéticos: {str(e)}")
 
         # Crear un DataFrame mínimo para evitar errores
-        df = pd.DataFrame(index=pd.date_range(end=datetime.now(), periods=30))
-        df["Close"] = np.linspace(100, 110, 30)
+        df = pd.DataFrame(index=pd.date_range(end=datetime.now(), periods=250))
+        df["Close"] = np.linspace(100, 110, 250)
         df["Open"] = df["Close"] * 0.99
         df["High"] = df["Close"] * 1.01
         df["Low"] = df["Open"] * 0.99
         df["Volume"] = 1000000
         df["Adj Close"] = df["Close"]
+
+        # Añadir indicadores básicos
+        df["SMA_20"] = df["Close"].rolling(window=20).mean()
+        df["SMA_50"] = df["Close"].rolling(window=50).mean()
+        df["SMA_200"] = df["Close"].rolling(window=200).mean()
+        df["RSI"] = 50  # Valor neutral
+        df["MACD"] = 0
+        df["MACD_signal"] = 0
+
         df.attrs["synthetic"] = True
         return df
 
@@ -1502,11 +1543,15 @@ class TechnicalAnalyzer:
                 df["OBV"] = 0
                 for i in range(1, len(df)):
                     if df["Close"].iloc[i] > df["Close"].iloc[i - 1]:
-                        df["OBV"].iloc[i] = df["OBV"].iloc[i - 1] + df["Volume"].iloc[i]
+                        df.loc[df.index[i], "OBV"] = (
+                            df["OBV"].iloc[i - 1] + df["Volume"].iloc[i]
+                        )
                     elif df["Close"].iloc[i] < df["Close"].iloc[i - 1]:
-                        df["OBV"].iloc[i] = df["OBV"].iloc[i - 1] - df["Volume"].iloc[i]
+                        df.loc[df.index[i], "OBV"] = (
+                            df["OBV"].iloc[i - 1] - df["Volume"].iloc[i]
+                        )
                     else:
-                        df["OBV"].iloc[i] = df["OBV"].iloc[i - 1]
+                        df.loc[df.index[i], "OBV"] = df["OBV"].iloc[i - 1]
 
             # ===== INDICADORES DE GAP =====
 
@@ -1519,14 +1564,12 @@ class TechnicalAnalyzer:
 
                 # Gap alcista
                 if df["Low"].iloc[i] > df["High"].iloc[i - 1]:
-                    df["Gap"].iloc[i] = (
-                        df["Low"].iloc[i] / df["High"].iloc[i - 1] - 1
-                    ) * 100
+                    gap_value = (df["Low"].iloc[i] / df["High"].iloc[i - 1] - 1) * 100
+                    df.loc[df.index[i], "Gap"] = gap_value
                 # Gap bajista
                 elif df["High"].iloc[i] < df["Low"].iloc[i - 1]:
-                    df["Gap"].iloc[i] = (
-                        df["High"].iloc[i] / df["Low"].iloc[i - 1] - 1
-                    ) * 100
+                    gap_value = (df["High"].iloc[i] / df["Low"].iloc[i - 1] - 1) * 100
+                    df.loc[df.index[i], "Gap"] = gap_value
 
             # ===== INDICADORES DE PATRÓN DE VELAS =====
 
@@ -1559,14 +1602,14 @@ class TechnicalAnalyzer:
                             and df["Close"].iloc[i - 20 : i].mean()
                             < df["Close"].iloc[i]
                         ):
-                            df["Hanger"].iloc[i] = True
+                            df.loc[df.index[i], "Hanger"] = True
                         # Es un Hammer si está en una tendencia bajista
                         elif (
                             i > 20
                             and df["Close"].iloc[i - 20 : i].mean()
                             > df["Close"].iloc[i]
                         ):
-                            df["Hammer"].iloc[i] = True
+                            df.loc[df.index[i], "Hammer"] = True
 
             # Limpiar datos
             df = df.replace([np.inf, -np.inf], np.nan).dropna(how="all")

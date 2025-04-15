@@ -34,6 +34,13 @@ import base64
 import re
 from typing import Dict, List, Tuple, Any, Optional
 
+# Importar configuración de pandas para mejorar rendimiento
+try:
+    import pandas_config
+except Exception as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Error importando pandas_config: {str(e)}")
+
 # Configurar logging
 logging.basicConfig(
     level=logging.INFO,
@@ -1074,7 +1081,7 @@ st.markdown(
         border-radius: 0.25rem;
         margin-bottom: 1rem;
     }
-    
+
     /* Estilos para scanner de mercado */
     .scanner-result {
         background-color: #f8f9fa;
@@ -1083,15 +1090,15 @@ st.markdown(
         margin-bottom: 10px;
         border-left: 4px solid #1E88E5;
     }
-    
+
     .scanner-result.call {
         border-left: 4px solid #4CAF50;
     }
-    
+
     .scanner-result.put {
         border-left: 4px solid #F44336;
     }
-    
+
     .login-container {
         display: flex;
         flex-direction: column;
@@ -1099,7 +1106,7 @@ st.markdown(
         justify-content: center;
         margin: 2rem 0;
     }
-    
+
     .login-header {
         font-size: 2.5rem;
         color: #1E88E5;
@@ -1115,7 +1122,7 @@ st.markdown(
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         margin-bottom: 1rem;
     }
-    
+
     .web-insight {
         background-color: #f8f9fa;
         border-left: 3px solid #9C27B0;
@@ -1123,7 +1130,7 @@ st.markdown(
         border-radius: 0 5px 5px 0;
         margin-bottom: 1rem;
     }
-    
+
     .recommendation-box {
         background-color: rgba(0, 150, 136, 0.1);
         border: 2px solid #009688;
@@ -1132,26 +1139,26 @@ st.markdown(
         margin: 1.5rem 0;
         text-align: center;
     }
-    
+
     .recommendation-box.call {
         background-color: rgba(76, 175, 80, 0.1);
         border-color: #4CAF50;
     }
-    
+
     .recommendation-box.put {
         background-color: rgba(244, 67, 54, 0.1);
         border-color: #F44336;
     }
-    
+
     .recommendation-box h2 {
         font-size: 1.8rem;
         margin-bottom: 0.5rem;
     }
-    
+
     .recommendation-box.call h2 {
         color: #4CAF50;
     }
-    
+
     .recommendation-box.put h2 {
         color: #F44336;
     }
@@ -2125,26 +2132,26 @@ Ejemplo de estructura EXACTA requerida:
 
     FORMATO DE RESPUESTA:
     DEBES estructurar tu respuesta EXACTAMENTE con estos encabezados y en este orden:
-    
+
     ## EVALUACIÓN GENERAL
-    
+
     ## NIVELES CLAVE
-    
+
     ## ANÁLISIS TÉCNICO
-    
+
     ## ANÁLISIS FUNDAMENTAL Y NOTICIAS
-    
+
     ## ESTRATEGIAS RECOMENDADAS
-    
+
     ## GESTIÓN DE RIESGO
-    
+
     ## PROYECCIÓN DE MOVIMIENTO
-    
+
     ## RECOMENDACIÓN FINAL: (CALL/PUT/NEUTRAL)
-    
+
     ES CRÍTICO QUE INCLUYAS LA SECCIÓN "ANÁLISIS FUNDAMENTAL Y NOTICIAS". No combinar esta información en otras secciones.
     El formato debe ser estrictamente Markdown, sin usar comillas triples ni marcas HTML. No uses asteriscos dobles en la recomendación final.
-    
+
     {example_structure}
     """
 
@@ -2470,7 +2477,7 @@ def display_sentiment_analysis(context):
         st.info(
             """
         No se encontró análisis de sentimiento disponible.
-        
+
         **Posibles soluciones:**
         - Verifica la configuración de API keys en .streamlit/secrets.toml
         - Asegúrate de que las claves "you_api_key", "tavily_api_key" o "alpha_vantage_api_key" estén configuradas
@@ -2533,8 +2540,8 @@ def display_sentiment_analysis(context):
 
             st.markdown(
                 f"""
-            **Menciones positivas:** {pos}  
-            **Menciones negativas:** {neg}  
+            **Menciones positivas:** {pos}
+            **Menciones negativas:** {neg}
             **Total noticias analizadas:** {total}
             """
             )
@@ -2583,7 +2590,7 @@ def display_sentiment_analysis(context):
                 bullish_ratio = bullish / total_mentions * 100
                 st.markdown(
                     f"""
-                **Ratio alcista:** {bullish_ratio:.1f}%  
+                **Ratio alcista:** {bullish_ratio:.1f}%
                 **Fuentes analizadas:** {len(context.get('web_results', []))}
                 """
                 )
@@ -2599,7 +2606,7 @@ def display_news_feed(context):
         st.info(
             """
         No se encontraron noticias recientes.
-        
+
         **Posibles soluciones:**
         - Verifica la configuración de Alpha Vantage API key
         - Asegúrate de que tienes acceso al endpoint de noticias de Alpha Vantage
@@ -2644,7 +2651,7 @@ def display_web_insights(context):
                 f"""
             #### {result.get('title', 'Sin título')}
             {result.get('content', 'Sin contenido')}
-            
+
             [Leer más en {result.get('source', 'Fuente')}]({result.get('url', '#')})
             """
             )
@@ -3176,7 +3183,7 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         Principales niveles:
         - Resistencias: {', '.join([f"${r:.2f}" for r in support_resistance.get('resistances', [])[:2]])}
         - Soportes: {', '.join([f"${s:.2f}" for s in support_resistance.get('supports', [])[:2]])}
-        
+
         {sentiment_text}
         {news_text}
         """
@@ -4473,14 +4480,14 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 margin: 10px 0;
                 border: 1px solid rgba(255, 255, 255, 0.2);
             }
-            
+
             .parameter-title {
                 color: #1E88E5;
                 font-size: 1.2em;
                 font-weight: bold;
                 margin-bottom: 15px;
             }
-            
+
             .parameter-item {
                 background-color: rgba(255, 255, 255, 0.05);
                 padding: 10px;
@@ -4488,7 +4495,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 margin: 8px 0;
                 border-left: 4px solid #1E88E5;
             }
-            
+
             /* Estilos para parámetros recomendados */
             .recommendation-box {
                 background-color: rgba(255, 255, 255, 0.05);
@@ -4497,24 +4504,24 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 margin: 10px 0;
             }
-            
+
             .recommendation-title {
                 color: #2196F3;
                 font-weight: bold;
                 margin-bottom: 10px;
             }
-            
+
             .recommendation-content {
                 color: inherit;
             }
-            
+
             .reasoning {
                 font-size: 0.9em;
                 color: rgba(255, 255, 255, 0.6);
                 font-style: italic;
                 margin-top: 8px;
             }
-            
+
             /* En modo oscuro, asegurarse de que los valores sean legibles */
             .dark-mode .parameter-item strong,
             .dark-mode .recommendation-content strong {
@@ -4867,19 +4874,19 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                             <tr>
                                 <td><strong>Diario</strong></td>
                                 <td style="color: {'green' if daily_trend == 'alcista' else 'red'};">{daily_trend.upper()}</td>
-                                <td>{daily_rsi_condition}</td>                                
+                                <td>{daily_rsi_condition}</td>
                                 <td>{volatility_condition}</td>
                             </tr>
                             <tr>
                                 <td><strong>Semanal</strong></td>
                                 <td style="color: {'green' if weekly_trend == 'alcista' else 'red'};">{weekly_trend.upper()}</td>
-                                <td>{weekly_rsi_condition}</td>                                
+                                <td>{weekly_rsi_condition}</td>
                                 <td>{volatility_condition}</td>
                             </tr>
                             <tr>
                                 <td><strong>Mensual</strong></td>
                                 <td style="color: {'green' if monthly_trend == 'alcista' else 'red'};">{monthly_trend.upper()}</td>
-                                <td>{monthly_rsi_condition}</td>                                
+                                <td>{monthly_rsi_condition}</td>
                                 <td>{volatility_condition}</td>
                             </tr>
                         </table>
@@ -4896,7 +4903,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.success(
                             """
                             **Alineación Alcista Fuerte**: Los tres timeframes muestran señal alcista, lo que indica una tendencia sólida.
-                            
+
                             **Estrategia recomendada:** Posiciones largas con horizonte de medio a largo plazo. Considerar estrategias direccionales como Call Debit Spreads o Bull Call Spreads con vencimiento de 60-90 días.
                             """
                         )
@@ -4904,7 +4911,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.error(
                             """
                             **Alineación Bajista Fuerte**: Los tres timeframes muestran señal bajista, lo que indica una tendencia sólida a la baja.
-                            
+
                             **Estrategia recomendada:** Posiciones cortas con horizonte de medio plazo. Considerar Put Debit Spreads o Bull Put Spreads con vencimiento de 45-60 días.
                             """
                         )
@@ -4913,7 +4920,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.info(
                             """
                             **Alineación Alcista Moderada**: Los timeframes semanal y mensual están alineados alcistas, pero el diario muestra divergencia.
-                            
+
                             **Estrategia recomendada:** Buscar oportunidades de compra en retrocesos. Considerar estrategias con sesgo alcista pero protección a la baja como Bull Put Spreads.
                             """
                         )
@@ -4921,7 +4928,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         st.warning(
                             """
                             **Alineación Bajista Moderada**: Los timeframes semanal y mensual están alineados bajistas, pero el diario muestra divergencia.
-                            
+
                             **Estrategia recomendada:** Mantener cautela en posiciones largas. Considerar protección con Bear Call Spreads o reducir exposición alcista.
                             """
                         )
@@ -4929,7 +4936,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     st.info(
                         """
                         **Alineación Débil**: Los timeframes muestran señales mixtas sin una dirección clara.
-                        
+
                         **Estrategia recomendada:** Estrategias neutrales como Iron Condors o Calendar Spreads. Evitar posiciones direccionales agresivas y reducir tamaño de posición.
                         """
                     )
@@ -5092,14 +5099,14 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                 st.markdown(
                     """
                     ### Análisis de Correlación Noticias-Precio
-                    
+
                     El análisis de correlación entre noticias y movimientos de precio ayuda a entender cómo el sentimiento mediático puede influir en la acción del precio.
-                    
+
                     **Principales observaciones:**
                     - Las noticias con sentimiento muy negativo suelen tener un impacto inmediato en el precio
                     - El efecto de noticias positivas tiende a ser más gradual y sostenido
                     - La volatilidad aumenta significativamente después de noticias inesperadas
-                    
+
                     **Recomendación para traders:**
                     Considere el contexto de las noticias recientes al establecer niveles de stop loss, ya que la volatilidad post-noticia puede desencadenar stops demasiado ajustados.
                 """
@@ -5358,7 +5365,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
             st.info(
                 """
             ### Sin datos de escaneo reciente
-            
+
             Para obtener señales actualizadas:
             1. Selecciona los sectores que deseas monitorear
             2. Pulsa el botón "Escanear Mercado"
@@ -6057,7 +6064,7 @@ def main():
                     card_html = f"""
                     <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid {signal_color}">
                         <h3 style="margin-top:0; display: flex; justify-content: space-between;">
-                            <span>{company_name}</span> 
+                            <span>{company_name}</span>
                             <span style="color:{'#4CAF50' if change >= 0 else '#F44336'}">${price:.2f} ({change:+.2f}%)</span>
                         </h3>
                         {strong_signal_block}
@@ -6102,7 +6109,7 @@ def main():
                         f"""
                         <div style="background-color:rgba(70,70,70,0.1);padding:15px;border-radius:8px;margin-bottom:15px;border-left:5px solid #9E9E9E">
                             <h3 style="margin-top:0; display: flex; justify-content: space-between;">
-                                <span>{company_name} ({symbol})</span> 
+                                <span>{company_name} ({symbol})</span>
                             </h3>
                             <p>No se pudieron obtener datos de mercado actualizados para este activo.</p>
                             <p>Puedes consultar información general o preguntar sobre estrategias típicas.</p>
@@ -6177,7 +6184,7 @@ def main():
                 st.caption(
                     """
                     **⚠️ Disclaimer:** Este sistema proporciona análisis técnico avanzado
-                    para fines informativos únicamente. No constituye asesoramiento financiero 
+                    para fines informativos únicamente. No constituye asesoramiento financiero
                     ni garantiza resultados. El trading conlleva riesgo significativo de pérdida.
                     """
                 )
@@ -6475,7 +6482,7 @@ def main():
                 st.info(
                     """
                 ### No hay datos de scanner disponibles
-                
+
                 Para obtener señales de trading:
                 1. Selecciona los sectores que deseas monitorear
                 2. Pulsa el botón "Escanear Mercado"
@@ -6494,21 +6501,21 @@ def main():
                 st.markdown(
                     """
                 ### Algoritmo de Scanner
-                
+
                 El scanner de mercado de InversorIA Pro utiliza un enfoque multifactorial que evalúa:
-                
+
                 - **Análisis técnico**: Medias móviles, RSI, MACD, patrones de velas y tendencias
                 - **Opciones**: Flujo de opciones, volatilidad implícita y superficie de volatilidad
                 - **Niveles clave**: Soportes, resistencias y zonas de interés
-                
+
                 Cada oportunidad es calificada con un nivel de confianza basado en la alineación de factores y la calidad de la configuración.
-                
+
                 ### Interpretación de las Señales
-                
+
                 - **Alta Confianza**: Fuerte alineación de múltiples factores
                 - **Media Confianza**: Buena configuración con algunos factores contradictorios
                 - **Baja Confianza**: Configuración básica que requiere más análisis
-                
+
                 El ratio R/R (Riesgo/Recompensa) se calcula automáticamente basado en niveles técnicos y volatilidad del activo.
                 """
                 )
