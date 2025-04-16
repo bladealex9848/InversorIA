@@ -93,20 +93,111 @@ Este documento contiene un inventario detallado de las funciones y clases presen
 ### 1_📈_Analizador_de_Acciones_Pro.py
 Interfaz simplificada para análisis de acciones individuales.
 
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| get_popular_symbols | Obtiene una lista de símbolos populares por categoría | 15-30 |
+| fetch_data | Obtiene datos de mercado para un símbolo específico | 32-50 |
+| create_chart | Crea un gráfico técnico básico | 52-120 |
+| analyze_data | Realiza análisis básico de datos de mercado | 122-180 |
+| display_summary | Muestra un resumen del análisis | 182-220 |
+| main | Función principal que controla la interfaz | 222-280 |
+
 ### 2_🤖_Inversor_Bot.py
 Asistente conversacional para consultas sobre inversiones.
+
+#### Clases
+
+| Clase | Descripción | Líneas |
+|-------|-------------|--------|
+| InvestmentAdvisor | Proporciona recomendaciones de inversión | 20-150 |
+
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| process_query | Procesa consultas del usuario | 152-200 |
+| generate_response | Genera respuestas basadas en el contexto | 202-250 |
+| display_chat_interface | Muestra la interfaz de chat | 252-300 |
+| main | Función principal de la aplicación | 302-350 |
 
 ### 3_📊_InversorIA_Mini.py
 Versión reducida de la plataforma principal con funcionalidades básicas.
 
+#### Clases
+
+| Clase | Descripción | Líneas |
+|-------|-------------|--------|
+| MarketDataProvider | Proveedor de datos de mercado simplificado | 25-120 |
+| SimpleAnalyzer | Analizador técnico simplificado | 122-250 |
+
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| create_simple_chart | Crea gráficos técnicos simplificados | 252-350 |
+| display_mini_dashboard | Muestra un dashboard simplificado | 352-420 |
+| main | Función principal de la aplicación | 422-500 |
+
 ### 4_📈_MarketIntel_Options_Analyzer.py
 Analizador especializado en opciones financieras.
+
+#### Clases
+
+| Clase | Descripción | Líneas |
+|-------|-------------|--------|
+| OptionsAnalyzer | Analiza estrategias de opciones | 30-200 |
+| VolatilityCalculator | Calcula y analiza la volatilidad | 202-300 |
+
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| calculate_greeks | Calcula los griegos de las opciones | 302-350 |
+| display_options_chain | Muestra la cadena de opciones | 352-400 |
+| plot_volatility_surface | Grafica la superficie de volatilidad | 402-450 |
+| consult_expert_ia | Consulta al experto IA sobre opciones | 452-500 |
+| main | Función principal de la aplicación | 502-550 |
 
 ### 5_📈_Technical_Expert_Analyzer.py
 Analizador técnico avanzado con enfoque en patrones y niveles.
 
+#### Clases
+
+| Clase | Descripción | Líneas |
+|-------|-------------|--------|
+| PatternDetector | Detecta patrones técnicos avanzados | 40-150 |
+| LevelAnalyzer | Analiza niveles clave de soporte/resistencia | 152-250 |
+
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| detect_advanced_patterns | Detecta patrones técnicos avanzados | 252-350 |
+| analyze_market_structure | Analiza la estructura del mercado | 352-450 |
+| display_technical_dashboard | Muestra dashboard técnico avanzado | 452-550 |
+| display_session_info | Muestra información de la sesión | 552-600 |
+| main | Función principal de la aplicación | 602-700 |
+
 ### 6_📊_InversorIA.py
 Versión anterior de la plataforma principal, mantenida por compatibilidad.
+
+#### Clases
+
+| Clase | Descripción | Líneas |
+|-------|-------------|--------|
+| LegacyDataProvider | Proveedor de datos de la versión anterior | 30-120 |
+| LegacyAnalyzer | Analizador de la versión anterior | 122-250 |
+
+#### Funciones
+
+| Función | Descripción | Líneas |
+|---------|-------------|--------|
+| render_technical_tab | Renderiza pestaña de análisis técnico | 252-350 |
+| render_options_tab | Renderiza pestaña de opciones | 352-450 |
+| render_multiframe_tab | Renderiza pestaña multi-timeframe | 452-550 |
+| main | Función principal de la aplicación | 552-650 |
 
 ### 7_🔔_Notificaciones.py
 

@@ -1,0 +1,744 @@
+{
+  "main_files": {
+    "📊_InversorIA_Pro.py": {
+      "classes": [
+        {
+          "name": "NumpyEncoder",
+          "description": "Codificador JSON personalizado para manejar tipos de NumPy",
+          "start_line": 110,
+          "end_line": 132
+        },
+        {
+          "name": "DataCache",
+          "description": "Gestiona el caché de datos de mercado con invalidación por tiempo",
+          "start_line": 1176,
+          "end_line": 1232
+        },
+        {
+          "name": "MarketScanner",
+          "description": "Escanea el mercado en busca de oportunidades de trading",
+          "start_line": 1234,
+          "end_line": 1376
+        },
+        {
+          "name": "DatabaseManager",
+          "description": "Gestiona la conexión y operaciones con la base de datos",
+          "start_line": 2800,
+          "end_line": 3200
+        },
+        {
+          "name": "RealTimeSignalAnalyzer",
+          "description": "Analiza señales de trading en tiempo real",
+          "start_line": 3300,
+          "end_line": 3800
+        },
+        {
+          "name": "SignalManager",
+          "description": "Gestiona las señales de trading y su procesamiento",
+          "start_line": 4000,
+          "end_line": 4200
+        }
+      ],
+      "functions": [
+        {
+          "name": "create_technical_chart",
+          "description": "Crea gráficos técnicos avanzados con indicadores y patrones",
+          "start_line": 1384,
+          "end_line": 1864
+        },
+        {
+          "name": "format_patterns_for_prompt",
+          "description": "Formatea patrones técnicos para incluirlos en prompts de IA",
+          "start_line": 1865,
+          "end_line": 1928
+        },
+        {
+          "name": "process_message_with_citations",
+          "description": "Extrae y devuelve el texto del mensaje del asistente",
+          "start_line": 1930,
+          "end_line": 1947
+        },
+        {
+          "name": "process_expert_analysis",
+          "description": "Procesa análisis experto con OpenAI y contexto de mercado",
+          "start_line": 1949,
+          "end_line": 2219
+        },
+        {
+          "name": "display_expert_opinion",
+          "description": "Muestra la opinión del experto IA con formato mejorado",
+          "start_line": 2221,
+          "end_line": 2364
+        },
+        {
+          "name": "display_sentiment_analysis",
+          "description": "Muestra análisis de sentimiento en la interfaz",
+          "start_line": 2471,
+          "end_line": 2600
+        },
+        {
+          "name": "display_news_feed",
+          "description": "Muestra noticias relevantes en la interfaz",
+          "start_line": 2601,
+          "end_line": 2634
+        },
+        {
+          "name": "display_web_insights",
+          "description": "Muestra insights web en la interfaz",
+          "start_line": 2635,
+          "end_line": 2667
+        },
+        {
+          "name": "get_company_info",
+          "description": "Obtiene información detallada de la empresa",
+          "start_line": 2668,
+          "end_line": 2692
+        },
+        {
+          "name": "display_technical_summary",
+          "description": "Muestra resumen técnico en la interfaz",
+          "start_line": 2693,
+          "end_line": 2750
+        },
+        {
+          "name": "process_chat_input_with_openai",
+          "description": "Procesa la entrada del chat utilizando OpenAI",
+          "start_line": 4300,
+          "end_line": 4400
+        },
+        {
+          "name": "process_with_assistant",
+          "description": "Procesa el mensaje utilizando la API de Asistentes de OpenAI",
+          "start_line": 4401,
+          "end_line": 4500
+        },
+        {
+          "name": "process_with_chat_completion",
+          "description": "Procesa el mensaje utilizando la API de Chat Completion",
+          "start_line": 4501,
+          "end_line": 4600
+        },
+        {
+          "name": "fallback_analyze_symbol",
+          "description": "Función de respaldo para analizar símbolos",
+          "start_line": 4601,
+          "end_line": 4700
+        },
+        {
+          "name": "render_enhanced_dashboard",
+          "description": "Renderiza un dashboard mejorado con análisis técnico avanzado",
+          "start_line": 4701,
+          "end_line": 4800
+        },
+        {
+          "name": "initialize_session_state",
+          "description": "Inicializa el estado de la sesión",
+          "start_line": 4801,
+          "end_line": 4900
+        },
+        {
+          "name": "render_sidebar",
+          "description": "Renderiza la barra lateral de la aplicación",
+          "start_line": 4901,
+          "end_line": 5000
+        },
+        {
+          "name": "display_system_status",
+          "description": "Muestra el estado del sistema",
+          "start_line": 5001,
+          "end_line": 5100
+        },
+        {
+          "name": "check_authentication",
+          "description": "Verifica autenticación del usuario",
+          "start_line": 5101,
+          "end_line": 5200
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 7114,
+          "end_line": 7848
+        }
+      ]
+    }
+  },
+  "auxiliary_files": {
+    "market_utils.py": {
+      "classes": [
+        {
+          "name": "MarketDataError",
+          "description": "Excepción personalizada para errores de datos de mercado",
+          "start_line": 33,
+          "end_line": 36
+        },
+        {
+          "name": "DataCache",
+          "description": "Gestiona el caché de datos de mercado con invalidación por tiempo",
+          "start_line": 44,
+          "end_line": 99
+        },
+        {
+          "name": "OptionsParameterManager",
+          "description": "Gestiona parámetros para análisis de opciones",
+          "start_line": 607,
+          "end_line": 1409
+        },
+        {
+          "name": "TechnicalAnalyzer",
+          "description": "Realiza análisis técnico avanzado de datos de mercado",
+          "start_line": 1410,
+          "end_line": 3617
+        },
+        {
+          "name": "TechnicalAnalyzer_Legacy",
+          "description": "Versión anterior del analizador técnico",
+          "start_line": 3618,
+          "end_line": 3640
+        }
+      ],
+      "functions": [
+        {
+          "name": "validate_market_data",
+          "description": "Valida la integridad de los datos de mercado",
+          "start_line": 110,
+          "end_line": 149
+        },
+        {
+          "name": "validate_and_fix_data",
+          "description": "Valida y corrige problemas en datos de mercado",
+          "start_line": 151,
+          "end_line": 199
+        },
+        {
+          "name": "_get_api_key",
+          "description": "Obtiene claves API desde secrets o variables de entorno",
+          "start_line": 206,
+          "end_line": 217
+        },
+        {
+          "name": "_generate_synthetic_data",
+          "description": "Genera datos sintéticos robustos para fallback de interfaz",
+          "start_line": 220,
+          "end_line": 324
+        },
+        {
+          "name": "_get_alpha_vantage_data",
+          "description": "Obtiene datos desde Alpha Vantage como respaldo",
+          "start_line": 326,
+          "end_line": 391
+        },
+        {
+          "name": "_get_finnhub_data",
+          "description": "Obtiene datos desde Finnhub como respaldo adicional",
+          "start_line": 393,
+          "end_line": 449
+        },
+        {
+          "name": "_get_marketstack_data",
+          "description": "Obtiene datos desde MarketStack como otra fuente alternativa",
+          "start_line": 451,
+          "end_line": 499
+        },
+        {
+          "name": "fetch_market_data",
+          "description": "Función principal para obtener datos de mercado de múltiples fuentes",
+          "start_line": 505,
+          "end_line": 606
+        },
+        {
+          "name": "get_market_context",
+          "description": "Obtiene contexto completo de mercado para un símbolo",
+          "start_line": 2000,
+          "end_line": 2529
+        },
+        {
+          "name": "get_vix_level",
+          "description": "Obtiene el nivel actual del VIX y su interpretación",
+          "start_line": 2530,
+          "end_line": 2541
+        },
+        {
+          "name": "get_api_keys_from_secrets",
+          "description": "Obtiene claves API desde secrets.toml",
+          "start_line": 2542,
+          "end_line": 2560
+        }
+      ]
+    },
+    "technical_analysis.py": {
+      "functions": [
+        {
+          "name": "detect_support_resistance",
+          "description": "Detecta niveles de soporte y resistencia con análisis multi-timeframe",
+          "start_line": 15,
+          "end_line": 112
+        },
+        {
+          "name": "detect_trend_lines",
+          "description": "Detecta líneas de tendencia alcistas y bajistas con algoritmo adaptativo",
+          "start_line": 114,
+          "end_line": 236
+        },
+        {
+          "name": "detect_channels",
+          "description": "Detecta canales de precio basados en líneas de tendencia",
+          "start_line": 238,
+          "end_line": 324
+        },
+        {
+          "name": "improve_technical_analysis",
+          "description": "Mejora indicadores técnicos y corrige valores N/A",
+          "start_line": 326,
+          "end_line": 448
+        },
+        {
+          "name": "improve_sentiment_analysis",
+          "description": "Mejora el análisis de sentimiento y muestra fuentes",
+          "start_line": 450,
+          "end_line": 608
+        },
+        {
+          "name": "detect_improved_patterns",
+          "description": "Detecta patrones mejorados en los datos con algoritmos avanzados",
+          "start_line": 609,
+          "end_line": 709
+        },
+        {
+          "name": "detect_classic_chart_patterns",
+          "description": "Detecta patrones clásicos de gráficos (cabeza y hombros, triángulos, etc.)",
+          "start_line": 710,
+          "end_line": 818
+        },
+        {
+          "name": "detect_candle_patterns",
+          "description": "Detecta patrones de velas japonesas con clasificación de fuerza",
+          "start_line": 819,
+          "end_line": 1037
+        },
+        {
+          "name": "calculate_volume_profile",
+          "description": "Calcula el perfil de volumen para análisis de liquidez",
+          "start_line": 1038,
+          "end_line": 1138
+        }
+      ]
+    },
+    "market_scanner.py": {
+      "classes": [
+        {
+          "name": "MarketScanner",
+          "description": "Escanea el mercado en busca de oportunidades de trading",
+          "start_line": 11,
+          "end_line": 92
+        }
+      ],
+      "functions": [
+        {
+          "name": "display_opportunities",
+          "description": "Muestra oportunidades de trading en Streamlit",
+          "start_line": 93,
+          "end_line": 175
+        },
+        {
+          "name": "run_scanner",
+          "description": "Ejecuta el escáner de mercado con interfaz visual",
+          "start_line": 176,
+          "end_line": 184
+        }
+      ]
+    }
+  },
+  "pages": {
+    "1_📈_Analizador_de_Acciones_Pro.py": {
+      "functions": [
+        {
+          "name": "get_popular_symbols",
+          "description": "Obtiene una lista de símbolos populares por categoría",
+          "start_line": 15,
+          "end_line": 30
+        },
+        {
+          "name": "fetch_data",
+          "description": "Obtiene datos de mercado para un símbolo específico",
+          "start_line": 32,
+          "end_line": 50
+        },
+        {
+          "name": "create_chart",
+          "description": "Crea un gráfico técnico básico",
+          "start_line": 52,
+          "end_line": 120
+        },
+        {
+          "name": "analyze_data",
+          "description": "Realiza análisis básico de datos de mercado",
+          "start_line": 122,
+          "end_line": 180
+        },
+        {
+          "name": "display_summary",
+          "description": "Muestra un resumen del análisis",
+          "start_line": 182,
+          "end_line": 220
+        },
+        {
+          "name": "main",
+          "description": "Función principal que controla la interfaz",
+          "start_line": 222,
+          "end_line": 280
+        }
+      ]
+    },
+    "2_🤖_Inversor_Bot.py": {
+      "classes": [
+        {
+          "name": "InvestmentAdvisor",
+          "description": "Proporciona recomendaciones de inversión",
+          "start_line": 20,
+          "end_line": 150
+        }
+      ],
+      "functions": [
+        {
+          "name": "process_query",
+          "description": "Procesa consultas del usuario",
+          "start_line": 152,
+          "end_line": 200
+        },
+        {
+          "name": "generate_response",
+          "description": "Genera respuestas basadas en el contexto",
+          "start_line": 202,
+          "end_line": 250
+        },
+        {
+          "name": "display_chat_interface",
+          "description": "Muestra la interfaz de chat",
+          "start_line": 252,
+          "end_line": 300
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 302,
+          "end_line": 350
+        }
+      ]
+    },
+    "3_📊_InversorIA_Mini.py": {
+      "classes": [
+        {
+          "name": "MarketDataProvider",
+          "description": "Proveedor de datos de mercado simplificado",
+          "start_line": 25,
+          "end_line": 120
+        },
+        {
+          "name": "SimpleAnalyzer",
+          "description": "Analizador técnico simplificado",
+          "start_line": 122,
+          "end_line": 250
+        }
+      ],
+      "functions": [
+        {
+          "name": "create_simple_chart",
+          "description": "Crea gráficos técnicos simplificados",
+          "start_line": 252,
+          "end_line": 350
+        },
+        {
+          "name": "display_mini_dashboard",
+          "description": "Muestra un dashboard simplificado",
+          "start_line": 352,
+          "end_line": 420
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 422,
+          "end_line": 500
+        }
+      ]
+    },
+    "4_📈_MarketIntel_Options_Analyzer.py": {
+      "classes": [
+        {
+          "name": "OptionsAnalyzer",
+          "description": "Analiza estrategias de opciones",
+          "start_line": 30,
+          "end_line": 200
+        },
+        {
+          "name": "VolatilityCalculator",
+          "description": "Calcula y analiza la volatilidad",
+          "start_line": 202,
+          "end_line": 300
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculate_greeks",
+          "description": "Calcula los griegos de las opciones",
+          "start_line": 302,
+          "end_line": 350
+        },
+        {
+          "name": "display_options_chain",
+          "description": "Muestra la cadena de opciones",
+          "start_line": 352,
+          "end_line": 400
+        },
+        {
+          "name": "plot_volatility_surface",
+          "description": "Grafica la superficie de volatilidad",
+          "start_line": 402,
+          "end_line": 450
+        },
+        {
+          "name": "consult_expert_ia",
+          "description": "Consulta al experto IA sobre opciones",
+          "start_line": 452,
+          "end_line": 500
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 502,
+          "end_line": 550
+        }
+      ]
+    },
+    "5_📈_Technical_Expert_Analyzer.py": {
+      "classes": [
+        {
+          "name": "PatternDetector",
+          "description": "Detecta patrones técnicos avanzados",
+          "start_line": 40,
+          "end_line": 150
+        },
+        {
+          "name": "LevelAnalyzer",
+          "description": "Analiza niveles clave de soporte/resistencia",
+          "start_line": 152,
+          "end_line": 250
+        }
+      ],
+      "functions": [
+        {
+          "name": "detect_advanced_patterns",
+          "description": "Detecta patrones técnicos avanzados",
+          "start_line": 252,
+          "end_line": 350
+        },
+        {
+          "name": "analyze_market_structure",
+          "description": "Analiza la estructura del mercado",
+          "start_line": 352,
+          "end_line": 450
+        },
+        {
+          "name": "display_technical_dashboard",
+          "description": "Muestra dashboard técnico avanzado",
+          "start_line": 452,
+          "end_line": 550
+        },
+        {
+          "name": "display_session_info",
+          "description": "Muestra información de la sesión",
+          "start_line": 552,
+          "end_line": 600
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 602,
+          "end_line": 700
+        }
+      ]
+    },
+    "6_📊_InversorIA.py": {
+      "classes": [
+        {
+          "name": "LegacyDataProvider",
+          "description": "Proveedor de datos de la versión anterior",
+          "start_line": 30,
+          "end_line": 120
+        },
+        {
+          "name": "LegacyAnalyzer",
+          "description": "Analizador de la versión anterior",
+          "start_line": 122,
+          "end_line": 250
+        }
+      ],
+      "functions": [
+        {
+          "name": "render_technical_tab",
+          "description": "Renderiza pestaña de análisis técnico",
+          "start_line": 252,
+          "end_line": 350
+        },
+        {
+          "name": "render_options_tab",
+          "description": "Renderiza pestaña de opciones",
+          "start_line": 352,
+          "end_line": 450
+        },
+        {
+          "name": "render_multiframe_tab",
+          "description": "Renderiza pestaña multi-timeframe",
+          "start_line": 452,
+          "end_line": 550
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 552,
+          "end_line": 650
+        }
+      ]
+    },
+    "7_🔔_Notificaciones.py": {
+      "classes": [
+        {
+          "name": "RealTimeSignalAnalyzer",
+          "description": "Analiza señales de trading en tiempo real usando datos del mercado",
+          "start_line": 90,
+          "end_line": 934,
+          "methods": [
+            {
+              "name": "scan_market_by_sector",
+              "description": "Escanea el mercado por sector para encontrar señales de trading",
+              "start_line": 170,
+              "end_line": 357
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Genera análisis detallado para un símbolo específico",
+              "start_line": 359,
+              "end_line": 556
+            },
+            {
+              "name": "get_real_time_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
+              "start_line": 557,
+              "end_line": 711
+            },
+            {
+              "name": "get_real_time_market_news",
+              "description": "Obtiene noticias relevantes del mercado en tiempo real",
+              "start_line": 712,
+              "end_line": 834
+            },
+            {
+              "name": "_create_basic_analysis",
+              "description": "Crea un análisis básico para un símbolo usando datos técnicos",
+              "start_line": 835,
+              "end_line": 934
+            }
+          ]
+        },
+        {
+          "name": "DatabaseManager",
+          "description": "Gestiona la conexión y operaciones con la base de datos MariaDB",
+          "start_line": 1132,
+          "end_line": 1393,
+          "methods": [
+            {
+              "name": "connect",
+              "description": "Establece conexión con la base de datos",
+              "start_line": 1150,
+              "end_line": 1170
+            },
+            {
+              "name": "disconnect",
+              "description": "Cierra la conexión con la base de datos",
+              "start_line": 1172,
+              "end_line": 1180
+            },
+            {
+              "name": "execute_query",
+              "description": "Ejecuta una consulta SQL en la base de datos",
+              "start_line": 1182,
+              "end_line": 1210
+            },
+            {
+              "name": "save_signal",
+              "description": "Guarda una señal de trading en la base de datos",
+              "start_line": 1299,
+              "end_line": 1316
+            },
+            {
+              "name": "log_email_sent",
+              "description": "Registra el envío de un correo electrónico",
+              "start_line": 1318,
+              "end_line": 1331
+            },
+            {
+              "name": "save_market_sentiment",
+              "description": "Guarda el sentimiento del mercado en la base de datos",
+              "start_line": 1333,
+              "end_line": 1362
+            },
+            {
+              "name": "save_market_news",
+              "description": "Guarda una noticia del mercado en la base de datos",
+              "start_line": 1364,
+              "end_line": 1390
+            }
+          ]
+        },
+        {
+          "name": "EmailManager",
+          "description": "Gestiona el envío de correos electrónicos con boletines de trading",
+          "start_line": 1394,
+          "end_line": 1867,
+          "methods": [
+            {
+              "name": "send_email",
+              "description": "Envía un correo electrónico con contenido HTML y opcionalmente imágenes",
+              "start_line": 1413,
+              "end_line": 1553
+            },
+            {
+              "name": "create_newsletter_html",
+              "description": "Crea el contenido HTML para el boletín de trading",
+              "start_line": 1555,
+              "end_line": 1866
+            }
+          ]
+        },
+        {
+          "name": "SignalManager",
+          "description": "Gestiona las señales de trading y su procesamiento",
+          "start_line": 1868,
+          "end_line": 1975,
+          "methods": [
+            {
+              "name": "generate_signals",
+              "description": "Genera señales de trading en tiempo real",
+              "start_line": 1880,
+              "end_line": 1903
+            },
+            {
+              "name": "send_newsletter",
+              "description": "Envía un boletín con señales de trading",
+              "start_line": 1905,
+              "end_line": 1975
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación de notificaciones",
+          "start_line": 2000,
+          "end_line": 2100
+        }
+      ]
+    }
+  }
+}
