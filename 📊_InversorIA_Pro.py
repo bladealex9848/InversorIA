@@ -78,6 +78,9 @@ try:
         render_risk_tab,
         TIMEFRAMES,
     )
+
+    # Importar el scanner mejorado
+    from enhanced_market_scanner_fixed import render_enhanced_market_scanner
 except Exception as e:
     st.error(f"Error importando trading_dashboard: {str(e)}")
 
@@ -7235,419 +7238,108 @@ def main():
 
         # Pestaña de Scanner de Mercado
         with main_tab2:
-            st.markdown("## 🔍 Scanner de Mercado")
+            # Usar el scanner mejorado
+            try:
+                # Inicializar gestor de señales si no existe
+                if "signal_manager" not in locals():
+                    signal_manager = SignalManager()
 
-            # Sección para selección de sectores y configuración
-            st.markdown("### Configuración del Scanner")
-
-            # Configuración en dos columnas
-            col1, col2 = st.columns([3, 1])
-
-            with col1:
-                # Selección de sectores para escanear
-                selected_sectors = st.multiselect(
-                    "Sectores a Escanear",
-                    list(SYMBOLS.keys()),
-                    default=st.session_state.last_scan_sectors,
-                    help="Seleccione sectores para buscar oportunidades",
-                    key="scanner_main_sectors",  # Añadir key única
+                # Renderizar el scanner mejorado
+                # Pasamos SYMBOLS como parámetro adicional para evitar problemas de importación
+                render_enhanced_market_scanner(
+                    st.session_state.scanner,
+                    st.session_state.analyzer,
+                    get_market_context,
+                    SYMBOLS,  # Pasar SYMBOLS directamente
                 )
 
-                # Filtro de señales
-                filtro = st.selectbox(
-                    "Filtrar Señales",
-                    ["Todas", "ALCISTA", "BAJISTA", "CALL", "PUT", "Alta Confianza"],
-                    index=0,
-                )
-
-            with col2:
-                # Botón para ejecutar scanner
-                if st.button(
-                    "🔍 Escanear Mercado", type="primary", use_container_width=True
+                # Guardar señales en la base de datos cuando se escanea
+                if (
+                    "scan_results" in st.session_state
+                    and not st.session_state.scan_results.empty
                 ):
-                    with st.spinner("Escaneando mercado en busca de oportunidades..."):
-                        st.session_state.last_scan_sectors = selected_sectors
-                        st.session_state.scan_results = (
-                            st.session_state.scanner.scan_market(selected_sectors)
-                        )
-                        st.session_state.last_scan_time = datetime.now()
-
-                        # Inicializar gestor de señales si no existe
-                        if "signal_manager" not in locals():
-                            signal_manager = SignalManager()
-
-                        # Guardar señales en la base de datos
-                        if not st.session_state.scan_results.empty:
-                            with st.spinner("Guardando señales en la base de datos..."):
-                                signals_saved = 0
-                                for _, row in st.session_state.scan_results.iterrows():
-                                    try:
-                                        # Mapear dirección
-                                        direction = (
-                                            "CALL"
-                                            if row["Estrategia"] == "CALL"
-                                            else (
-                                                "PUT"
-                                                if row["Estrategia"] == "PUT"
-                                                else "NEUTRAL"
-                                            )
+                    # Verificar si ya se guardaron las señales
+                    if (
+                        "signals_saved" not in st.session_state
+                        or not st.session_state.signals_saved
+                    ):
+                        with st.spinner("Guardando señales en la base de datos..."):
+                            signals_saved = 0
+                            for _, row in st.session_state.scan_results.iterrows():
+                                try:
+                                    # Mapear dirección
+                                    direction = (
+                                        "CALL"
+                                        if row["Estrategia"] == "CALL"
+                                        else (
+                                            "PUT"
+                                            if row["Estrategia"] == "PUT"
+                                            else "NEUTRAL"
                                         )
-
-                                        # Mapear confianza
-                                        confidence = (
-                                            row["Confianza"].capitalize()
-                                            if isinstance(row["Confianza"], str)
-                                            else "Media"
-                                        )
-                                        if confidence == "Alta" or confidence == "ALTA":
-                                            confidence = "Alta"
-                                        elif (
-                                            confidence == "Media"
-                                            or confidence == "MEDIA"
-                                        ):
-                                            confidence = "Media"
-                                        else:
-                                            confidence = "Baja"
-
-                                        # Crear señal
-                                        signal = {
-                                            "symbol": row["Symbol"],
-                                            "price": (
-                                                row["Precio"]
-                                                if isinstance(
-                                                    row["Precio"], (int, float)
-                                                )
-                                                else 0.0
-                                            ),
-                                            "direction": direction,
-                                            "confidence_level": confidence,
-                                            "timeframe": "Medio Plazo",
-                                            "strategy": (
-                                                row["Setup"]
-                                                if "Setup" in row
-                                                else "Análisis Técnico"
-                                            ),
-                                            "category": row["Sector"],
-                                            "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
-                                            "created_at": datetime.now(),
-                                        }
-
-                                        # Verificar si la señal ya existe en la base de datos
-                                        existing_signals = signal_manager.db_manager.execute_query(
-                                            "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
-                                            [signal["symbol"]],
-                                        )
-
-                                        if not existing_signals:
-                                            # Guardar señal en la base de datos
-                                            signal_manager.db_manager.save_signal(
-                                                signal
-                                            )
-                                            signals_saved += 1
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Error guardando señal en la base de datos: {str(e)}"
-                                        )
-
-                                if signals_saved > 0:
-                                    st.success(
-                                        f"Se guardaron {signals_saved} señales en la base de datos"
                                     )
 
-                # Mostrar última actualización
-                if hasattr(st.session_state, "last_scan_time"):
-                    st.caption(
-                        f"Última actualización: {st.session_state.last_scan_time.strftime('%H:%M:%S')}"
-                    )
+                                    # Mapear confianza
+                                    confidence = (
+                                        row["Confianza"].capitalize()
+                                        if isinstance(row["Confianza"], str)
+                                        else "Media"
+                                    )
+                                    if confidence == "Alta" or confidence == "ALTA":
+                                        confidence = "Alta"
+                                    elif confidence == "Media" or confidence == "MEDIA":
+                                        confidence = "Media"
+                                    else:
+                                        confidence = "Baja"
 
-            # Mostrar resultados del scanner
-            if (
-                hasattr(st.session_state, "scan_results")
-                and not st.session_state.scan_results.empty
-            ):
-                # Estadísticas resumen
-                st.markdown("### Resumen de Oportunidades")
+                                    # Crear señal
+                                    signal = {
+                                        "symbol": row["Symbol"],
+                                        "price": (
+                                            row["Precio"]
+                                            if isinstance(row["Precio"], (int, float))
+                                            else 0.0
+                                        ),
+                                        "direction": direction,
+                                        "confidence_level": confidence,
+                                        "timeframe": "Medio Plazo",
+                                        "strategy": (
+                                            row["Setup"]
+                                            if "Setup" in row
+                                            else "Análisis Técnico"
+                                        ),
+                                        "category": row["Sector"],
+                                        "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
+                                        "created_at": datetime.now(),
+                                    }
 
-                # Conteo de señales por tipo
-                calls_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "CALL"
-                    ]
+                                    # Verificar si la señal ya existe en la base de datos
+                                    existing_signals = signal_manager.db_manager.execute_query(
+                                        "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                                        [signal["symbol"]],
+                                    )
+
+                                    if not existing_signals:
+                                        # Guardar señal en la base de datos
+                                        signal_manager.db_manager.save_signal(signal)
+                                        signals_saved += 1
+                                except Exception as e:
+                                    logger.error(
+                                        f"Error guardando señal en la base de datos: {str(e)}"
+                                    )
+
+                            if signals_saved > 0:
+                                st.success(
+                                    f"Se guardaron {signals_saved} señales en la base de datos"
+                                )
+                                st.session_state.signals_saved = True
+            except Exception as e:
+                st.error(f"Error al renderizar el scanner mejorado: {str(e)}")
+                st.error(traceback.format_exc())
+
+                # Mostrar mensaje de error y sugerencia
+                st.warning(
+                    "No se pudo cargar el scanner mejorado. Por favor, asegúrate de que el archivo enhanced_market_scanner.py está disponible."
                 )
-                puts_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "PUT"
-                    ]
-                )
-                neutral_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "NEUTRAL"
-                    ]
-                )
-
-                # Conteo por tendencia
-                alcista_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Tendencia"] == "ALCISTA"
-                    ]
-                )
-                bajista_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Tendencia"] == "BAJISTA"
-                    ]
-                )
-
-                # Conteo por confianza
-                alta_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "ALTA"
-                    ]
-                )
-                media_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "MEDIA"
-                    ]
-                )
-                baja_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "BAJA"
-                    ]
-                )
-
-                # Métricas en filas
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Alcistas", alcista_count)
-                with col2:
-                    st.metric("Bajistas", bajista_count)
-                with col3:
-                    st.metric("Alta Confianza", alta_conf)
-                with col4:
-                    st.metric("Total Señales", len(st.session_state.scan_results))
-
-                # Nueva fila para opciones
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric(
-                        "CALL",
-                        calls_count,
-                        delta=(
-                            f"{calls_count/len(st.session_state.scan_results)*100:.1f}%"
-                            if len(st.session_state.scan_results) > 0
-                            else "0%"
-                        ),
-                    )
-                with col2:
-                    st.metric(
-                        "PUT",
-                        puts_count,
-                        delta=(
-                            f"{puts_count/len(st.session_state.scan_results)*100:.1f}%"
-                            if len(st.session_state.scan_results) > 0
-                            else "0%"
-                        ),
-                    )
-                with col3:
-                    # Calcular ratio R/R promedio
-                    avg_rr = st.session_state.scan_results["R/R"].mean()
-                    st.metric("R/R Promedio", f"{avg_rr:.2f}")
-                with col4:
-                    # Volatilidad promedio o algún otro indicador interesante
-                    vix = get_vix_level()
-                    st.metric("VIX Actual", f"{vix:.2f}")
-
-                # Aplicar filtro
-                filtered_results = st.session_state.scan_results
-                if filtro == "ALCISTA":
-                    filtered_results = filtered_results[
-                        filtered_results["Tendencia"] == "ALCISTA"
-                    ]
-                elif filtro == "BAJISTA":
-                    filtered_results = filtered_results[
-                        filtered_results["Tendencia"] == "BAJISTA"
-                    ]
-                elif filtro == "CALL":
-                    filtered_results = filtered_results[
-                        filtered_results["Estrategia"] == "CALL"
-                    ]
-                elif filtro == "PUT":
-                    filtered_results = filtered_results[
-                        filtered_results["Estrategia"] == "PUT"
-                    ]
-                elif filtro == "Alta Confianza":
-                    filtered_results = filtered_results[
-                        filtered_results["Confianza"] == "ALTA"
-                    ]
-
-                if not filtered_results.empty:
-                    # Tabla con resultados
-                    st.markdown("### Oportunidades Detectadas")
-
-                    # Columnas a mostrar
-                    display_cols = [
-                        "Symbol",
-                        "Sector",
-                        "Tendencia",
-                        "Precio",
-                        "Cambio",
-                        "RSI",
-                        "Estrategia",
-                        "Confianza",
-                        "Entry",
-                        "Stop",
-                        "Target",
-                        "R/R",
-                    ]
-
-                    # Formatear la tabla
-                    styled_df = filtered_results[
-                        (
-                            display_cols
-                            if all(
-                                col in filtered_results.columns for col in display_cols
-                            )
-                            else filtered_results.columns
-                        )
-                    ].style.format(
-                        {
-                            "Precio": "${:.2f}",
-                            "Cambio": "{:+.2f}%",
-                            "RSI": "{:.1f}",
-                            "Entry": "${:.2f}",
-                            "Stop": "${:.2f}",
-                            "Target": "${:.2f}",
-                            "R/R": "{:.2f}",
-                        }
-                    )
-
-                    # Colorear filas según tendencia o estrategia
-                    def highlight_rows(row):
-                        if row["Estrategia"] == "CALL":
-                            return ["background-color: rgba(0,200,0,0.1)"] * len(row)
-                        elif row["Estrategia"] == "PUT":
-                            return ["background-color: rgba(255,0,0,0.1)"] * len(row)
-                        else:
-                            return [""] * len(row)
-
-                    styled_df = styled_df.apply(highlight_rows, axis=1)
-
-                    # Mostrar tabla
-                    st.dataframe(styled_df, use_container_width=True, height=400)
-
-                    # Sección para analizar símbolos del scanner
-                    # st.markdown("### 🔬 Análisis Detallado")
-
-                    # Seleccionar símbolo para análisis detallado
-                    # selected_symbol = st.selectbox(
-                    #    "Seleccionar activo para análisis detallado",
-                    #    filtered_results["Symbol"].unique().tolist(),
-                    # )
-
-                    # if st.button(
-                    #    "Analizar", key="scanner_main_analyze_btn"
-                    # ):  # Key única
-                    # Actualizar símbolo actual y redirigir a la pestaña de análisis
-                    #    st.session_state.current_symbol = selected_symbol
-                    # Redirigir a la primera pestaña (Análisis Individual)
-                    #    st.experimental_set_query_params(tab="análisis")
-                    #    st.rerun()
-
-                    # Tabla de comparación entre sectores
-                    if len(selected_sectors) > 1:
-                        st.markdown("### 📊 Análisis Sectorial")
-
-                        # Agrupar por sector
-                        sector_stats = (
-                            filtered_results.groupby("Sector")
-                            .agg({"Symbol": "count", "R/R": "mean", "RSI": "mean"})
-                            .reset_index()
-                        )
-
-                        sector_stats.rename(
-                            columns={
-                                "Symbol": "Señales",
-                                "R/R": "R/R Promedio",
-                                "RSI": "RSI Promedio",
-                            },
-                            inplace=True,
-                        )
-
-                        # Aplicar formato
-                        sector_styled = sector_stats.style.format(
-                            {"R/R Promedio": "{:.2f}", "RSI Promedio": "{:.1f}"}
-                        )
-
-                        st.dataframe(sector_styled, use_container_width=True)
-
-                        # Gráfico de barras con conteo por sector
-                        fig = go.Figure()
-                        fig.add_trace(
-                            go.Bar(
-                                x=sector_stats["Sector"],
-                                y=sector_stats["Señales"],
-                                marker_color="#1E88E5",
-                            )
-                        )
-
-                        fig.update_layout(
-                            title="Señales por Sector",
-                            xaxis_title="Sector",
-                            yaxis_title="Número de Señales",
-                            height=400,
-                            margin=dict(l=20, r=20, t=40, b=20),
-                        )
-
-                        st.plotly_chart(
-                            fig, use_container_width=True, height=800
-                        )  # Especificar altura
-                else:
-                    st.info(
-                        "No hay resultados que coincidan con los filtros seleccionados."
-                    )
-            else:
-                st.info(
-                    """
-                ### No hay datos de scanner disponibles
-
-                Para obtener señales de trading:
-                1. Selecciona los sectores que deseas monitorear
-                2. Pulsa el botón "Escanear Mercado"
-                3. Los resultados aparecerán en esta sección
-                """
-                )
-
-                # Mostrar gráfico de ejemplo
-                st.image(
-                    "https://placehold.co/800x400/1E88E5/FFFFFF?text=Scanner+de+Mercado+InversorIA+Pro",
-                    use_container_width=True,
-                )
-
-            # Sección de información
-            with st.expander("ℹ️ Acerca del Scanner"):
-                st.markdown(
-                    """
-                ### Algoritmo de Scanner
-
-                El scanner de mercado de InversorIA Pro utiliza un enfoque multifactorial que evalúa:
-
-                - **Análisis técnico**: Medias móviles, RSI, MACD, patrones de velas y tendencias
-                - **Opciones**: Flujo de opciones, volatilidad implícita y superficie de volatilidad
-                - **Niveles clave**: Soportes, resistencias y zonas de interés
-
-                Cada oportunidad es calificada con un nivel de confianza basado en la alineación de factores y la calidad de la configuración.
-
-                ### Interpretación de las Señales
-
-                - **Alta Confianza**: Fuerte alineación de múltiples factores
-                - **Media Confianza**: Buena configuración con algunos factores contradictorios
-                - **Baja Confianza**: Configuración básica que requiere más análisis
-
-                El ratio R/R (Riesgo/Recompensa) se calcula automáticamente basado en niveles técnicos y volatilidad del activo.
-                """
-                )
-
-            # Código para guardar señales desde el Scanner de Mercado a la base de datos
-            # (Esta funcionalidad se mantiene en el Scanner de Mercado)
 
     except Exception as e:
         st.error(f"Error en la aplicación: {str(e)}")
