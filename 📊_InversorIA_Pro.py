@@ -7339,6 +7339,256 @@ def main():
                                     else:
                                         confidence = "Baja"
 
+                                    # Generar análisis técnico si no existe
+                                    if "Análisis_Técnico" not in row or not row.get(
+                                        "Análisis_Técnico"
+                                    ):
+                                        technical_analysis = f"El activo {row['Symbol']} muestra una tendencia {row.get('Tendencia', 'NEUTRAL').lower()} "
+                                        technical_analysis += f"con fuerza {row.get('Fuerza', 'moderada')}. "
+                                        technical_analysis += (
+                                            f"RSI en {row.get('RSI', 50):.2f} indica "
+                                        )
+
+                                        # Interpretar RSI
+                                        rsi_value = row.get("RSI", 50)
+                                        if rsi_value < 30:
+                                            technical_analysis += (
+                                                "condiciones de sobreventa. "
+                                            )
+                                        elif rsi_value > 70:
+                                            technical_analysis += (
+                                                "condiciones de sobrecompra. "
+                                            )
+                                        else:
+                                            technical_analysis += (
+                                                "condiciones neutras. "
+                                            )
+
+                                        # Añadir información de setup
+                                        technical_analysis += f"El setup identificado es {row.get('Setup', 'Análisis Técnico')} "
+                                        technical_analysis += f"con una relación riesgo/recompensa de {row.get('R/R', 0.0):.2f}."
+                                    else:
+                                        technical_analysis = row.get(
+                                            "Análisis_Técnico", ""
+                                        )
+
+                                    # Generar análisis de opciones si no existe
+                                    if "Options_Analysis" not in row or not row.get(
+                                        "Options_Analysis"
+                                    ):
+                                        options_analysis = ""
+                                        if (
+                                            "Volatilidad" in row
+                                            and row.get("Volatilidad", 0) > 0
+                                        ):
+                                            volatility = row.get("Volatilidad", 0)
+                                            options_analysis = f"La volatilidad implícita de {row['Symbol']} es del {volatility:.2f}%, "
+                                            if volatility > 50:
+                                                options_analysis += "lo que indica alta incertidumbre en el mercado. "
+                                            elif volatility > 30:
+                                                options_analysis += "lo que indica volatilidad moderada. "
+                                            else:
+                                                options_analysis += (
+                                                    "lo que indica baja volatilidad. "
+                                                )
+
+                                            if "Options_Signal" in row and row.get(
+                                                "Options_Signal"
+                                            ):
+                                                options_analysis += f"El análisis de opciones sugiere una estrategia {row.get('Options_Signal', '')}."
+                                    else:
+                                        options_analysis = row.get(
+                                            "Options_Analysis", ""
+                                        )
+
+                                    # Generar análisis multi-timeframe si no existe
+                                    if "MTF_Analysis" not in row or not row.get(
+                                        "MTF_Analysis"
+                                    ):
+                                        mtf_analysis = f"Análisis de {row['Symbol']} en múltiples marcos temporales: "
+
+                                        # Tendencias por timeframe
+                                        daily_trend = "NEUTRAL"
+                                        weekly_trend = "NEUTRAL"
+                                        monthly_trend = "NEUTRAL"
+
+                                        # Determinar tendencias basadas en la tendencia principal y la fuerza
+                                        main_trend = row.get("Tendencia", "NEUTRAL")
+                                        strength = row.get("Fuerza", "moderada")
+
+                                        if main_trend == "ALCISTA":
+                                            if strength == "fuerte":
+                                                daily_trend = "ALCISTA"
+                                                weekly_trend = "ALCISTA"
+                                                monthly_trend = "NEUTRAL"
+                                            elif strength == "moderada":
+                                                daily_trend = "ALCISTA"
+                                                weekly_trend = "NEUTRAL"
+                                                monthly_trend = "NEUTRAL"
+                                            else:
+                                                daily_trend = "ALCISTA"
+                                                weekly_trend = "NEUTRAL"
+                                                monthly_trend = "BAJISTA"
+                                        elif main_trend == "BAJISTA":
+                                            if strength == "fuerte":
+                                                daily_trend = "BAJISTA"
+                                                weekly_trend = "BAJISTA"
+                                                monthly_trend = "NEUTRAL"
+                                            elif strength == "moderada":
+                                                daily_trend = "BAJISTA"
+                                                weekly_trend = "NEUTRAL"
+                                                monthly_trend = "NEUTRAL"
+                                            else:
+                                                daily_trend = "BAJISTA"
+                                                weekly_trend = "NEUTRAL"
+                                                monthly_trend = "ALCISTA"
+
+                                        mtf_analysis += f"Diario: {daily_trend}, Semanal: {weekly_trend}, Mensual: {monthly_trend}. "
+
+                                        # Añadir recomendación basada en tendencias
+                                        if (
+                                            daily_trend == weekly_trend
+                                            and daily_trend != "NEUTRAL"
+                                        ):
+                                            mtf_analysis += f"Confirmación de tendencia {daily_trend.lower()} en múltiples timeframes."
+                                        elif (
+                                            daily_trend != weekly_trend
+                                            and daily_trend != "NEUTRAL"
+                                            and weekly_trend != "NEUTRAL"
+                                        ):
+                                            mtf_analysis += "Divergencia entre timeframes, se recomienda cautela."
+                                        else:
+                                            mtf_analysis += "Sin tendencia clara en múltiples timeframes."
+                                    else:
+                                        mtf_analysis = row.get("MTF_Analysis", "")
+                                        daily_trend = row.get(
+                                            "Tendencia_Diario", "NEUTRAL"
+                                        )
+                                        weekly_trend = row.get(
+                                            "Tendencia_Semanal", "NEUTRAL"
+                                        )
+                                        monthly_trend = row.get(
+                                            "Tendencia_Mensual", "NEUTRAL"
+                                        )
+
+                                    # Generar análisis experto si no existe
+                                    if "Análisis_Experto" not in row or not row.get(
+                                        "Análisis_Experto"
+                                    ):
+                                        expert_analysis = (
+                                            f"Análisis experto para {row['Symbol']}: "
+                                        )
+
+                                        # Determinar recomendación basada en la dirección y confianza
+                                        if direction == "CALL" and confidence == "Alta":
+                                            recommendation = "COMPRAR"
+                                            expert_analysis += "Se recomienda COMPRAR basado en fuerte señal alcista. "
+                                        elif (
+                                            direction == "PUT" and confidence == "Alta"
+                                        ):
+                                            recommendation = "VENDER"
+                                            expert_analysis += "Se recomienda VENDER basado en fuerte señal bajista. "
+                                        elif direction == "CALL":
+                                            recommendation = "MANTENER/COMPRAR"
+                                            expert_analysis += "Se recomienda MANTENER/COMPRAR con cautela. "
+                                        elif direction == "PUT":
+                                            recommendation = "MANTENER/VENDER"
+                                            expert_analysis += "Se recomienda MANTENER/VENDER con cautela. "
+                                        else:
+                                            recommendation = "MANTENER"
+                                            expert_analysis += "Se recomienda MANTENER y esperar mejor configuración. "
+
+                                        # Añadir información de Trading Specialist si está disponible
+                                        if (
+                                            "Trading_Specialist" in row
+                                            and row.get("Trading_Specialist")
+                                            != "NEUTRAL"
+                                        ):
+                                            expert_analysis += f"El Trading Specialist indica {row.get('Trading_Specialist', '')} "
+                                            expert_analysis += f"con confianza {row.get('TS_Confianza', 'MEDIA')}. "
+
+                                        # Añadir información de riesgo/recompensa
+                                        rr = row.get("R/R", 0.0)
+                                        if rr > 3:
+                                            expert_analysis += f"Excelente relación riesgo/recompensa de {rr:.2f}."
+                                        elif rr > 2:
+                                            expert_analysis += f"Buena relación riesgo/recompensa de {rr:.2f}."
+                                        elif rr > 1:
+                                            expert_analysis += f"Aceptable relación riesgo/recompensa de {rr:.2f}."
+                                        else:
+                                            expert_analysis += f"Baja relación riesgo/recompensa de {rr:.2f}, se recomienda cautela."
+                                    else:
+                                        expert_analysis = row.get(
+                                            "Análisis_Experto", ""
+                                        )
+                                        recommendation = row.get("Recomendación", "")
+
+                                    # Generar indicadores alcistas/bajistas si no existen
+                                    if (
+                                        "Indicadores_Alcistas" not in row
+                                        or not row.get("Indicadores_Alcistas")
+                                    ):
+                                        # Indicadores alcistas básicos basados en RSI y tendencia
+                                        bullish_indicators = []
+                                        if row.get("RSI", 50) < 30:
+                                            bullish_indicators.append(
+                                                "RSI en sobreventa"
+                                            )
+                                        if row.get("Tendencia", "NEUTRAL") == "ALCISTA":
+                                            bullish_indicators.append(
+                                                "Tendencia alcista"
+                                            )
+                                        if (
+                                            row.get("Precio", 0) > row.get("Soporte", 0)
+                                            and row.get("Soporte", 0) > 0
+                                        ):
+                                            bullish_indicators.append(
+                                                "Precio por encima del soporte"
+                                            )
+
+                                        bullish_indicators_str = (
+                                            ", ".join(bullish_indicators)
+                                            if bullish_indicators
+                                            else "No se detectaron indicadores alcistas significativos"
+                                        )
+                                    else:
+                                        bullish_indicators_str = row.get(
+                                            "Indicadores_Alcistas", ""
+                                        )
+
+                                    if (
+                                        "Indicadores_Bajistas" not in row
+                                        or not row.get("Indicadores_Bajistas")
+                                    ):
+                                        # Indicadores bajistas básicos basados en RSI y tendencia
+                                        bearish_indicators = []
+                                        if row.get("RSI", 50) > 70:
+                                            bearish_indicators.append(
+                                                "RSI en sobrecompra"
+                                            )
+                                        if row.get("Tendencia", "NEUTRAL") == "BAJISTA":
+                                            bearish_indicators.append(
+                                                "Tendencia bajista"
+                                            )
+                                        if (
+                                            row.get("Precio", 0)
+                                            < row.get("Resistencia", 0)
+                                            and row.get("Resistencia", 0) > 0
+                                        ):
+                                            bearish_indicators.append(
+                                                "Precio por debajo de la resistencia"
+                                            )
+
+                                        bearish_indicators_str = (
+                                            ", ".join(bearish_indicators)
+                                            if bearish_indicators
+                                            else "No se detectaron indicadores bajistas significativos"
+                                        )
+                                    else:
+                                        bearish_indicators_str = row.get(
+                                            "Indicadores_Bajistas", ""
+                                        )
+
                                     # Crear señal con información detallada
                                     signal = {
                                         # Campos básicos
@@ -7363,23 +7613,19 @@ def main():
                                         "target_price": row.get("Target", 0.0),
                                         "risk_reward": row.get("R/R", 0.0),
                                         "setup_type": row.get(
-                                            "Setup", "Análisis Técnico"
+                                            "Setup", f"Estrategia {direction} genérica"
                                         ),
                                         # Campos para análisis técnico
-                                        "technical_analysis": row.get(
-                                            "Análisis_Técnico", ""
-                                        ),
+                                        "technical_analysis": technical_analysis,
                                         "support_level": row.get("Soporte", 0.0),
                                         "resistance_level": row.get("Resistencia", 0.0),
                                         "rsi": row.get("RSI", 0.0),
                                         "trend": row.get("Tendencia", "NEUTRAL"),
-                                        "trend_strength": row.get("Fuerza", "MEDIA"),
+                                        "trend_strength": row.get("Fuerza", "moderada"),
                                         # Campos para opciones
                                         "volatility": row.get("Volatilidad", 0.0),
                                         "options_signal": row.get("Options_Signal", ""),
-                                        "options_analysis": row.get(
-                                            "Options_Analysis", ""
-                                        ),
+                                        "options_analysis": options_analysis,
                                         # Campos para Trading Specialist
                                         "trading_specialist_signal": row.get(
                                             "Trading_Specialist", "NEUTRAL"
@@ -7398,24 +7644,18 @@ def main():
                                             "Noticias_Adicionales", ""
                                         ),
                                         # Campos para análisis experto y multi-timeframe
-                                        "expert_analysis": row.get(
-                                            "Análisis_Experto", ""
+                                        "expert_analysis": expert_analysis,
+                                        "recommendation": (
+                                            recommendation
+                                            if "recommendation" in locals()
+                                            else ""
                                         ),
-                                        "recommendation": row.get("Recomendación", ""),
-                                        "mtf_analysis": row.get("MTF_Analysis", ""),
-                                        "daily_trend": row.get("Tendencia_Diario", ""),
-                                        "weekly_trend": row.get(
-                                            "Tendencia_Semanal", ""
-                                        ),
-                                        "monthly_trend": row.get(
-                                            "Tendencia_Mensual", ""
-                                        ),
-                                        "bullish_indicators": row.get(
-                                            "Indicadores_Alcistas", ""
-                                        ),
-                                        "bearish_indicators": row.get(
-                                            "Indicadores_Bajistas", ""
-                                        ),
+                                        "mtf_analysis": mtf_analysis,
+                                        "daily_trend": daily_trend,
+                                        "weekly_trend": weekly_trend,
+                                        "monthly_trend": monthly_trend,
+                                        "bullish_indicators": bullish_indicators_str,
+                                        "bearish_indicators": bearish_indicators_str,
                                         # Indicador de alta confianza
                                         "is_high_confidence": confidence == "Alta"
                                         or (

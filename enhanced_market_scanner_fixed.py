@@ -210,7 +210,7 @@ def render_enhanced_market_scanner(
             # Identificar activos de alta confianza
             # Consideramos alta confianza si:
             # 1. La columna Confianza es "ALTA" o
-            # 2. Trading_Specialist contiene "FUERTE"
+            # 2. Trading_Specialist contiene "COMPRA" o "VENTA" con confianza "ALTA"
             high_confidence = opportunities[opportunities["Confianza"] == "ALTA"].copy()
 
             # Si existe la columna Trading_Specialist, añadir los que tienen señal FUERTE
@@ -229,6 +229,18 @@ def render_enhanced_market_scanner(
                         [high_confidence, strong_signals]
                     ).drop_duplicates(subset=["Symbol"])
 
+            # Agregar un indicador visual para señales de alta confianza
+            if not high_confidence.empty:
+                st.markdown(
+                    """
+                <div style="background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+                    <h4 style="color: #721c24; margin: 0;">🚨 Señales de Alta Confianza Detectadas</h4>
+                    <p style="margin: 5px 0 0 0;">Se han detectado señales de alta confianza que requieren atención inmediata.</p>
+                </div>
+                """,
+                    unsafe_allow_html=True,
+                )
+
             # Crear pestañas para alta confianza y otras oportunidades
             if not high_confidence.empty:
                 st.markdown("#### 🌟 Oportunidades de Alta Confianza")
@@ -246,7 +258,29 @@ def render_enhanced_market_scanner(
                         high_confidence["Symbol"] == selected_high_conf
                     ].iloc[0]
 
-                    # Crear pestañas para diferentes tipos de análisis
+                    # Crear pestañas para diferentes tipos de análisis con diseño mejorado
+                    st.markdown(
+                        """
+                    <style>
+                    .stTabs [data-baseweb="tab-list"] {
+                        gap: 8px;
+                    }
+                    .stTabs [data-baseweb="tab"] {
+                        background-color: #f0f2f6;
+                        border-radius: 4px 4px 0px 0px;
+                        padding: 10px 16px;
+                        font-weight: 600;
+                    }
+                    .stTabs [aria-selected="true"] {
+                        background-color: #e6f3ff;
+                        color: #0366d6;
+                        border-bottom: 2px solid #0366d6;
+                    }
+                    </style>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
                     analysis_tabs = st.tabs(
                         [
                             "📊 Resumen",
@@ -258,51 +292,153 @@ def render_enhanced_market_scanner(
                         ]
                     )
 
-                    # Pestaña de Resumen
+                    # Pestaña de Resumen con diseño mejorado
                     with analysis_tabs[0]:
+                        # Encabezado con estilo
+                        symbol_color = (
+                            "green"
+                            if row["Estrategia"] == "CALL"
+                            else "red" if row["Estrategia"] == "PUT" else "gray"
+                        )
+                        st.markdown(
+                            f"""
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {symbol_color};">
+                            <h2 style="margin:0; color: {symbol_color};">{row['Symbol']} - {row['Sector']}</h2>
+                            <p style="margin:5px 0 0 0; font-size: 1.1em;">Precio: <b>${row['Precio']:.2f}</b> | Estrategia: <b style="color: {symbol_color};">{row['Estrategia']}</b> | Confianza: <b>{row['Confianza']}</b></p>
+                        </div>
+                        """,
+                            unsafe_allow_html=True,
+                        )
+
+                        # Dividir en columnas
                         col1, col2 = st.columns([2, 1])
 
                         with col1:
-                            # Información básica
-                            st.markdown(f"### {row['Symbol']} - {row['Sector']}")
-                            st.markdown(f"**Precio:** ${row['Precio']:.2f}")
+                            # Tarjeta de niveles de trading
                             st.markdown(
-                                f"**Estrategia:** {row['Estrategia']} - {row['Setup']}"
+                                f"""
+                            <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                                <h4 style="margin-top:0;">📏 Niveles de Trading</h4>
+                                <table style="width:100%">
+                                    <tr>
+                                        <td style="padding: 5px; width: 40%;"><b>Entrada:</b></td>
+                                        <td style="padding: 5px;">${row['Entry']:.2f}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px; width: 40%;"><b>Stop Loss:</b></td>
+                                        <td style="padding: 5px; color: red;">${row['Stop']:.2f}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px; width: 40%;"><b>Target:</b></td>
+                                        <td style="padding: 5px; color: green;">${row['Target']:.2f}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 5px; width: 40%;"><b>Ratio R/R:</b></td>
+                                        <td style="padding: 5px; font-weight: bold;">{row['R/R']:.2f}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
                             )
-                            st.markdown(f"**Confianza:** {row['Confianza']}")
 
-                            # Niveles
-                            st.markdown("#### Niveles de Trading")
-                            st.markdown(f"**Entrada:** ${row['Entry']:.2f}")
-                            st.markdown(f"**Stop Loss:** ${row['Stop']:.2f}")
-                            st.markdown(f"**Target:** ${row['Target']:.2f}")
-                            st.markdown(
-                                f"**Ratio Riesgo/Recompensa:** {row['R/R']:.2f}"
-                            )
-
-                            # Trading Specialist
+                            # Trading Specialist con estilo
                             if (
                                 "Trading_Specialist" in row
                                 and pd.notna(row["Trading_Specialist"])
                                 and row["Trading_Specialist"] != "NEUTRAL"
                             ):
-                                st.markdown("#### 💬 Trading Specialist")
                                 signal_color = (
                                     "green"
                                     if row["Trading_Specialist"] == "COMPRA"
                                     else "red"
                                 )
                                 st.markdown(
-                                    f"**⚠️ Señal General:** <span style='color:{signal_color};'>{row['Trading_Specialist']} {row.get('TS_Confianza', '')}</span>",
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid {signal_color};">
+                                    <h4 style="margin-top:0;">💬 Trading Specialist</h4>
+                                    <p style="font-size: 1.1em; margin: 5px 0;">Señal: <span style="color:{signal_color}; font-weight:bold;">{row['Trading_Specialist']} {row.get('TS_Confianza', '')}</span></p>
+                                </div>
+                                """,
                                     unsafe_allow_html=True,
                                 )
 
                         with col2:
-                            # Métricas adicionales
-                            st.markdown("#### 📊 Métricas Clave")
-                            st.metric("RSI", f"{row['RSI']:.1f}")
-                            st.metric("Tendencia", row["Tendencia"])
-                            st.metric("Fuerza", row["Fuerza"])
+                            # Métricas clave con estilo
+                            st.markdown(
+                                "<h4 style='margin-bottom:15px;'>📊 Métricas Clave</h4>",
+                                unsafe_allow_html=True,
+                            )
+
+                            # RSI con color basado en valor
+                            rsi_value = row["RSI"]
+                            rsi_color = (
+                                "red"
+                                if rsi_value > 70
+                                else "green" if rsi_value < 30 else "gray"
+                            )
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><b>RSI</b></span>
+                                    <span style="color: {rsi_color}; font-weight: bold;">{rsi_value:.1f}</span>
+                                </div>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Tendencia con color
+                            trend = row["Tendencia"]
+                            trend_color = (
+                                "green"
+                                if trend == "ALCISTA"
+                                else "red" if trend == "BAJISTA" else "gray"
+                            )
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><b>Tendencia</b></span>
+                                    <span style="color: {trend_color}; font-weight: bold;">{trend}</span>
+                                </div>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Fuerza con color
+                            strength = row["Fuerza"]
+                            strength_color = (
+                                "green"
+                                if strength == "fuerte"
+                                else "orange" if strength == "moderada" else "gray"
+                            )
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><b>Fuerza</b></span>
+                                    <span style="color: {strength_color}; font-weight: bold;">{strength}</span>
+                                </div>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Setup
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><b>Setup</b></span>
+                                    <span style="font-weight: bold;">{row['Setup']}</span>
+                                </div>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
 
                     # Pestaña de Análisis Técnico
                     with analysis_tabs[1]:
