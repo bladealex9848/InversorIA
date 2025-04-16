@@ -446,10 +446,18 @@ def render_enhanced_market_scanner(
                         if "Análisis_Técnico" in row and pd.notna(
                             row["Análisis_Técnico"]
                         ):
-                            st.markdown("### 📊 Análisis Técnico Detallado")
-                            st.markdown(row["Análisis_Técnico"])
+                            # Crear una tarjeta moderna para el análisis técnico
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #0366d6;">
+                                <h3 style="margin-top:0; color: #0366d6;">📊 Análisis Técnico Detallado</h3>
+                                <p style="margin-bottom: 10px;">{row["Análisis_Técnico"]}</p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
 
-                            # Indicadores
+                            # Indicadores en tarjetas modernas
                             if (
                                 "Indicadores_Alcistas" in row
                                 and "Indicadores_Bajistas" in row
@@ -457,88 +465,204 @@ def render_enhanced_market_scanner(
                                 st.markdown("#### Indicadores")
                                 col1, col2 = st.columns(2)
                                 with col1:
-                                    st.markdown(f"**Indicadores Alcistas:**")
-                                    st.markdown(row["Indicadores_Alcistas"])
+                                    st.markdown(
+                                        f"""
+                                    <div style="background-color: #e6f4ea; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid #34a853;">
+                                        <h5 style="margin-top:0; color: #34a853;">Indicadores Alcistas</h5>
+                                        <p style="margin:0;">{row["Indicadores_Alcistas"]}</p>
+                                    </div>
+                                    """,
+                                        unsafe_allow_html=True,
+                                    )
                                 with col2:
-                                    st.markdown(f"**Indicadores Bajistas:**")
-                                    st.markdown(row["Indicadores_Bajistas"])
+                                    st.markdown(
+                                        f"""
+                                    <div style="background-color: #fce8e6; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid #ea4335;">
+                                        <h5 style="margin-top:0; color: #ea4335;">Indicadores Bajistas</h5>
+                                        <p style="margin:0;">{row["Indicadores_Bajistas"]}</p>
+                                    </div>
+                                    """,
+                                        unsafe_allow_html=True,
+                                    )
 
-                            # Soportes y Resistencias
+                            # Soportes y Resistencias en tarjetas modernas
                             if "Soporte" in row or "Resistencia" in row:
-                                st.markdown("#### 📏 Soportes y Resistencias")
+                                st.markdown(
+                                    "<h4 style='margin-top:20px;'>📏 Soportes y Resistencias</h4>",
+                                    unsafe_allow_html=True,
+                                )
                                 col1, col2 = st.columns(2)
                                 with col1:
                                     if "Soporte" in row and pd.notna(row["Soporte"]):
-                                        st.metric("Soporte", f"${row['Soporte']:.2f}")
+                                        st.markdown(
+                                            f"""
+                                        <div style="background-color: #e6f4ea; padding: 15px; border-radius: 5px; text-align: center;">
+                                            <h5 style="margin-top:0; color: #34a853;">Soporte</h5>
+                                            <p style="font-size: 1.5em; font-weight: bold; margin:0;">${row['Soporte']:.2f}</p>
+                                        </div>
+                                        """,
+                                            unsafe_allow_html=True,
+                                        )
                                 with col2:
                                     if "Resistencia" in row and pd.notna(
                                         row["Resistencia"]
                                     ):
-                                        st.metric(
-                                            "Resistencia", f"${row['Resistencia']:.2f}"
+                                        st.markdown(
+                                            f"""
+                                        <div style="background-color: #fce8e6; padding: 15px; border-radius: 5px; text-align: center;">
+                                            <h5 style="margin-top:0; color: #ea4335;">Resistencia</h5>
+                                            <p style="font-size: 1.5em; font-weight: bold; margin:0;">${row['Resistencia']:.2f}</p>
+                                        </div>
+                                        """,
+                                            unsafe_allow_html=True,
                                         )
                         else:
                             st.info(
                                 "No hay análisis técnico detallado disponible para este activo."
                             )
 
-                    # Pestaña de Opciones
+                    # Pestaña de Opciones con diseño mejorado
                     with analysis_tabs[2]:
-                        st.markdown("### 🎯 Análisis de Opciones")
+                        # Encabezado con estilo
+                        st.markdown(
+                            "<h3 style='color: #5c6bc0; margin-bottom: 15px;'>🎯 Análisis de Opciones</h3>",
+                            unsafe_allow_html=True,
+                        )
+
                         if "Volatilidad" in row and pd.notna(row["Volatilidad"]):
-                            st.markdown("#### Datos de Volatilidad")
-                            st.metric(
-                                "Volatilidad Implícita", f"{row['Volatilidad']:.2f}%"
+                            # Determinar nivel de volatilidad para color
+                            volatility = row["Volatilidad"]
+                            if volatility > 50:
+                                vol_color = "#d32f2f"  # Rojo para alta volatilidad
+                                vol_level = "ALTA"
+                                vol_bg = "#ffebee"
+                            elif volatility > 30:
+                                vol_color = "#f57c00"  # Naranja para volatilidad media
+                                vol_level = "MEDIA"
+                                vol_bg = "#fff3e0"
+                            else:
+                                vol_color = "#388e3c"  # Verde para baja volatilidad
+                                vol_level = "BAJA"
+                                vol_bg = "#e8f5e9"
+
+                            # Tarjeta de volatilidad
+                            st.markdown(
+                                f"""
+                            <div style="background-color: {vol_bg}; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {vol_color};">
+                                <h4 style="margin-top:0; color: {vol_color};">Volatilidad Implícita: {volatility:.2f}%</h4>
+                                <p style="margin:0;">Nivel de volatilidad: <strong>{vol_level}</strong></p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
                             )
 
+                            # Señal de opciones en tarjeta
                             if "Options_Signal" in row and pd.notna(
                                 row["Options_Signal"]
                             ):
-                                signal_color = (
-                                    "green"
-                                    if row["Options_Signal"] == "CALL"
-                                    else "red"
-                                )
+                                options_signal = row["Options_Signal"]
+                                if "CALL" in options_signal:
+                                    signal_color = "#388e3c"  # Verde para CALL
+                                    signal_bg = "#e8f5e9"
+                                elif "PUT" in options_signal:
+                                    signal_color = "#d32f2f"  # Rojo para PUT
+                                    signal_bg = "#ffebee"
+                                else:
+                                    signal_color = "#5c6bc0"  # Azul para neutral
+                                    signal_bg = "#e8eaf6"
+
                                 st.markdown(
-                                    f"**Señal de Opciones:** <span style='color:{signal_color};'>{row['Options_Signal']}</span>",
+                                    f"""
+                                <div style="background-color: {signal_bg}; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {signal_color};">
+                                    <h4 style="margin-top:0; color: {signal_color};">Estrategia Recomendada: {options_signal}</h4>
+                                </div>
+                                """,
                                     unsafe_allow_html=True,
                                 )
 
-                            # Información adicional de opciones si está disponible
+                            # Análisis de opciones en tarjeta
                             if "Options_Analysis" in row and pd.notna(
                                 row["Options_Analysis"]
                             ):
-                                st.markdown("#### Análisis de Opciones")
-                                st.markdown(row["Options_Analysis"])
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #e8eaf6; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #3f51b5;">
+                                    <h4 style="margin-top:0; color: #3f51b5;">Análisis Detallado</h4>
+                                    <p style="margin:0;">{row["Options_Analysis"]}</p>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
                         else:
                             st.info(
                                 "No hay datos de opciones disponibles para este activo."
                             )
 
-                    # Pestaña de Multi-Timeframe
+                    # Pestaña de Multi-Timeframe con diseño mejorado
                     with analysis_tabs[3]:
-                        st.markdown("### ⚙️ Análisis Multi-Timeframe")
-                        if "MTF_Analysis" in row and pd.notna(row["MTF_Analysis"]):
-                            st.markdown(row["MTF_Analysis"])
+                        # Encabezado con estilo
+                        st.markdown(
+                            "<h3 style='color: #7b1fa2; margin-bottom: 15px;'>⚙️ Análisis Multi-Timeframe</h3>",
+                            unsafe_allow_html=True,
+                        )
 
-                            # Tendencias por timeframe si están disponibles
+                        if "MTF_Analysis" in row and pd.notna(row["MTF_Analysis"]):
+                            # Tarjeta para el análisis MTF
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #f3e5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #7b1fa2;">
+                                <h4 style="margin-top:0; color: #7b1fa2;">Resumen Multi-Timeframe</h4>
+                                <p style="margin:0;">{row["MTF_Analysis"]}</p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Tendencias por timeframe en tarjetas modernas
+                            st.markdown(
+                                "<h4 style='margin-top:20px;'>Tendencias por Timeframe</h4>",
+                                unsafe_allow_html=True,
+                            )
+
                             timeframes = ["Diario", "Semanal", "Mensual"]
                             cols = st.columns(len(timeframes))
+
                             for i, tf in enumerate(timeframes):
                                 tf_key = f"Tendencia_{tf}"
                                 if tf_key in row and pd.notna(row[tf_key]):
-                                    color = (
-                                        "green"
-                                        if row[tf_key] == "ALCISTA"
-                                        else (
-                                            "red"
-                                            if row[tf_key] == "BAJISTA"
-                                            else "gray"
-                                        )
-                                    )
+                                    trend = row[tf_key]
+                                    if trend == "ALCISTA":
+                                        color = "#388e3c"  # Verde para alcista
+                                        bg_color = "#e8f5e9"
+                                        icon = "↗️"  # Flecha hacia arriba
+                                    elif trend == "BAJISTA":
+                                        color = "#d32f2f"  # Rojo para bajista
+                                        bg_color = "#ffebee"
+                                        icon = "↘️"  # Flecha hacia abajo
+                                    else:  # NEUTRAL
+                                        color = "#757575"  # Gris para neutral
+                                        bg_color = "#f5f5f5"
+                                        icon = "↔️"  # Flecha horizontal
+
                                     with cols[i]:
                                         st.markdown(
-                                            f"**{tf}:** <span style='color:{color};'>{row[tf_key]}</span>",
+                                            f"""
+                                        <div style="background-color: {bg_color}; padding: 15px; border-radius: 5px; text-align: center; height: 100px; display: flex; flex-direction: column; justify-content: center;">
+                                            <h5 style="margin-top:0; color: {color};">{tf}</h5>
+                                            <p style="font-size: 1.2em; font-weight: bold; margin:5px 0; color: {color};">{icon} {trend}</p>
+                                        </div>
+                                        """,
+                                            unsafe_allow_html=True,
+                                        )
+                                else:
+                                    with cols[i]:
+                                        st.markdown(
+                                            f"""
+                                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; height: 100px; display: flex; flex-direction: column; justify-content: center;">
+                                            <h5 style="margin-top:0; color: #757575;">{tf}</h5>
+                                            <p style="font-size: 1.2em; font-weight: bold; margin:5px 0; color: #757575;">N/A</p>
+                                        </div>
+                                        """,
                                             unsafe_allow_html=True,
                                         )
                         else:
@@ -546,31 +670,113 @@ def render_enhanced_market_scanner(
                                 "No hay análisis multi-timeframe disponible para este activo."
                             )
 
-                    # Pestaña de Análisis Experto
+                    # Pestaña de Análisis Experto con diseño mejorado
                     with analysis_tabs[4]:
-                        st.markdown("### 🧠 Análisis Experto")
+                        # Encabezado con estilo
+                        st.markdown(
+                            "<h3 style='color: #00796b; margin-bottom: 15px;'>🧠 Análisis Experto</h3>",
+                            unsafe_allow_html=True,
+                        )
+
                         if "Análisis_Experto" in row and pd.notna(
                             row["Análisis_Experto"]
                         ):
-                            st.markdown(row["Análisis_Experto"])
-
-                            # Recomendaciones si están disponibles
+                            # Recomendación en tarjeta destacada
                             if "Recomendación" in row and pd.notna(
                                 row["Recomendación"]
                             ):
-                                rec_color = (
-                                    "green"
-                                    if row["Recomendación"]
-                                    in ["COMPRAR", "FUERTE COMPRA"]
-                                    else (
-                                        "red"
-                                        if row["Recomendación"]
-                                        in ["VENDER", "FUERTE VENTA"]
-                                        else "gray"
-                                    )
-                                )
+                                recommendation = row["Recomendación"]
+
+                                # Determinar colores y estilos basados en la recomendación
+                                if recommendation in ["COMPRAR", "FUERTE COMPRA"]:
+                                    rec_color = "#388e3c"  # Verde para compra
+                                    rec_bg = "#e8f5e9"
+                                    rec_icon = "📈"  # Gráfico subiendo
+                                elif recommendation in ["VENDER", "FUERTE VENTA"]:
+                                    rec_color = "#d32f2f"  # Rojo para venta
+                                    rec_bg = "#ffebee"
+                                    rec_icon = "📉"  # Gráfico bajando
+                                else:  # MANTENER o similar
+                                    rec_color = "#0288d1"  # Azul para mantener
+                                    rec_bg = "#e1f5fe"
+                                    rec_icon = "📊"  # Gráfico plano
+
+                                # Tarjeta de recomendación destacada
                                 st.markdown(
-                                    f"**Recomendación:** <span style='color:{rec_color};'>{row['Recomendación']}</span>",
+                                    f"""
+                                <div style="background-color: {rec_bg}; padding: 20px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {rec_color}; text-align: center;">
+                                    <h3 style="margin-top:0; color: {rec_color};">{rec_icon} Recomendación</h3>
+                                    <p style="font-size: 1.8em; font-weight: bold; margin:10px 0; color: {rec_color};">{recommendation}</p>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                            # Análisis experto en tarjeta
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #e0f2f1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #00796b;">
+                                <h4 style="margin-top:0; color: #00796b;">Análisis Detallado</h4>
+                                <p style="margin:0;">{row["Análisis_Experto"]}</p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Indicadores adicionales si están disponibles
+                            if (
+                                "Indicadores_Alcistas" in row
+                                and "Indicadores_Bajistas" in row
+                            ):
+                                # Contar indicadores
+                                bullish_count = (
+                                    len(row["Indicadores_Alcistas"].split(","))
+                                    if "No se detectaron"
+                                    not in row["Indicadores_Alcistas"]
+                                    else 0
+                                )
+                                bearish_count = (
+                                    len(row["Indicadores_Bajistas"].split(","))
+                                    if "No se detectaron"
+                                    not in row["Indicadores_Bajistas"]
+                                    else 0
+                                )
+
+                                # Calcular balance de indicadores
+                                if bullish_count > bearish_count:
+                                    balance = "ALCISTA"
+                                    balance_color = "#388e3c"
+                                    balance_bg = "#e8f5e9"
+                                elif bearish_count > bullish_count:
+                                    balance = "BAJISTA"
+                                    balance_color = "#d32f2f"
+                                    balance_bg = "#ffebee"
+                                else:
+                                    balance = "NEUTRAL"
+                                    balance_color = "#757575"
+                                    balance_bg = "#f5f5f5"
+
+                                # Mostrar balance de indicadores
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: {balance_bg}; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {balance_color}; text-align: center;">
+                                    <h4 style="margin-top:0; color: {balance_color};">Balance de Indicadores</h4>
+                                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                                        <div style="text-align: center; width: 30%;">
+                                            <p style="font-size: 1.2em; font-weight: bold; color: #388e3c;">{bullish_count}</p>
+                                            <p style="margin:0;">Alcistas</p>
+                                        </div>
+                                        <div style="text-align: center; width: 30%;">
+                                            <p style="font-size: 1.2em; font-weight: bold; color: {balance_color};">{balance}</p>
+                                            <p style="margin:0;">Balance</p>
+                                        </div>
+                                        <div style="text-align: center; width: 30%;">
+                                            <p style="font-size: 1.2em; font-weight: bold; color: #d32f2f;">{bearish_count}</p>
+                                            <p style="margin:0;">Bajistas</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                """,
                                     unsafe_allow_html=True,
                                 )
                         else:
@@ -578,42 +784,108 @@ def render_enhanced_market_scanner(
                                 "No hay análisis experto disponible para este activo."
                             )
 
-                    # Pestaña de Noticias y Sentimiento
+                    # Pestaña de Noticias y Sentimiento con diseño mejorado
                     with analysis_tabs[5]:
-                        st.markdown("### 📰 Noticias y Sentimiento")
+                        # Encabezado con estilo
+                        st.markdown(
+                            "<h3 style='color: #e65100; margin-bottom: 15px;'>📰 Noticias y Sentimiento</h3>",
+                            unsafe_allow_html=True,
+                        )
 
-                        # Sentimiento
-                        if (
-                            "Sentimiento" in row
-                            and pd.notna(row["Sentimiento"])
-                            and row["Sentimiento"] != "neutral"
-                        ):
-                            st.markdown("#### 🧠 Sentimiento de Mercado")
-                            sentiment_color = (
-                                "green" if row["Sentimiento"] == "positivo" else "red"
-                            )
+                        # Sentimiento en tarjeta moderna
+                        if "Sentimiento" in row and pd.notna(row["Sentimiento"]):
+                            sentiment = row["Sentimiento"]
                             sentiment_score = row.get("Sentimiento_Score", 0.5) * 100
+
+                            # Determinar colores y estilos basados en el sentimiento
+                            if sentiment == "positivo":
+                                sentiment_color = "#388e3c"  # Verde para positivo
+                                sentiment_bg = "#e8f5e9"
+                                sentiment_icon = "😀"  # Cara sonriente
+                                sentiment_text = "POSITIVO"
+                            elif sentiment == "negativo":
+                                sentiment_color = "#d32f2f"  # Rojo para negativo
+                                sentiment_bg = "#ffebee"
+                                sentiment_icon = "🙁"  # Cara triste
+                                sentiment_text = "NEGATIVO"
+                            else:  # neutral
+                                sentiment_color = "#757575"  # Gris para neutral
+                                sentiment_bg = "#f5f5f5"
+                                sentiment_icon = "😐"  # Cara neutral
+                                sentiment_text = "NEUTRAL"
+
+                            # Tarjeta de sentimiento
                             st.markdown(
-                                f"**Sentimiento:** <span style='color:{sentiment_color};'>{row['Sentimiento'].upper()}</span> ({sentiment_score:.1f}%)",
+                                f"""
+                            <div style="background-color: {sentiment_bg}; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {sentiment_color}; display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 style="margin-top:0; color: {sentiment_color};">🧠 Sentimiento de Mercado</h4>
+                                    <p style="margin:0; font-size: 1.1em;">Sentimiento: <strong style="color: {sentiment_color};">{sentiment_text}</strong></p>
+                                </div>
+                                <div style="text-align: center; min-width: 80px;">
+                                    <div style="font-size: 2em;">{sentiment_icon}</div>
+                                    <div style="font-weight: bold; color: {sentiment_color};">{sentiment_score:.1f}%</div>
+                                </div>
+                            </div>
+                            """,
                                 unsafe_allow_html=True,
                             )
 
-                        # Noticias
+                        # Última noticia en tarjeta destacada
                         if "Última_Noticia" in row and pd.notna(row["Última_Noticia"]):
-                            st.markdown("#### 📰 Últimas Noticias")
-                            st.markdown(f"**{row['Última_Noticia']}**")
-                            if "Fuente_Noticia" in row:
-                                st.caption(f"Fuente: {row['Fuente_Noticia']}")
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #e65100;">
+                                <h4 style="margin-top:0; color: #e65100;">📰 Última Noticia</h4>
+                                <p style="margin:0; font-weight: bold;">{row["Última_Noticia"]}</p>
+                                <p style="margin:5px 0 0 0; font-size: 0.8em; color: #757575;">Fuente: {row.get('Fuente_Noticia', 'No especificada')}</p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
 
-                            # Más noticias si están disponibles
+                            # Noticias adicionales en tarjeta
                             if "Noticias_Adicionales" in row and pd.notna(
                                 row["Noticias_Adicionales"]
                             ):
-                                st.markdown("#### Más Noticias")
-                                st.markdown(row["Noticias_Adicionales"])
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #fff8e1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #ffa000;">
+                                    <h4 style="margin-top:0; color: #ffa000;">Más Noticias</h4>
+                                    <p style="margin:0;">{row["Noticias_Adicionales"]}</p>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                            # Añadir botón para buscar más noticias
+                            st.markdown(
+                                f"""
+                            <div style="text-align: center; margin-top: 20px;">
+                                <a href="https://www.google.com/search?q={row['Symbol']}+stock+news" target="_blank" style="text-decoration: none;">
+                                    <button style="background-color: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                        🔍 Buscar Más Noticias
+                                    </button>
+                                </a>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
                         else:
-                            st.info(
-                                "No hay noticias o datos de sentimiento disponibles para este activo."
+                            st.info("No hay noticias disponibles para este activo.")
+
+                            # Añadir botón para buscar noticias
+                            st.markdown(
+                                f"""
+                            <div style="text-align: center; margin-top: 20px;">
+                                <a href="https://www.google.com/search?q={row['Symbol']}+stock+news" target="_blank" style="text-decoration: none;">
+                                    <button style="background-color: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                        🔍 Buscar Noticias
+                                    </button>
+                                </a>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
                             )
 
             # Mostrar el resto de oportunidades
@@ -707,7 +979,8 @@ def render_enhanced_market_scanner(
 
                 calls = len([s for s in row["Estrategia"] if s == "CALL"])
                 puts = len([s for s in row["Estrategia"] if s == "PUT"])
-                high_conf = len([c for c in row["Confianza"] if c == "ALTA"])
+                # Contar señales de alta confianza con diferentes capitalizaciones
+                high_conf = len([c for c in row["Confianza"] if c.upper() == "ALTA"])
 
                 # Mostrar métricas del sector
                 col1, col2, col3 = st.columns(3)
@@ -740,9 +1013,9 @@ def render_enhanced_market_scanner(
                     use_container_width=True,
                 )
 
-                # Identificar activos de alta confianza en este sector
+                # Identificar activos de alta confianza en este sector con diferentes capitalizaciones
                 sector_high_conf = sector_opportunities[
-                    sector_opportunities["Confianza"] == "ALTA"
+                    sector_opportunities["Confianza"].str.upper() == "ALTA"
                 ].copy()
 
                 # Si existe la columna Trading_Specialist, añadir los que tienen señal FUERTE
@@ -756,7 +1029,7 @@ def render_enhanced_market_scanner(
                                 ["COMPRA", "VENTA"]
                             )
                         )
-                        & (sector_opportunities["TS_Confianza"] == "ALTA")
+                        & (sector_opportunities["TS_Confianza"].str.upper() == "ALTA")
                     ].copy()
 
                     # Combinar con los de alta confianza, evitando duplicados
@@ -764,6 +1037,25 @@ def render_enhanced_market_scanner(
                         sector_high_conf = pd.concat(
                             [sector_high_conf, sector_strong_signals]
                         ).drop_duplicates(subset=["Symbol"])
+
+                # Verificar si realmente hay señales de alta confianza
+                # Comparar con el contador de alta confianza para asegurar consistencia
+                if high_conf > 0 and sector_high_conf.empty:
+                    # Buscar de nuevo con criterios más amplios y verificar si hay valores nulos
+                    try:
+                        # Intentar con str.contains para mayor flexibilidad
+                        sector_high_conf = sector_opportunities[
+                            sector_opportunities["Confianza"].str.contains(
+                                "alta", case=False, na=False
+                            )
+                        ].copy()
+                    except:
+                        # Si falla, usar el enfoque anterior
+                        sector_high_conf = sector_opportunities[
+                            (sector_opportunities["Confianza"] == "Alta")
+                            | (sector_opportunities["Confianza"] == "ALTA")
+                            | (sector_opportunities["Confianza"] == "alta")
+                        ].copy()
 
                 # Mostrar activos de alta confianza para este sector
                 if not sector_high_conf.empty:
@@ -797,53 +1089,161 @@ def render_enhanced_market_scanner(
                             ]
                         )
 
-                        # Pestaña de Resumen
+                        # Pestaña de Resumen con diseño mejorado
                         with analysis_tabs[0]:
+                            # Encabezado con estilo
+                            symbol_color = (
+                                "#388e3c"
+                                if asset_row["Estrategia"] == "CALL"
+                                else (
+                                    "#d32f2f"
+                                    if asset_row["Estrategia"] == "PUT"
+                                    else "#757575"
+                                )
+                            )
+                            st.markdown(
+                                f"""
+                            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {symbol_color};">
+                                <h2 style="margin:0; color: {symbol_color};">{asset_row['Symbol']} - {asset_row['Sector']}</h2>
+                                <p style="margin:5px 0 0 0; font-size: 1.1em;">Precio: <b>${asset_row['Precio']:.2f}</b> | Estrategia: <b style="color: {symbol_color};">{asset_row['Estrategia']}</b> | Confianza: <b>{asset_row['Confianza']}</b></p>
+                            </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+
+                            # Dividir en columnas
                             col1, col2 = st.columns([2, 1])
 
                             with col1:
-                                # Información básica
+                                # Tarjeta de niveles de trading
                                 st.markdown(
-                                    f"### {asset_row['Symbol']} - {asset_row['Sector']}"
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                                    <h4 style="margin-top:0;">📏 Niveles de Trading</h4>
+                                    <table style="width:100%">
+                                        <tr>
+                                            <td style="padding: 5px; width: 40%;"><b>Entrada:</b></td>
+                                            <td style="padding: 5px;">${asset_row['Entry']:.2f}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 5px; width: 40%;"><b>Stop Loss:</b></td>
+                                            <td style="padding: 5px; color: red;">${asset_row['Stop']:.2f}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 5px; width: 40%;"><b>Target:</b></td>
+                                            <td style="padding: 5px; color: green;">${asset_row['Target']:.2f}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 5px; width: 40%;"><b>Ratio R/R:</b></td>
+                                            <td style="padding: 5px; font-weight: bold;">{asset_row['R/R']:.2f}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
                                 )
-                                st.markdown(f"**Precio:** ${asset_row['Precio']:.2f}")
-                                st.markdown(
-                                    f"**Estrategia:** {asset_row['Estrategia']} - {asset_row['Setup']}"
-                                )
-                                st.markdown(f"**Confianza:** {asset_row['Confianza']}")
 
-                                # Niveles
-                                st.markdown("#### Niveles de Trading")
-                                st.markdown(f"**Entrada:** ${asset_row['Entry']:.2f}")
-                                st.markdown(f"**Stop Loss:** ${asset_row['Stop']:.2f}")
-                                st.markdown(f"**Target:** ${asset_row['Target']:.2f}")
-                                st.markdown(
-                                    f"**Ratio Riesgo/Recompensa:** {asset_row['R/R']:.2f}"
-                                )
-
-                                # Trading Specialist
+                                # Trading Specialist con estilo
                                 if (
                                     "Trading_Specialist" in asset_row
                                     and pd.notna(asset_row["Trading_Specialist"])
                                     and asset_row["Trading_Specialist"] != "NEUTRAL"
                                 ):
-                                    st.markdown("#### 💬 Trading Specialist")
                                     signal_color = (
-                                        "green"
+                                        "#388e3c"
                                         if asset_row["Trading_Specialist"] == "COMPRA"
-                                        else "red"
+                                        else "#d32f2f"
                                     )
                                     st.markdown(
-                                        f"**⚠️ Señal General:** <span style='color:{signal_color};'>{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span>",
+                                        f"""
+                                    <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid {signal_color};">
+                                        <h4 style="margin-top:0;">💬 Trading Specialist</h4>
+                                        <p style="font-size: 1.1em; margin: 5px 0;">Señal: <span style="color:{signal_color}; font-weight:bold;">{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span></p>
+                                    </div>
+                                    """,
                                         unsafe_allow_html=True,
                                     )
 
                             with col2:
-                                # Métricas adicionales
-                                st.markdown("#### 📊 Métricas Clave")
-                                st.metric("RSI", f"{asset_row['RSI']:.1f}")
-                                st.metric("Tendencia", asset_row["Tendencia"])
-                                st.metric("Fuerza", asset_row["Fuerza"])
+                                # Métricas clave con estilo
+                                st.markdown(
+                                    "<h4 style='margin-bottom:15px;'>📊 Métricas Clave</h4>",
+                                    unsafe_allow_html=True,
+                                )
+
+                                # RSI con color basado en valor
+                                rsi_value = asset_row["RSI"]
+                                rsi_color = (
+                                    "#d32f2f"
+                                    if rsi_value > 70
+                                    else "#388e3c" if rsi_value < 30 else "#757575"
+                                )
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span><b>RSI</b></span>
+                                        <span style="color: {rsi_color}; font-weight: bold;">{rsi_value:.1f}</span>
+                                    </div>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                                # Tendencia con color
+                                trend = asset_row["Tendencia"]
+                                trend_color = (
+                                    "#388e3c"
+                                    if trend == "ALCISTA"
+                                    else "#d32f2f" if trend == "BAJISTA" else "#757575"
+                                )
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span><b>Tendencia</b></span>
+                                        <span style="color: {trend_color}; font-weight: bold;">{trend}</span>
+                                    </div>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                                # Fuerza con color
+                                strength = asset_row["Fuerza"]
+                                strength_color = (
+                                    "#388e3c"
+                                    if strength == "fuerte"
+                                    else (
+                                        "#f57c00"
+                                        if strength == "moderada"
+                                        else "#757575"
+                                    )
+                                )
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span><b>Fuerza</b></span>
+                                        <span style="color: {strength_color}; font-weight: bold;">{strength}</span>
+                                    </div>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
+
+                                # Setup
+                                st.markdown(
+                                    f"""
+                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span><b>Setup</b></span>
+                                        <span style="font-weight: bold;">{asset_row['Setup']}</span>
+                                    </div>
+                                </div>
+                                """,
+                                    unsafe_allow_html=True,
+                                )
 
                         # Pestaña de Análisis Técnico
                         with analysis_tabs[1]:
@@ -1040,7 +1440,17 @@ def render_enhanced_market_scanner(
                                     "No hay noticias o datos de sentimiento disponibles para este activo."
                                 )
                 else:
-                    st.info("No hay oportunidades de alta confianza en este sector.")
+                    # Mensaje mejorado cuando no hay oportunidades de alta confianza
+                    st.markdown(
+                        f"""
+                    <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 5px solid #2196f3; text-align: center;">
+                        <h4 style="margin-top:0; color: #2196f3;">ℹ️ Información</h4>
+                        <p style="margin:0;">No se encontraron oportunidades de alta confianza en el sector <b>{selected_sector}</b>.</p>
+                        <p style="margin-top:10px;">Puedes revisar la tabla condensada para ver todas las oportunidades disponibles en este sector.</p>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
 
         # Actualización
         st.caption(f"Última actualización: {datetime.now().strftime('%H:%M:%S')}")
