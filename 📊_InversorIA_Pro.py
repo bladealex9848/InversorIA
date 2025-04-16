@@ -7913,10 +7913,106 @@ def main():
                                         [signal["symbol"]],
                                     )
 
-                                    if not existing_signals:
+                                    # Verificar que la señal tenga toda la información necesaria antes de guardarla
+                                    is_complete = True
+
+                                    # Verificar campos críticos
+                                    required_fields = [
+                                        "technical_analysis",
+                                        "expert_analysis",
+                                        "mtf_analysis",
+                                        "options_analysis",
+                                        "bullish_indicators",
+                                        "bearish_indicators",
+                                    ]
+
+                                    for field in required_fields:
+                                        if not signal.get(field):
+                                            is_complete = False
+                                            logger.warning(
+                                                f"Señal para {signal['symbol']} incompleta: falta {field}"
+                                            )
+
+                                    # Verificar que tenga información de noticias y sentimiento
+                                    if not signal.get("latest_news") or not signal.get(
+                                        "sentiment"
+                                    ):
+                                        # Intentar obtener noticias y sentimiento actualizados
+                                        try:
+                                            from news_sentiment_analyzer import (
+                                                NewsSentimentAnalyzer,
+                                            )
+
+                                            news_analyzer = NewsSentimentAnalyzer()
+                                            fresh_news_sentiment = news_analyzer.get_consolidated_news_and_sentiment(
+                                                signal["symbol"],
+                                                row.get(
+                                                    "company_name", signal["symbol"]
+                                                ),
+                                            )
+
+                                            if fresh_news_sentiment:
+                                                if (
+                                                    "news" in fresh_news_sentiment
+                                                    and fresh_news_sentiment["news"]
+                                                ):
+                                                    latest_news = fresh_news_sentiment[
+                                                        "news"
+                                                    ][0]
+                                                    signal["latest_news"] = (
+                                                        latest_news.get("title", "")
+                                                    )
+                                                    signal["news_source"] = (
+                                                        latest_news.get("source", "")
+                                                    )
+
+                                                    # Agregar noticias adicionales
+                                                    additional_news = "\n".join(
+                                                        [
+                                                            news.get("title", "")
+                                                            for news in fresh_news_sentiment[
+                                                                "news"
+                                                            ][
+                                                                1:3
+                                                            ]
+                                                        ]
+                                                    )
+                                                    if additional_news:
+                                                        signal["additional_news"] = (
+                                                            additional_news
+                                                        )
+
+                                                if "sentiment" in fresh_news_sentiment:
+                                                    sentiment_data = (
+                                                        fresh_news_sentiment[
+                                                            "sentiment"
+                                                        ]
+                                                    )
+                                                    signal["sentiment"] = (
+                                                        sentiment_data.get(
+                                                            "sentiment", "neutral"
+                                                        )
+                                                    )
+                                                    signal["sentiment_score"] = (
+                                                        sentiment_data.get("score", 0.5)
+                                                    )
+                                        except Exception as e:
+                                            logger.warning(
+                                                f"No se pudo obtener noticias actualizadas: {str(e)}"
+                                            )
+
+                                    # Solo guardar si no existe y está completa
+                                    if not existing_signals and is_complete:
                                         # Guardar señal en la base de datos
                                         signal_manager.db_manager.save_signal(signal)
                                         signals_saved += 1
+                                        logger.info(
+                                            f"Señal guardada para {signal['symbol']} con toda la información completa"
+                                        )
+                                    elif not is_complete:
+                                        logger.warning(
+                                            f"No se guardó la señal para {signal['symbol']} porque está incompleta"
+                                        )
                                 except Exception as e:
                                     logger.error(
                                         f"Error guardando señal en la base de datos: {str(e)}"

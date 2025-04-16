@@ -9,7 +9,7 @@ yfinance>=0.2.12
 # Web scraping y búsqueda
 requests>=2.28.0
 beautifulsoup4>=4.11.0
-duckduckgo-search>=2.8.0
+duckduckgo-search>=3.0.0
 tavily-python
 
 # Visualización de datos
