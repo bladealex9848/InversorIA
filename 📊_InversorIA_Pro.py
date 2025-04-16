@@ -1626,19 +1626,28 @@ class DatabaseManager:
         return self.execute_query(query, params)
 
     def save_signal(self, signal_data):
-        """Guarda una señal de trading en la base de datos"""
+        """Guarda una señal de trading en la base de datos con información detallada"""
         try:
             if self.connect():
                 cursor = self.connection.cursor()
 
-                # Preparar consulta
+                # Preparar consulta con todos los campos nuevos
                 query = """INSERT INTO trading_signals
                           (symbol, price, direction, confidence_level, timeframe,
-                           strategy, category, analysis, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+                           strategy, category, analysis, created_at,
+                           entry_price, stop_loss, target_price, risk_reward, setup_type,
+                           technical_analysis, support_level, resistance_level, rsi, trend, trend_strength,
+                           volatility, options_signal, options_analysis, trading_specialist_signal,
+                           trading_specialist_confidence, sentiment, sentiment_score, latest_news,
+                           news_source, additional_news, expert_analysis, recommendation, mtf_analysis,
+                           daily_trend, weekly_trend, monthly_trend, bullish_indicators, bearish_indicators,
+                           is_high_confidence)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
-                # Preparar datos
+                # Preparar datos con todos los campos
                 params = (
+                    # Campos básicos
                     signal_data.get("symbol", ""),
                     signal_data.get("price", 0.0),
                     signal_data.get("direction", "NEUTRAL"),
@@ -1648,6 +1657,45 @@ class DatabaseManager:
                     signal_data.get("category", "General"),
                     signal_data.get("analysis", ""),
                     signal_data.get("created_at", datetime.now()),
+                    # Campos para niveles de trading
+                    signal_data.get("entry_price", signal_data.get("price", 0.0)),
+                    signal_data.get("stop_loss", 0.0),
+                    signal_data.get("target_price", 0.0),
+                    signal_data.get("risk_reward", 0.0),
+                    signal_data.get(
+                        "setup_type", signal_data.get("strategy", "Análisis Técnico")
+                    ),
+                    # Campos para análisis técnico
+                    signal_data.get("technical_analysis", ""),
+                    signal_data.get("support_level", 0.0),
+                    signal_data.get("resistance_level", 0.0),
+                    signal_data.get("rsi", 0.0),
+                    signal_data.get("trend", "NEUTRAL"),
+                    signal_data.get("trend_strength", "MEDIA"),
+                    # Campos para opciones
+                    signal_data.get("volatility", 0.0),
+                    signal_data.get("options_signal", ""),
+                    signal_data.get("options_analysis", ""),
+                    # Campos para Trading Specialist
+                    signal_data.get("trading_specialist_signal", "NEUTRAL"),
+                    signal_data.get("trading_specialist_confidence", "MEDIA"),
+                    # Campos para sentimiento y noticias
+                    signal_data.get("sentiment", "neutral"),
+                    signal_data.get("sentiment_score", 0.5),
+                    signal_data.get("latest_news", ""),
+                    signal_data.get("news_source", ""),
+                    signal_data.get("additional_news", ""),
+                    # Campos para análisis experto y multi-timeframe
+                    signal_data.get("expert_analysis", ""),
+                    signal_data.get("recommendation", ""),
+                    signal_data.get("mtf_analysis", ""),
+                    signal_data.get("daily_trend", ""),
+                    signal_data.get("weekly_trend", ""),
+                    signal_data.get("monthly_trend", ""),
+                    signal_data.get("bullish_indicators", ""),
+                    signal_data.get("bearish_indicators", ""),
+                    # Indicador de alta confianza
+                    signal_data.get("is_high_confidence", False),
                 )
 
                 # Ejecutar consulta
@@ -7291,8 +7339,9 @@ def main():
                                     else:
                                         confidence = "Baja"
 
-                                    # Crear señal
+                                    # Crear señal con información detallada
                                     signal = {
+                                        # Campos básicos
                                         "symbol": row["Symbol"],
                                         "price": (
                                             row["Precio"]
@@ -7302,14 +7351,78 @@ def main():
                                         "direction": direction,
                                         "confidence_level": confidence,
                                         "timeframe": "Medio Plazo",
-                                        "strategy": (
-                                            row["Setup"]
-                                            if "Setup" in row
-                                            else "Análisis Técnico"
-                                        ),
+                                        "strategy": row.get("Estrategia", "NEUTRAL"),
                                         "category": row["Sector"],
                                         "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
                                         "created_at": datetime.now(),
+                                        # Campos adicionales para niveles de trading
+                                        "entry_price": row.get(
+                                            "Entry", row.get("Precio", 0.0)
+                                        ),
+                                        "stop_loss": row.get("Stop", 0.0),
+                                        "target_price": row.get("Target", 0.0),
+                                        "risk_reward": row.get("R/R", 0.0),
+                                        "setup_type": row.get(
+                                            "Setup", "Análisis Técnico"
+                                        ),
+                                        # Campos para análisis técnico
+                                        "technical_analysis": row.get(
+                                            "Análisis_Técnico", ""
+                                        ),
+                                        "support_level": row.get("Soporte", 0.0),
+                                        "resistance_level": row.get("Resistencia", 0.0),
+                                        "rsi": row.get("RSI", 0.0),
+                                        "trend": row.get("Tendencia", "NEUTRAL"),
+                                        "trend_strength": row.get("Fuerza", "MEDIA"),
+                                        # Campos para opciones
+                                        "volatility": row.get("Volatilidad", 0.0),
+                                        "options_signal": row.get("Options_Signal", ""),
+                                        "options_analysis": row.get(
+                                            "Options_Analysis", ""
+                                        ),
+                                        # Campos para Trading Specialist
+                                        "trading_specialist_signal": row.get(
+                                            "Trading_Specialist", "NEUTRAL"
+                                        ),
+                                        "trading_specialist_confidence": row.get(
+                                            "TS_Confianza", "MEDIA"
+                                        ),
+                                        # Campos para sentimiento y noticias
+                                        "sentiment": row.get("Sentimiento", "neutral"),
+                                        "sentiment_score": row.get(
+                                            "Sentimiento_Score", 0.5
+                                        ),
+                                        "latest_news": row.get("Última_Noticia", ""),
+                                        "news_source": row.get("Fuente_Noticia", ""),
+                                        "additional_news": row.get(
+                                            "Noticias_Adicionales", ""
+                                        ),
+                                        # Campos para análisis experto y multi-timeframe
+                                        "expert_analysis": row.get(
+                                            "Análisis_Experto", ""
+                                        ),
+                                        "recommendation": row.get("Recomendación", ""),
+                                        "mtf_analysis": row.get("MTF_Analysis", ""),
+                                        "daily_trend": row.get("Tendencia_Diario", ""),
+                                        "weekly_trend": row.get(
+                                            "Tendencia_Semanal", ""
+                                        ),
+                                        "monthly_trend": row.get(
+                                            "Tendencia_Mensual", ""
+                                        ),
+                                        "bullish_indicators": row.get(
+                                            "Indicadores_Alcistas", ""
+                                        ),
+                                        "bearish_indicators": row.get(
+                                            "Indicadores_Bajistas", ""
+                                        ),
+                                        # Indicador de alta confianza
+                                        "is_high_confidence": confidence == "Alta"
+                                        or (
+                                            row.get("Trading_Specialist", "NEUTRAL")
+                                            in ["COMPRA", "VENTA"]
+                                            and row.get("TS_Confianza", "") == "ALTA"
+                                        ),
                                     }
 
                                     # Verificar si la señal ya existe en la base de datos

@@ -246,47 +246,71 @@ def render_enhanced_market_scanner(
                         high_confidence["Symbol"] == selected_high_conf
                     ].iloc[0]
 
-                    # Crear columnas para la información
-                    col1, col2 = st.columns([2, 1])
+                    # Crear pestañas para diferentes tipos de análisis
+                    analysis_tabs = st.tabs(
+                        [
+                            "📊 Resumen",
+                            "📈 Análisis Técnico",
+                            "🎯 Opciones",
+                            "⚙️ Multi-Timeframe",
+                            "🧠 Análisis Experto",
+                            "📰 Noticias y Sentimiento",
+                        ]
+                    )
 
-                    with col1:
-                        # Información básica
-                        st.markdown(f"### {row['Symbol']} - {row['Sector']}")
-                        st.markdown(f"**Precio:** ${row['Precio']:.2f}")
-                        st.markdown(
-                            f"**Estrategia:** {row['Estrategia']} - {row['Setup']}"
-                        )
-                        st.markdown(f"**Confianza:** {row['Confianza']}")
+                    # Pestaña de Resumen
+                    with analysis_tabs[0]:
+                        col1, col2 = st.columns([2, 1])
 
-                        # Niveles
-                        st.markdown("#### Niveles de Trading")
-                        st.markdown(f"**Entrada:** ${row['Entry']:.2f}")
-                        st.markdown(f"**Stop Loss:** ${row['Stop']:.2f}")
-                        st.markdown(f"**Target:** ${row['Target']:.2f}")
-                        st.markdown(f"**Ratio Riesgo/Recompensa:** {row['R/R']:.2f}")
-
-                        # Trading Specialist
-                        if (
-                            "Trading_Specialist" in row
-                            and pd.notna(row["Trading_Specialist"])
-                            and row["Trading_Specialist"] != "NEUTRAL"
-                        ):
-                            st.markdown("#### 💬 Trading Specialist")
-                            signal_color = (
-                                "green"
-                                if row["Trading_Specialist"] == "COMPRA"
-                                else "red"
-                            )
+                        with col1:
+                            # Información básica
+                            st.markdown(f"### {row['Symbol']} - {row['Sector']}")
+                            st.markdown(f"**Precio:** ${row['Precio']:.2f}")
                             st.markdown(
-                                f"**⚠️ Señal General:** <span style='color:{signal_color};'>{row['Trading_Specialist']} {row.get('TS_Confianza', '')}</span>",
-                                unsafe_allow_html=True,
+                                f"**Estrategia:** {row['Estrategia']} - {row['Setup']}"
+                            )
+                            st.markdown(f"**Confianza:** {row['Confianza']}")
+
+                            # Niveles
+                            st.markdown("#### Niveles de Trading")
+                            st.markdown(f"**Entrada:** ${row['Entry']:.2f}")
+                            st.markdown(f"**Stop Loss:** ${row['Stop']:.2f}")
+                            st.markdown(f"**Target:** ${row['Target']:.2f}")
+                            st.markdown(
+                                f"**Ratio Riesgo/Recompensa:** {row['R/R']:.2f}"
                             )
 
+                            # Trading Specialist
+                            if (
+                                "Trading_Specialist" in row
+                                and pd.notna(row["Trading_Specialist"])
+                                and row["Trading_Specialist"] != "NEUTRAL"
+                            ):
+                                st.markdown("#### 💬 Trading Specialist")
+                                signal_color = (
+                                    "green"
+                                    if row["Trading_Specialist"] == "COMPRA"
+                                    else "red"
+                                )
+                                st.markdown(
+                                    f"**⚠️ Señal General:** <span style='color:{signal_color};'>{row['Trading_Specialist']} {row.get('TS_Confianza', '')}</span>",
+                                    unsafe_allow_html=True,
+                                )
+
+                        with col2:
+                            # Métricas adicionales
+                            st.markdown("#### 📊 Métricas Clave")
+                            st.metric("RSI", f"{row['RSI']:.1f}")
+                            st.metric("Tendencia", row["Tendencia"])
+                            st.metric("Fuerza", row["Fuerza"])
+
+                    # Pestaña de Análisis Técnico
+                    with analysis_tabs[1]:
                         # Análisis Técnico
                         if "Análisis_Técnico" in row and pd.notna(
                             row["Análisis_Técnico"]
                         ):
-                            st.markdown("#### 📊 Análisis Técnico")
+                            st.markdown("### 📊 Análisis Técnico Detallado")
                             st.markdown(row["Análisis_Técnico"])
 
                             # Indicadores
@@ -294,29 +318,133 @@ def render_enhanced_market_scanner(
                                 "Indicadores_Alcistas" in row
                                 and "Indicadores_Bajistas" in row
                             ):
-                                st.markdown(
-                                    f"**Indicadores Alcistas:** {row['Indicadores_Alcistas']}"
+                                st.markdown("#### Indicadores")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.markdown(f"**Indicadores Alcistas:**")
+                                    st.markdown(row["Indicadores_Alcistas"])
+                                with col2:
+                                    st.markdown(f"**Indicadores Bajistas:**")
+                                    st.markdown(row["Indicadores_Bajistas"])
+
+                            # Soportes y Resistencias
+                            if "Soporte" in row or "Resistencia" in row:
+                                st.markdown("#### 📏 Soportes y Resistencias")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if "Soporte" in row and pd.notna(row["Soporte"]):
+                                        st.metric("Soporte", f"${row['Soporte']:.2f}")
+                                with col2:
+                                    if "Resistencia" in row and pd.notna(
+                                        row["Resistencia"]
+                                    ):
+                                        st.metric(
+                                            "Resistencia", f"${row['Resistencia']:.2f}"
+                                        )
+                        else:
+                            st.info(
+                                "No hay análisis técnico detallado disponible para este activo."
+                            )
+
+                    # Pestaña de Opciones
+                    with analysis_tabs[2]:
+                        st.markdown("### 🎯 Análisis de Opciones")
+                        if "Volatilidad" in row and pd.notna(row["Volatilidad"]):
+                            st.markdown("#### Datos de Volatilidad")
+                            st.metric(
+                                "Volatilidad Implícita", f"{row['Volatilidad']:.2f}%"
+                            )
+
+                            if "Options_Signal" in row and pd.notna(
+                                row["Options_Signal"]
+                            ):
+                                signal_color = (
+                                    "green"
+                                    if row["Options_Signal"] == "CALL"
+                                    else "red"
                                 )
                                 st.markdown(
-                                    f"**Indicadores Bajistas:** {row['Indicadores_Bajistas']}"
+                                    f"**Señal de Opciones:** <span style='color:{signal_color};'>{row['Options_Signal']}</span>",
+                                    unsafe_allow_html=True,
                                 )
 
-                        # Soportes y Resistencias
-                        if "Soporte" in row or "Resistencia" in row:
-                            st.markdown("#### 📏 Soportes y Resistencias")
-                            if "Soporte" in row and pd.notna(row["Soporte"]):
-                                st.markdown(f"**Soporte:** ${row['Soporte']:.2f}")
-                            if "Resistencia" in row and pd.notna(row["Resistencia"]):
-                                st.markdown(
-                                    f"**Resistencia:** ${row['Resistencia']:.2f}"
-                                )
+                            # Información adicional de opciones si está disponible
+                            if "Options_Analysis" in row and pd.notna(
+                                row["Options_Analysis"]
+                            ):
+                                st.markdown("#### Análisis de Opciones")
+                                st.markdown(row["Options_Analysis"])
+                        else:
+                            st.info(
+                                "No hay datos de opciones disponibles para este activo."
+                            )
 
-                        # Noticias
-                        if "Última_Noticia" in row and pd.notna(row["Última_Noticia"]):
-                            st.markdown("#### 📰 Últimas Noticias")
-                            st.markdown(f"**{row['Última_Noticia']}**")
-                            if "Fuente_Noticia" in row:
-                                st.caption(f"Fuente: {row['Fuente_Noticia']}")
+                    # Pestaña de Multi-Timeframe
+                    with analysis_tabs[3]:
+                        st.markdown("### ⚙️ Análisis Multi-Timeframe")
+                        if "MTF_Analysis" in row and pd.notna(row["MTF_Analysis"]):
+                            st.markdown(row["MTF_Analysis"])
+
+                            # Tendencias por timeframe si están disponibles
+                            timeframes = ["Diario", "Semanal", "Mensual"]
+                            cols = st.columns(len(timeframes))
+                            for i, tf in enumerate(timeframes):
+                                tf_key = f"Tendencia_{tf}"
+                                if tf_key in row and pd.notna(row[tf_key]):
+                                    color = (
+                                        "green"
+                                        if row[tf_key] == "ALCISTA"
+                                        else (
+                                            "red"
+                                            if row[tf_key] == "BAJISTA"
+                                            else "gray"
+                                        )
+                                    )
+                                    with cols[i]:
+                                        st.markdown(
+                                            f"**{tf}:** <span style='color:{color};'>{row[tf_key]}</span>",
+                                            unsafe_allow_html=True,
+                                        )
+                        else:
+                            st.info(
+                                "No hay análisis multi-timeframe disponible para este activo."
+                            )
+
+                    # Pestaña de Análisis Experto
+                    with analysis_tabs[4]:
+                        st.markdown("### 🧠 Análisis Experto")
+                        if "Análisis_Experto" in row and pd.notna(
+                            row["Análisis_Experto"]
+                        ):
+                            st.markdown(row["Análisis_Experto"])
+
+                            # Recomendaciones si están disponibles
+                            if "Recomendación" in row and pd.notna(
+                                row["Recomendación"]
+                            ):
+                                rec_color = (
+                                    "green"
+                                    if row["Recomendación"]
+                                    in ["COMPRAR", "FUERTE COMPRA"]
+                                    else (
+                                        "red"
+                                        if row["Recomendación"]
+                                        in ["VENDER", "FUERTE VENTA"]
+                                        else "gray"
+                                    )
+                                )
+                                st.markdown(
+                                    f"**Recomendación:** <span style='color:{rec_color};'>{row['Recomendación']}</span>",
+                                    unsafe_allow_html=True,
+                                )
+                        else:
+                            st.info(
+                                "No hay análisis experto disponible para este activo."
+                            )
+
+                    # Pestaña de Noticias y Sentimiento
+                    with analysis_tabs[5]:
+                        st.markdown("### 📰 Noticias y Sentimiento")
 
                         # Sentimiento
                         if (
@@ -334,23 +462,23 @@ def render_enhanced_market_scanner(
                                 unsafe_allow_html=True,
                             )
 
-                    with col2:
-                        # Opciones
-                        if "Volatilidad" in row and pd.notna(row["Volatilidad"]):
-                            st.markdown("#### 🎯 Datos de Opciones")
-                            st.markdown(
-                                f"**Volatilidad Implícita:** {row['Volatilidad']:.2f}%"
-                            )
-                            if "Options_Signal" in row:
-                                st.markdown(
-                                    f"**Señal de Opciones:** {row['Options_Signal']}"
-                                )
+                        # Noticias
+                        if "Última_Noticia" in row and pd.notna(row["Última_Noticia"]):
+                            st.markdown("#### 📰 Últimas Noticias")
+                            st.markdown(f"**{row['Última_Noticia']}**")
+                            if "Fuente_Noticia" in row:
+                                st.caption(f"Fuente: {row['Fuente_Noticia']}")
 
-                        # Métricas adicionales
-                        st.markdown("#### 📊 Métricas Clave")
-                        st.metric("RSI", f"{row['RSI']:.1f}")
-                        st.metric("Tendencia", row["Tendencia"])
-                        st.metric("Fuerza", row["Fuerza"])
+                            # Más noticias si están disponibles
+                            if "Noticias_Adicionales" in row and pd.notna(
+                                row["Noticias_Adicionales"]
+                            ):
+                                st.markdown("#### Más Noticias")
+                                st.markdown(row["Noticias_Adicionales"])
+                        else:
+                            st.info(
+                                "No hay noticias o datos de sentimiento disponibles para este activo."
+                            )
 
             # Mostrar el resto de oportunidades
             other_opportunities = opportunities[
@@ -521,59 +649,260 @@ def render_enhanced_market_scanner(
                             sector_high_conf["Symbol"] == selected_high_conf_asset
                         ].iloc[0]
 
-                        # Crear columnas para la información
-                        col1, col2 = st.columns([2, 1])
+                        # Crear pestañas para diferentes tipos de análisis
+                        analysis_tabs = st.tabs(
+                            [
+                                "📊 Resumen",
+                                "📈 Análisis Técnico",
+                                "🎯 Opciones",
+                                "⚙️ Multi-Timeframe",
+                                "🧠 Análisis Experto",
+                                "📰 Noticias y Sentimiento",
+                            ]
+                        )
 
-                        with col1:
-                            # Información básica
-                            st.markdown(
-                                f"### {asset_row['Symbol']} - {asset_row['Sector']}"
-                            )
-                            st.markdown(f"**Precio:** ${asset_row['Precio']:.2f}")
-                            st.markdown(
-                                f"**Estrategia:** {asset_row['Estrategia']} - {asset_row['Setup']}"
-                            )
-                            st.markdown(f"**Confianza:** {asset_row['Confianza']}")
+                        # Pestaña de Resumen
+                        with analysis_tabs[0]:
+                            col1, col2 = st.columns([2, 1])
 
-                            # Niveles
-                            st.markdown("#### Niveles de Trading")
-                            st.markdown(f"**Entrada:** ${asset_row['Entry']:.2f}")
-                            st.markdown(f"**Stop Loss:** ${asset_row['Stop']:.2f}")
-                            st.markdown(f"**Target:** ${asset_row['Target']:.2f}")
-                            st.markdown(
-                                f"**Ratio Riesgo/Recompensa:** {asset_row['R/R']:.2f}"
-                            )
-
-                            # Trading Specialist
-                            if (
-                                "Trading_Specialist" in asset_row
-                                and pd.notna(asset_row["Trading_Specialist"])
-                                and asset_row["Trading_Specialist"] != "NEUTRAL"
-                            ):
-                                st.markdown("#### 💬 Trading Specialist")
-                                signal_color = (
-                                    "green"
-                                    if asset_row["Trading_Specialist"] == "COMPRA"
-                                    else "red"
-                                )
+                            with col1:
+                                # Información básica
                                 st.markdown(
-                                    f"**⚠️ Señal General:** <span style='color:{signal_color};'>{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span>",
-                                    unsafe_allow_html=True,
+                                    f"### {asset_row['Symbol']} - {asset_row['Sector']}"
+                                )
+                                st.markdown(f"**Precio:** ${asset_row['Precio']:.2f}")
+                                st.markdown(
+                                    f"**Estrategia:** {asset_row['Estrategia']} - {asset_row['Setup']}"
+                                )
+                                st.markdown(f"**Confianza:** {asset_row['Confianza']}")
+
+                                # Niveles
+                                st.markdown("#### Niveles de Trading")
+                                st.markdown(f"**Entrada:** ${asset_row['Entry']:.2f}")
+                                st.markdown(f"**Stop Loss:** ${asset_row['Stop']:.2f}")
+                                st.markdown(f"**Target:** ${asset_row['Target']:.2f}")
+                                st.markdown(
+                                    f"**Ratio Riesgo/Recompensa:** {asset_row['R/R']:.2f}"
                                 )
 
+                                # Trading Specialist
+                                if (
+                                    "Trading_Specialist" in asset_row
+                                    and pd.notna(asset_row["Trading_Specialist"])
+                                    and asset_row["Trading_Specialist"] != "NEUTRAL"
+                                ):
+                                    st.markdown("#### 💬 Trading Specialist")
+                                    signal_color = (
+                                        "green"
+                                        if asset_row["Trading_Specialist"] == "COMPRA"
+                                        else "red"
+                                    )
+                                    st.markdown(
+                                        f"**⚠️ Señal General:** <span style='color:{signal_color};'>{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span>",
+                                        unsafe_allow_html=True,
+                                    )
+
+                            with col2:
+                                # Métricas adicionales
+                                st.markdown("#### 📊 Métricas Clave")
+                                st.metric("RSI", f"{asset_row['RSI']:.1f}")
+                                st.metric("Tendencia", asset_row["Tendencia"])
+                                st.metric("Fuerza", asset_row["Fuerza"])
+
+                        # Pestaña de Análisis Técnico
+                        with analysis_tabs[1]:
                             # Análisis Técnico
                             if "Análisis_Técnico" in asset_row and pd.notna(
                                 asset_row["Análisis_Técnico"]
                             ):
-                                st.markdown("#### 📊 Análisis Técnico")
+                                st.markdown("### 📊 Análisis Técnico Detallado")
                                 st.markdown(asset_row["Análisis_Técnico"])
 
-                        with col2:
-                            # Métricas adicionales
-                            st.markdown("#### 📊 Métricas Clave")
-                            st.metric("RSI", f"{asset_row['RSI']:.1f}")
-                            st.metric("Tendencia", asset_row["Tendencia"])
-                            st.metric("Fuerza", asset_row["Fuerza"])
+                                # Indicadores
+                                if (
+                                    "Indicadores_Alcistas" in asset_row
+                                    and "Indicadores_Bajistas" in asset_row
+                                ):
+                                    st.markdown("#### Indicadores")
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.markdown(f"**Indicadores Alcistas:**")
+                                        st.markdown(asset_row["Indicadores_Alcistas"])
+                                    with col2:
+                                        st.markdown(f"**Indicadores Bajistas:**")
+                                        st.markdown(asset_row["Indicadores_Bajistas"])
+
+                                # Soportes y Resistencias
+                                if "Soporte" in asset_row or "Resistencia" in asset_row:
+                                    st.markdown("#### 📏 Soportes y Resistencias")
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        if "Soporte" in asset_row and pd.notna(
+                                            asset_row["Soporte"]
+                                        ):
+                                            st.metric(
+                                                "Soporte",
+                                                f"${asset_row['Soporte']:.2f}",
+                                            )
+                                    with col2:
+                                        if "Resistencia" in asset_row and pd.notna(
+                                            asset_row["Resistencia"]
+                                        ):
+                                            st.metric(
+                                                "Resistencia",
+                                                f"${asset_row['Resistencia']:.2f}",
+                                            )
+                            else:
+                                st.info(
+                                    "No hay análisis técnico detallado disponible para este activo."
+                                )
+
+                        # Pestaña de Opciones
+                        with analysis_tabs[2]:
+                            st.markdown("### 🎯 Análisis de Opciones")
+                            if "Volatilidad" in asset_row and pd.notna(
+                                asset_row["Volatilidad"]
+                            ):
+                                st.markdown("#### Datos de Volatilidad")
+                                st.metric(
+                                    "Volatilidad Implícita",
+                                    f"{asset_row['Volatilidad']:.2f}%",
+                                )
+
+                                if "Options_Signal" in asset_row and pd.notna(
+                                    asset_row["Options_Signal"]
+                                ):
+                                    signal_color = (
+                                        "green"
+                                        if asset_row["Options_Signal"] == "CALL"
+                                        else "red"
+                                    )
+                                    st.markdown(
+                                        f"**Señal de Opciones:** <span style='color:{signal_color};'>{asset_row['Options_Signal']}</span>",
+                                        unsafe_allow_html=True,
+                                    )
+
+                                # Información adicional de opciones si está disponible
+                                if "Options_Analysis" in asset_row and pd.notna(
+                                    asset_row["Options_Analysis"]
+                                ):
+                                    st.markdown("#### Análisis de Opciones")
+                                    st.markdown(asset_row["Options_Analysis"])
+                            else:
+                                st.info(
+                                    "No hay datos de opciones disponibles para este activo."
+                                )
+
+                        # Pestaña de Multi-Timeframe
+                        with analysis_tabs[3]:
+                            st.markdown("### ⚙️ Análisis Multi-Timeframe")
+                            if "MTF_Analysis" in asset_row and pd.notna(
+                                asset_row["MTF_Analysis"]
+                            ):
+                                st.markdown(asset_row["MTF_Analysis"])
+
+                                # Tendencias por timeframe si están disponibles
+                                timeframes = ["Diario", "Semanal", "Mensual"]
+                                cols = st.columns(len(timeframes))
+                                for i, tf in enumerate(timeframes):
+                                    tf_key = f"Tendencia_{tf}"
+                                    if tf_key in asset_row and pd.notna(
+                                        asset_row[tf_key]
+                                    ):
+                                        color = (
+                                            "green"
+                                            if asset_row[tf_key] == "ALCISTA"
+                                            else (
+                                                "red"
+                                                if asset_row[tf_key] == "BAJISTA"
+                                                else "gray"
+                                            )
+                                        )
+                                        with cols[i]:
+                                            st.markdown(
+                                                f"**{tf}:** <span style='color:{color};'>{asset_row[tf_key]}</span>",
+                                                unsafe_allow_html=True,
+                                            )
+                            else:
+                                st.info(
+                                    "No hay análisis multi-timeframe disponible para este activo."
+                                )
+
+                        # Pestaña de Análisis Experto
+                        with analysis_tabs[4]:
+                            st.markdown("### 🧠 Análisis Experto")
+                            if "Análisis_Experto" in asset_row and pd.notna(
+                                asset_row["Análisis_Experto"]
+                            ):
+                                st.markdown(asset_row["Análisis_Experto"])
+
+                                # Recomendaciones si están disponibles
+                                if "Recomendación" in asset_row and pd.notna(
+                                    asset_row["Recomendación"]
+                                ):
+                                    rec_color = (
+                                        "green"
+                                        if asset_row["Recomendación"]
+                                        in ["COMPRAR", "FUERTE COMPRA"]
+                                        else (
+                                            "red"
+                                            if asset_row["Recomendación"]
+                                            in ["VENDER", "FUERTE VENTA"]
+                                            else "gray"
+                                        )
+                                    )
+                                    st.markdown(
+                                        f"**Recomendación:** <span style='color:{rec_color};'>{asset_row['Recomendación']}</span>",
+                                        unsafe_allow_html=True,
+                                    )
+                            else:
+                                st.info(
+                                    "No hay análisis experto disponible para este activo."
+                                )
+
+                        # Pestaña de Noticias y Sentimiento
+                        with analysis_tabs[5]:
+                            st.markdown("### 📰 Noticias y Sentimiento")
+
+                            # Sentimiento
+                            if (
+                                "Sentimiento" in asset_row
+                                and pd.notna(asset_row["Sentimiento"])
+                                and asset_row["Sentimiento"] != "neutral"
+                            ):
+                                st.markdown("#### 🧠 Sentimiento de Mercado")
+                                sentiment_color = (
+                                    "green"
+                                    if asset_row["Sentimiento"] == "positivo"
+                                    else "red"
+                                )
+                                sentiment_score = (
+                                    asset_row.get("Sentimiento_Score", 0.5) * 100
+                                )
+                                st.markdown(
+                                    f"**Sentimiento:** <span style='color:{sentiment_color};'>{asset_row['Sentimiento'].upper()}</span> ({sentiment_score:.1f}%)",
+                                    unsafe_allow_html=True,
+                                )
+
+                            # Noticias
+                            if "Última_Noticia" in asset_row and pd.notna(
+                                asset_row["Última_Noticia"]
+                            ):
+                                st.markdown("#### 📰 Últimas Noticias")
+                                st.markdown(f"**{asset_row['Última_Noticia']}**")
+                                if "Fuente_Noticia" in asset_row:
+                                    st.caption(f"Fuente: {asset_row['Fuente_Noticia']}")
+
+                                # Más noticias si están disponibles
+                                if "Noticias_Adicionales" in asset_row and pd.notna(
+                                    asset_row["Noticias_Adicionales"]
+                                ):
+                                    st.markdown("#### Más Noticias")
+                                    st.markdown(asset_row["Noticias_Adicionales"])
+                            else:
+                                st.info(
+                                    "No hay noticias o datos de sentimiento disponibles para este activo."
+                                )
                 else:
                     st.info("No hay oportunidades de alta confianza en este sector.")
 
