@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import logging
 import socket
 import time
@@ -7,13 +8,26 @@ import smtplib
 import mysql.connector
 import sys
 import os
+import io
+import decimal
+import tempfile
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
+from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-import decimal
-from decimal import Decimal
+
+# Intentar importar pdfkit para la generación de PDF
+try:
+    import pdfkit
+
+    PDFKIT_AVAILABLE = True
+except ImportError:
+    PDFKIT_AVAILABLE = False
+    logging.warning(
+        "pdfkit no está instalado. La funcionalidad de PDF no estará disponible."
+    )
 
 # Configuración de logging
 logging.basicConfig(
@@ -68,6 +82,17 @@ with st.sidebar:
         "Nivel de Confianza", ["Alta", "Media", "Baja"], default=["Alta", "Media"]
     )
 
+    direccion = st.selectbox(
+        "Dirección",
+        ["Todas", "CALL", "PUT", "NEUTRAL"],
+        help="Filtra por dirección de la señal",
+    )
+
+    alta_confianza_only = st.checkbox(
+        "Solo señales de alta confianza",
+        help="Mostrar solo señales marcadas como alta confianza",
+    )
+
     dias_atras = st.slider("Días a mostrar", min_value=1, max_value=30, value=7)
 
     # Configuración de correo
@@ -75,6 +100,12 @@ with st.sidebar:
     destinatarios = st.text_area(
         "Destinatarios (separados por coma)",
         placeholder="ejemplo@correo.com, otro@correo.com",
+    )
+
+    include_pdf = st.checkbox(
+        "Incluir PDF del boletín",
+        value=True,
+        help="Adjunta una versión PDF del boletín al correo",
     )
 
     # Botón para limpiar caché
@@ -189,8 +220,15 @@ class DatabaseManager:
         finally:
             self.disconnect()
 
-    def get_signals(self, days_back=7, categories=None, confidence_levels=None):
-        """Obtiene señales de trading filtradas"""
+    def get_signals(
+        self,
+        days_back=7,
+        categories=None,
+        confidence_levels=None,
+        direction=None,
+        high_confidence_only=False,
+    ):
+        """Obtiene señales de trading filtradas con todos los campos detallados"""
         query = """SELECT * FROM trading_signals
                   WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)"""
         params = [days_back]
@@ -206,6 +244,13 @@ class DatabaseManager:
             query += f" AND confidence_level IN ({placeholders})"
             params.extend(confidence_levels)
 
+        if direction and direction != "Todas":
+            query += " AND direction = %s"
+            params.append(direction)
+
+        if high_confidence_only:
+            query += " AND is_high_confidence = 1"
+
         query += " ORDER BY created_at DESC"
 
         return self.execute_query(query, params)
@@ -217,7 +262,15 @@ class DatabaseManager:
                   ORDER BY date DESC LIMIT 1"""
         params = [days_back]
 
-        return self.execute_query(query, params)
+        result = self.execute_query(query, params)
+
+        # Convertir valores Decimal a float para evitar problemas
+        if result and len(result) > 0:
+            for key, value in result[0].items():
+                if isinstance(value, decimal.Decimal):
+                    result[0][key] = float(value)
+
+        return result
 
     def get_market_news(self, days_back=7, limit=5):
         """Obtiene noticias de mercado recientes"""
@@ -237,10 +290,19 @@ class DatabaseManager:
                   LIMIT 1"""
         params = [symbol]
 
-        return self.execute_query(query, params)
+        result = self.execute_query(query, params)
+
+        # Convertir valores Decimal a float para evitar problemas
+        if result and len(result) > 0:
+            for key, value in result[0].items():
+                if isinstance(value, decimal.Decimal):
+                    result[0][key] = float(value)
+
+        return result
 
     def save_signal(self, signal_data):
         """Guarda una nueva señal de trading en la base de datos"""
+        # Creamos una versión básica para compatibilidad con señales existentes
         query = """INSERT INTO trading_signals
                   (symbol, price, direction, confidence_level, timeframe,
                    strategy, category, analysis, created_at)
@@ -356,8 +418,10 @@ class EmailManager:
             logger.error(f"Error inicializando configuración de correo: {str(e)}")
             self.email_config = None
 
-    def send_email(self, recipients, subject, html_content, images=None):
-        """Envía un correo electrónico con contenido HTML y opcionalmente imágenes"""
+    def send_email(
+        self, recipients, subject, html_content, pdf_attachment=None, images=None
+    ):
+        """Envía un correo electrónico con contenido HTML, PDF y opcionalmente imágenes"""
         # Validar que hay destinatarios
         if not recipients:
             logger.error("No se especificaron destinatarios para el correo")
@@ -406,9 +470,29 @@ class EmailManager:
 
             logger.info(f"Preparando correo para: {msg['To']}")
 
+            # Crear parte alternativa para texto plano/HTML
+            alt = MIMEMultipart("alternative")
+            msg.attach(alt)
+
+            # Añadir versión de texto plano (simplificada)
+            text_plain = "Este correo contiene un boletín de trading de InversorIA Pro. Por favor, utilice un cliente de correo que soporte HTML para visualizarlo correctamente."
+            text_part = MIMEText(text_plain, "plain")
+            alt.attach(text_part)
+
             # Adjuntar contenido HTML
             html_part = MIMEText(html_content, "html")
-            msg.attach(html_part)
+            alt.attach(html_part)
+
+            # Adjuntar PDF si existe
+            if pdf_attachment:
+                pdf_part = MIMEApplication(pdf_attachment, _subtype="pdf")
+                pdf_part.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename="InversorIA_Pro_Boletin_Trading.pdf",
+                )
+                msg.attach(pdf_part)
+                logger.info("PDF adjuntado al correo")
 
             # Adjuntar imágenes si existen
             if images and isinstance(images, dict):
@@ -509,6 +593,8 @@ class EmailManager:
         <html>
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>InversorIA Pro - Boletín de Trading {current_date}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
                 
@@ -559,6 +645,7 @@ class EmailManager:
                     margin-bottom: 20px;
                     font-weight: 500;
                     font-size: 22px;
+                    page-break-after: avoid;
                 }}
                 
                 .footer {{ 
@@ -617,6 +704,7 @@ class EmailManager:
                     padding: 20px;
                     margin-bottom: 20px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    page-break-inside: avoid;
                 }}
                 
                 .sentiment {{ 
@@ -624,6 +712,7 @@ class EmailManager:
                     margin: 20px 0; 
                     border-radius: 8px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    page-break-inside: avoid;
                 }}
                 
                 .sentiment-title {{
@@ -654,6 +743,7 @@ class EmailManager:
                     margin: 20px 0; 
                     border-radius: 8px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    page-break-inside: avoid;
                 }}
                 
                 .news-item {{
@@ -686,11 +776,23 @@ class EmailManager:
                     margin: 20px 0; 
                     border-radius: 8px;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                    border-left: 4px solid #007bff; 
+                    page-break-inside: avoid;
+                }}
+                
+                .detailed-analysis-call {{
+                    border-left: 4px solid #28a745;
+                }}
+                
+                .detailed-analysis-put {{
+                    border-left: 4px solid #dc3545;
+                }}
+                
+                .detailed-analysis-neutral {{
+                    border-left: 4px solid #6c757d;
                 }}
                 
                 .detailed-analysis h3 {{ 
-                    color: #007bff; 
+                    color: #2c3e50; 
                     margin-top: 0; 
                     font-weight: 500;
                 }}
@@ -811,6 +913,233 @@ class EmailManager:
                 .high-impact {{ color: #dc3545; font-weight: 500; }}
                 .medium-impact {{ color: #fd7e14; font-weight: 500; }}
                 .low-impact {{ color: #6c757d; font-weight: 500; }}
+                
+                .setup-badge {{
+                    display: inline-block;
+                    padding: 5px 10px;
+                    background-color: #e9f5ff;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    color: #0275d8;
+                    margin-right: 5px;
+                    margin-bottom: 5px;
+                }}
+                
+                .price-targets {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    background-color: #f8f9fa;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin-top: 20px;
+                }}
+                
+                .price-target-item {{
+                    flex: 1 0 30%;
+                    min-width: 150px;
+                    text-align: center;
+                    padding: 10px;
+                }}
+                
+                .price-target-title {{
+                    font-size: 14px;
+                    color: #6c757d;
+                    margin-bottom: 5px;
+                }}
+                
+                .price-target-value {{
+                    font-size: 18px;
+                    font-weight: 700;
+                }}
+                
+                .price-target-value.entry {{
+                    color: #0275d8;
+                }}
+                
+                .price-target-value.stop {{
+                    color: #dc3545;
+                }}
+                
+                .price-target-value.target {{
+                    color: #28a745;
+                }}
+                
+                .risk-reward {{
+                    display: inline-block;
+                    padding: 5px 10px;
+                    background-color: #f2f6f9;
+                    border-radius: 5px;
+                    margin-top: 5px;
+                    font-weight: 500;
+                }}
+                
+                .risk-reward.good {{
+                    color: #28a745;
+                }}
+                
+                .risk-reward.neutral {{
+                    color: #6c757d;
+                }}
+                
+                .risk-reward.poor {{
+                    color: #dc3545;
+                }}
+                
+                .trend-analysis {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    margin-top: 15px;
+                    background-color: #f8f9fa;
+                    border-radius: 6px;
+                    padding: 15px;
+                }}
+                
+                .trend-timeframe {{
+                    flex: 1 0 30%;
+                    min-width: 160px;
+                    margin-bottom: 15px;
+                }}
+                
+                .trend-title {{
+                    font-size: 14px;
+                    color: #6c757d;
+                    margin-bottom: 5px;
+                }}
+                
+                .trend-value {{
+                    display: flex;
+                    align-items: center;
+                }}
+                
+                .trend-badge {{
+                    display: inline-block;
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 14px;
+                    font-weight: 500;
+                }}
+                
+                .trend-badge.bullish {{
+                    background-color: rgba(40, 167, 69, 0.1);
+                    color: #28a745;
+                }}
+                
+                .trend-badge.bearish {{
+                    background-color: rgba(220, 53, 69, 0.1);
+                    color: #dc3545;
+                }}
+                
+                .trend-badge.neutral {{
+                    background-color: rgba(108, 117, 125, 0.1);
+                    color: #6c757d;
+                }}
+                
+                .expert-analysis {{
+                    background-color: rgba(25, 118, 210, 0.05);
+                    border-radius: 6px;
+                    padding: 15px;
+                    margin-top: 20px;
+                    border-left: 3px solid #1976d2;
+                }}
+                
+                .expert-title {{
+                    font-size: 16px;
+                    font-weight: 500;
+                    color: #1976d2;
+                    margin-top: 0;
+                    margin-bottom: 10px;
+                }}
+                
+                .trading-specialist {{
+                    background-color: rgba(40, 167, 69, 0.05);
+                    border-radius: 6px;
+                    padding: 15px;
+                    margin-top: 20px;
+                    border-left: 3px solid #28a745;
+                }}
+                
+                .trading-specialist-title {{
+                    font-size: 16px;
+                    font-weight: 500;
+                    color: #28a745;
+                    margin-top: 0;
+                    margin-bottom: 10px;
+                }}
+                
+                .specialist-signal {{
+                    display: inline-block;
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-right: 10px;
+                }}
+                
+                .specialist-signal.buy {{
+                    background-color: rgba(40, 167, 69, 0.1);
+                    color: #28a745;
+                }}
+                
+                .specialist-signal.sell {{
+                    background-color: rgba(220, 53, 69, 0.1);
+                    color: #dc3545;
+                }}
+                
+                .specialist-signal.neutral {{
+                    background-color: rgba(108, 117, 125, 0.1);
+                    color: #6c757d;
+                }}
+                
+                .separator {{
+                    height: 1px;
+                    background-color: #eaeaea;
+                    margin: 15px 0;
+                }}
+                
+                .indicator-badge {{
+                    display: inline-block;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 13px;
+                    margin: 2px;
+                }}
+                
+                .indicator-bullish {{
+                    background-color: rgba(40, 167, 69, 0.1);
+                    color: #28a745;
+                }}
+                
+                .indicator-bearish {{
+                    background-color: rgba(220, 53, 69, 0.1);
+                    color: #dc3545;
+                }}
+                
+                /* Estilos para impresión */
+                @media print {{
+                    body {{
+                        background-color: white;
+                        font-size: 12pt;
+                    }}
+                    
+                    .content, .detailed-analysis, .sentiment, .news {{
+                        box-shadow: none;
+                        border: 1px solid #eaeaea;
+                    }}
+                    
+                    .header {{
+                        background: #2c3e50;
+                        box-shadow: none;
+                    }}
+                    
+                    .footer {{
+                        background: white;
+                        border-top: 1px solid #eaeaea;
+                    }}
+                    
+                    table {{
+                        page-break-inside: avoid;
+                    }}
+                }}
             </style>
         </head>
         <body>
@@ -870,12 +1199,16 @@ class EmailManager:
 
             html += "</table>"
 
-            # Añadir análisis detallado para señales de alta confianza
+            # Añadir análisis detallado para señales (especialmente las de alta confianza)
             high_confidence_signals = [
-                s for s in signals if s.get("confidence_level") == "Alta"
+                s
+                for s in signals
+                if s.get("is_high_confidence") == 1
+                or s.get("confidence_level") == "Alta"
             ]
+
             if high_confidence_signals:
-                html += "<h2 class='section-title'>Análisis Detallado de Señales de Alta Confianza</h2>"
+                html += "<h2 class='section-title'>Análisis Detallado de Señales</h2>"
 
                 for signal in high_confidence_signals:
                     symbol = signal.get("symbol", "")
@@ -891,44 +1224,33 @@ class EmailManager:
                         else "sell" if direction == "PUT" else "neutral"
                     )
 
-                    # Obtener detalles adicionales si están disponibles
-                    detailed_analysis = signal.get("detailed_analysis", {})
-                    support_levels = detailed_analysis.get("support_levels", [])
-                    resistance_levels = detailed_analysis.get("resistance_levels", [])
-                    candle_patterns = detailed_analysis.get("candle_patterns", [])
-                    company_info = detailed_analysis.get("company_info", {})
-
-                    # Obtener indicadores técnicos si están disponibles
-                    rsi = detailed_analysis.get(
-                        "rsi", detailed_analysis.get("indicators", {}).get("rsi", "N/A")
-                    )
-                    macd = detailed_analysis.get(
-                        "macd",
-                        detailed_analysis.get("indicators", {}).get("macd", "N/A"),
-                    )
-                    sma20 = detailed_analysis.get(
-                        "sma20",
-                        detailed_analysis.get("indicators", {}).get("sma20", "N/A"),
-                    )
-                    sma50 = detailed_analysis.get(
-                        "sma50",
-                        detailed_analysis.get("indicators", {}).get("sma50", "N/A"),
+                    analysis_border_class = (
+                        "detailed-analysis-call"
+                        if direction == "CALL"
+                        else (
+                            "detailed-analysis-put"
+                            if direction == "PUT"
+                            else "detailed-analysis-neutral"
+                        )
                     )
 
                     # Obtener precio y cambio porcentual
-                    price = signal.get("price", "0.00")
-                    change_percent = detailed_analysis.get(
-                        "change_percent", detailed_analysis.get("price_change", 0)
-                    )
-                    change_sign = "+" if change_percent >= 0 else ""
+                    price = signal.get("price", 0)
+                    price_formatted = f"${price:,.2f}" if price else "N/A"
+
+                    # Obtener datos de setup y tendencia
+                    setup_type = signal.get("setup_type", "")
+                    trend = signal.get("trend", "")
+                    trend_strength = signal.get("trend_strength", "")
 
                     html += f"""
-                    <div class="detailed-analysis">
+                    <div class="detailed-analysis {analysis_border_class}">
                         <h3>{symbol} - <span class="{direction_class}">{direction_text}</span></h3>
+                        
                         <div class="metrics-container">
                             <div class="metric-card">
                                 <div class="metric-title">Precio Actual</div>
-                                <div class="metric-value">${price} <span style="color: {'#28a745' if change_percent >= 0 else '#dc3545'}; font-size: 14px;">({change_sign}{change_percent:.2f}%)</span></div>
+                                <div class="metric-value">{price_formatted}</div>
                             </div>
                             <div class="metric-card">
                                 <div class="metric-title">Confianza</div>
@@ -943,84 +1265,390 @@ class EmailManager:
                                 <div class="metric-value">{signal.get('timeframe', 'Corto Plazo')}</div>
                             </div>
                         </div>
-                        
-                        <div class="analysis-box">
-                            <p class="analysis-text">{signal.get('analysis', 'No hay análisis disponible')}</p>
-                        </div>
+                    """
 
+                    # Añadir setup type si está disponible
+                    if setup_type:
+                        html += f"""
+                        <div style="margin-top: 15px;">
+                            <span class="setup-badge">{setup_type}</span>
+                        </div>
+                        """
+
+                    # Añadir precios de entrada, stop y objetivo
+                    entry_price = signal.get("entry_price")
+                    stop_loss = signal.get("stop_loss")
+                    target_price = signal.get("target_price")
+                    risk_reward = signal.get("risk_reward")
+
+                    if entry_price or stop_loss or target_price:
+                        html += f"""
+                        <div class="price-targets">
+                        """
+
+                        if entry_price:
+                            html += f"""
+                            <div class="price-target-item">
+                                <div class="price-target-title">Precio de Entrada</div>
+                                <div class="price-target-value entry">${entry_price:,.2f}</div>
+                            </div>
+                            """
+
+                        if stop_loss:
+                            html += f"""
+                            <div class="price-target-item">
+                                <div class="price-target-title">Stop Loss</div>
+                                <div class="price-target-value stop">${stop_loss:,.2f}</div>
+                            </div>
+                            """
+
+                        if target_price:
+                            html += f"""
+                            <div class="price-target-item">
+                                <div class="price-target-title">Objetivo</div>
+                                <div class="price-target-value target">${target_price:,.2f}</div>
+                            </div>
+                            """
+
+                        html += """
+                        </div>
+                        """
+
+                        # Añadir ratio riesgo/recompensa
+                        if risk_reward:
+                            rr_class = (
+                                "good"
+                                if risk_reward >= 2
+                                else ("neutral" if risk_reward >= 1 else "poor")
+                            )
+                            html += f"""
+                            <div style="text-align: center; margin-top: 5px;">
+                                <span class="risk-reward {rr_class}">Ratio Riesgo/Recompensa: {risk_reward:,.2f}</span>
+                            </div>
+                            """
+
+                    # Añadir análisis principal
+                    analysis_text = signal.get("analysis")
+                    if analysis_text:
+                        html += f"""
+                        <div class="analysis-box">
+                            <p class="analysis-text">{analysis_text}</p>
+                        </div>
+                        """
+
+                    # Añadir análisis técnico si está disponible
+                    technical_analysis = signal.get("technical_analysis")
+                    if technical_analysis:
+                        html += f"""
+                        <div style="margin-top: 15px;">
+                            <h4 style="color: #2c3e50; margin-bottom: 10px;">Análisis Técnico</h4>
+                            <p>{technical_analysis}</p>
+                        </div>
+                        """
+
+                    # Añadir análisis de tendencia
+                    if (
+                        trend
+                        or signal.get("daily_trend")
+                        or signal.get("weekly_trend")
+                        or signal.get("monthly_trend")
+                    ):
+                        trend_class = (
+                            "bullish"
+                            if "ALCISTA" in trend.upper()
+                            else "bearish" if "BAJISTA" in trend.upper() else "neutral"
+                        )
+
+                        html += """
+                        <div class="trend-analysis">
+                        """
+
+                        if trend:
+                            html += f"""
+                            <div class="trend-timeframe">
+                                <div class="trend-title">Tendencia Principal</div>
+                                <div class="trend-value">
+                                    <span class="trend-badge {trend_class}">{trend}</span>
+                                    {f'<span style="margin-left: 5px; color: #6c757d;">({trend_strength})</span>' if trend_strength else ''}
+                                </div>
+                            </div>
+                            """
+
+                        daily_trend = signal.get("daily_trend", "")
+                        if daily_trend:
+                            daily_class = (
+                                "bullish"
+                                if "ALCISTA" in daily_trend.upper()
+                                else (
+                                    "bearish"
+                                    if "BAJISTA" in daily_trend.upper()
+                                    else "neutral"
+                                )
+                            )
+                            html += f"""
+                            <div class="trend-timeframe">
+                                <div class="trend-title">Tendencia Diaria</div>
+                                <div class="trend-value">
+                                    <span class="trend-badge {daily_class}">{daily_trend}</span>
+                                </div>
+                            </div>
+                            """
+
+                        weekly_trend = signal.get("weekly_trend", "")
+                        if weekly_trend:
+                            weekly_class = (
+                                "bullish"
+                                if "ALCISTA" in weekly_trend.upper()
+                                else (
+                                    "bearish"
+                                    if "BAJISTA" in weekly_trend.upper()
+                                    else "neutral"
+                                )
+                            )
+                            html += f"""
+                            <div class="trend-timeframe">
+                                <div class="trend-title">Tendencia Semanal</div>
+                                <div class="trend-value">
+                                    <span class="trend-badge {weekly_class}">{weekly_trend}</span>
+                                </div>
+                            </div>
+                            """
+
+                        monthly_trend = signal.get("monthly_trend", "")
+                        if monthly_trend:
+                            monthly_class = (
+                                "bullish"
+                                if "ALCISTA" in monthly_trend.upper()
+                                else (
+                                    "bearish"
+                                    if "BAJISTA" in monthly_trend.upper()
+                                    else "neutral"
+                                )
+                            )
+                            html += f"""
+                            <div class="trend-timeframe">
+                                <div class="trend-title">Tendencia Mensual</div>
+                                <div class="trend-value">
+                                    <span class="trend-badge {monthly_class}">{monthly_trend}</span>
+                                </div>
+                            </div>
+                            """
+
+                        html += """
+                        </div>
+                        """
+
+                    # Añadir indicadores técnicos
+                    rsi = signal.get("rsi")
+                    support_level = signal.get("support_level")
+                    resistance_level = signal.get("resistance_level")
+
+                    has_technical_indicators = (
+                        rsi is not None or support_level or resistance_level
+                    )
+
+                    if has_technical_indicators:
+                        html += """
                         <div class="indicators-section">
                             <h4 class="indicators-title">Indicadores Técnicos</h4>
                             <div class="indicators-grid">
-                                <div class="indicator">
-                                    <strong>RSI:</strong> {rsi if isinstance(rsi, str) else f"{rsi:.1f}"}
-                                </div>
-                                <div class="indicator">
-                                    <strong>MACD:</strong> {macd if isinstance(macd, str) else f"{macd:.2f}"}
-                                </div>
-                                <div class="indicator">
-                                    <strong>SMA20:</strong> {sma20 if isinstance(sma20, str) else f"${sma20:.2f}"}
-                                </div>
-                                <div class="indicator">
-                                    <strong>SMA50:</strong> {sma50 if isinstance(sma50, str) else f"${sma50:.2f}"}
-                                </div>
+                        """
+
+                        if rsi is not None:
+                            html += f"""
+                            <div class="indicator">
+                                <strong>RSI:</strong> {rsi if isinstance(rsi, str) else f"{rsi:.1f}"}
+                            </div>
+                            """
+
+                        if support_level:
+                            html += f"""
+                            <div class="indicator">
+                                <strong>Soporte:</strong> ${support_level:,.2f}
+                            </div>
+                            """
+
+                        if resistance_level:
+                            html += f"""
+                            <div class="indicator">
+                                <strong>Resistencia:</strong> ${resistance_level:,.2f}
+                            </div>
+                            """
+
+                        html += """
                             </div>
                         </div>
-                    """
-
-                    # Añadir niveles de soporte y resistencia si están disponibles
-                    if support_levels or resistance_levels:
-                        html += """
-                        <div class="levels">
                         """
 
-                        if support_levels:
-                            html += """
-                            <div class="levels-column">
-                                <h4 class="level-title">Niveles de Soporte</h4>
-                            """
-                            for level in support_levels[
-                                :3
-                            ]:  # Mostrar solo los 3 primeros niveles
-                                html += f"""
-                                <div class="level-item support">${level:.2f}</div>
-                                """
-                            html += "</div>"
+                    # Mostrar indicadores bullish y bearish
+                    bullish_indicators = signal.get("bullish_indicators", "")
+                    bearish_indicators = signal.get("bearish_indicators", "")
 
-                        if resistance_levels:
-                            html += """
-                            <div class="levels-column">
-                                <h4 class="level-title">Niveles de Resistencia</h4>
-                            """
-                            for level in resistance_levels[
-                                :3
-                            ]:  # Mostrar solo los 3 primeros niveles
-                                html += f"""
-                                <div class="level-item resistance">${level:.2f}</div>
-                                """
-                            html += "</div>"
-
-                        html += "</div>"
-
-                    # Añadir patrones de velas si están disponibles
-                    if candle_patterns:
+                    if bullish_indicators or bearish_indicators:
                         html += """
-                        <div>
-                            <h4 class="level-title">Patrones de Velas Detectados</h4>
+                        <div style="margin-top: 15px;">
                         """
-                        for pattern in candle_patterns:
-                            html += f"""
-                            <span class="pattern">{pattern}</span>
-                            """
-                        html += "</div>"
 
-                    # Añadir información de la empresa si está disponible
-                    if company_info:
+                        if bullish_indicators:
+                            bull_indicators = (
+                                bullish_indicators.split(",")
+                                if isinstance(bullish_indicators, str)
+                                else []
+                            )
+                            if bull_indicators:
+                                html += """
+                                <div style="margin-bottom: 10px;">
+                                    <strong>Indicadores Alcistas:</strong>
+                                    <div style="margin-top: 5px;">
+                                """
+                                for indicator in bull_indicators:
+                                    indicator = indicator.strip()
+                                    if indicator:
+                                        html += f"""
+                                        <span class="indicator-badge indicator-bullish">{indicator}</span>
+                                        """
+                                html += """
+                                    </div>
+                                </div>
+                                """
+
+                        if bearish_indicators:
+                            bear_indicators = (
+                                bearish_indicators.split(",")
+                                if isinstance(bearish_indicators, str)
+                                else []
+                            )
+                            if bear_indicators:
+                                html += """
+                                <div>
+                                    <strong>Indicadores Bajistas:</strong>
+                                    <div style="margin-top: 5px;">
+                                """
+                                for indicator in bear_indicators:
+                                    indicator = indicator.strip()
+                                    if indicator:
+                                        html += f"""
+                                        <span class="indicator-badge indicator-bearish">{indicator}</span>
+                                        """
+                                html += """
+                                    </div>
+                                </div>
+                                """
+
+                        html += """
+                        </div>
+                        """
+
+                    # Añadir Trading Specialist Signal si está disponible
+                    trading_specialist_signal = signal.get(
+                        "trading_specialist_signal", ""
+                    )
+                    trading_specialist_confidence = signal.get(
+                        "trading_specialist_confidence", ""
+                    )
+
+                    if trading_specialist_signal:
+                        specialist_class = (
+                            "buy"
+                            if "COMPRA" in trading_specialist_signal.upper()
+                            else (
+                                "sell"
+                                if "VENTA" in trading_specialist_signal.upper()
+                                else "neutral"
+                            )
+                        )
+
                         html += f"""
-                        <div class="company-info">
-                            <h4 class="level-title">Información de la Empresa</h4>
-                            <p><strong>Nombre:</strong> {company_info.get('name', symbol)}</p>
-                            <p><strong>Sector:</strong> {company_info.get('sector', 'N/A')}</p>
-                            <p><strong>Descripción:</strong> {company_info.get('description', 'No hay descripción disponible')}</p>
+                        <div class="trading-specialist">
+                            <h4 class="trading-specialist-title">Análisis del Trading Specialist</h4>
+                            <div>
+                                <span class="specialist-signal {specialist_class}">{trading_specialist_signal}</span>
+                                {f'<span style="color: #6c757d;">Confianza: {trading_specialist_confidence}</span>' if trading_specialist_confidence else ''}
+                            </div>
+                        """
+
+                        # Añadir análisis multi-timeframe si está disponible
+                        mtf_analysis = signal.get("mtf_analysis", "")
+                        if mtf_analysis:
+                            html += f"""
+                            <div class="separator"></div>
+                            <p>{mtf_analysis}</p>
+                            """
+
+                        html += """
+                        </div>
+                        """
+
+                    # Añadir análisis experto si está disponible
+                    expert_analysis = signal.get("expert_analysis", "")
+                    if expert_analysis:
+                        html += f"""
+                        <div class="expert-analysis">
+                            <h4 class="expert-title">Análisis del Experto</h4>
+                            <p>{expert_analysis}</p>
+                        </div>
+                        """
+
+                    # Añadir recomendación final si está disponible
+                    recommendation = signal.get("recommendation", "")
+                    if recommendation:
+                        rec_class = (
+                            "buy"
+                            if "COMPRAR" in recommendation.upper()
+                            else (
+                                "sell"
+                                if "VENDER" in recommendation.upper()
+                                else "neutral"
+                            )
+                        )
+
+                        html += f"""
+                        <div style="margin-top: 20px; text-align: center;">
+                            <h4 style="margin-bottom: 10px;">Recomendación Final</h4>
+                            <div style="display: inline-block; padding: 10px 20px; background-color: {
+                                '#e8f5e9' if rec_class == 'buy' else (
+                                '#ffebee' if rec_class == 'sell' else '#f5f5f5'
+                                )
+                            }; border-radius: 8px; font-weight: 700; color: {
+                                '#28a745' if rec_class == 'buy' else (
+                                '#dc3545' if rec_class == 'sell' else '#6c757d'
+                                )
+                            }; font-size: 18px;">
+                                {recommendation}
+                            </div>
+                        </div>
+                        """
+
+                    # Añadir noticias relacionadas si están disponibles
+                    latest_news = signal.get("latest_news", "")
+                    news_source = signal.get("news_source", "")
+                    additional_news = signal.get("additional_news", "")
+
+                    if latest_news:
+                        html += f"""
+                        <div style="margin-top: 20px; background-color: #f8f9fa; border-radius: 6px; padding: 15px;">
+                            <h4 style="margin-top: 0; color: #2c3e50;">Noticias Relacionadas</h4>
+                            <div style="margin-bottom: 10px;">
+                                <p style="margin: 0 0 5px 0;"><strong>{latest_news}</strong></p>
+                                {f'<p style="margin: 0; font-size: 12px; color: #6c757d;">Fuente: {news_source}</p>' if news_source else ''}
+                            </div>
+                        """
+
+                        if additional_news:
+                            additional_news_items = (
+                                additional_news.split("||")
+                                if "||" in additional_news
+                                else [additional_news]
+                            )
+                            for item in additional_news_items:
+                                if item.strip():
+                                    html += f"""
+                                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eaeaea;">
+                                        <p style="margin: 0;">{item.strip()}</p>
+                                    </div>
+                                    """
+
+                        html += """
                         </div>
                         """
 
@@ -1115,6 +1743,35 @@ class EmailManager:
 
         return html
 
+    def generate_pdf(self, html_content):
+        """Genera un PDF a partir del contenido HTML"""
+        # Verificar si pdfkit está disponible
+        if not PDFKIT_AVAILABLE:
+            logger.warning("pdfkit no está disponible. No se puede generar PDF.")
+            return None
+
+        try:
+            # Opciones para pdfkit (ajustar según sea necesario)
+            options = {
+                "page-size": "A4",
+                "margin-top": "10mm",
+                "margin-right": "10mm",
+                "margin-bottom": "10mm",
+                "margin-left": "10mm",
+                "encoding": "UTF-8",
+                "no-outline": None,
+                "enable-local-file-access": "",
+                "print-media-type": "",
+            }
+
+            # Generar PDF
+            pdf = pdfkit.from_string(html_content, False, options=options)
+            logger.info("PDF generado correctamente")
+            return pdf
+        except Exception as e:
+            logger.error(f"Error al generar PDF: {str(e)}")
+            return None
+
 
 # Clase para gestionar las señales de trading
 class SignalManager:
@@ -1126,7 +1783,13 @@ class SignalManager:
         self.email_manager = EmailManager()
 
     def get_active_signals(
-        self, days_back=7, categories=None, confidence_levels=None, refresh=False
+        self,
+        days_back=7,
+        categories=None,
+        confidence_levels=None,
+        direction=None,
+        high_confidence_only=False,
+        refresh=False,
     ):
         """Obtiene las señales activas filtradas desde la base de datos"""
         # Verificar si hay señales en caché de sesión y no se solicita actualización
@@ -1158,6 +1821,18 @@ class SignalManager:
                 ):
                     continue
 
+                # Filtrar por dirección
+                if (
+                    direction
+                    and direction != "Todas"
+                    and signal.get("direction") != direction
+                ):
+                    continue
+
+                # Filtrar por alta confianza
+                if high_confidence_only and signal.get("is_high_confidence") != 1:
+                    continue
+
                 # Filtrar por fecha
                 created_at = signal.get("created_at")
                 if isinstance(created_at, datetime):
@@ -1177,10 +1852,15 @@ class SignalManager:
 
         # Determinar categoría para filtrar
         category_filter = None if categories == "Todas" else categories
+        direction_filter = None if direction == "Todas" else direction
 
         # Obtener señales de la base de datos
         signals_from_db = self.db_manager.get_signals(
-            days_back, category_filter, confidence_levels
+            days_back,
+            category_filter,
+            confidence_levels,
+            direction_filter,
+            high_confidence_only,
         )
 
         # Si hay señales en la base de datos, actualizamos la caché
@@ -1200,6 +1880,11 @@ class SignalManager:
                         logger.warning(
                             f"Se corrigió una fecha futura para la señal {signal.get('symbol')}"
                         )
+
+                # Convertir valores Decimal a float
+                for key, value in signal.items():
+                    if isinstance(value, decimal.Decimal):
+                        signal[key] = float(value)
 
             # Actualizar la caché de sesión
             st.session_state.cached_signals = signals_from_db
@@ -1221,7 +1906,14 @@ class SignalManager:
 
         if sentiment_data and len(sentiment_data) > 0:
             logger.info("Se obtuvo sentimiento de mercado desde la base de datos")
-            return sentiment_data[0]
+
+            # Asegurar que no hay valores Decimal
+            sentiment_object = sentiment_data[0]
+            for key, value in sentiment_object.items():
+                if isinstance(value, decimal.Decimal):
+                    sentiment_object[key] = float(value)
+
+            return sentiment_object
 
         # Si no hay datos, devolver un objeto con valores predeterminados
         logger.warning("No se encontraron datos de sentimiento en la base de datos")
@@ -1242,6 +1934,13 @@ class SignalManager:
             logger.info(
                 f"Se obtuvieron {len(news_data)} noticias desde la base de datos"
             )
+
+            # Convertir valores Decimal a float
+            for news in news_data:
+                for key, value in news.items():
+                    if isinstance(value, decimal.Decimal):
+                        news[key] = float(value)
+
             return news_data
 
         logger.warning("No se encontraron noticias en la base de datos")
@@ -1255,7 +1954,14 @@ class SignalManager:
             logger.info(
                 f"Se obtuvo análisis detallado para {symbol} desde la base de datos"
             )
-            return analysis_data[0]
+
+            # Convertir valores Decimal a float
+            detailed_analysis = analysis_data[0]
+            for key, value in detailed_analysis.items():
+                if isinstance(value, decimal.Decimal):
+                    detailed_analysis[key] = float(value)
+
+            return detailed_analysis
 
         logger.warning(
             f"No se encontró análisis detallado para {symbol} en la base de datos"
@@ -1266,7 +1972,9 @@ class SignalManager:
         """Guarda una nueva señal en la base de datos"""
         return self.db_manager.save_signal(signal_data)
 
-    def send_newsletter(self, recipients, signals, market_sentiment, news_summary):
+    def send_newsletter(
+        self, recipients, signals, market_sentiment, news_summary, include_pdf=True
+    ):
         """Envía un boletín con las señales y análisis"""
         # Guardar las señales en la base de datos si no existen ya
         signal_ids = []
@@ -1361,11 +2069,25 @@ class SignalManager:
             signals, market_sentiment, news_summary
         )
 
+        # Generar PDF si está habilitado
+        pdf_content = None
+        if include_pdf and PDFKIT_AVAILABLE:
+            try:
+                pdf_content = self.email_manager.generate_pdf(html_content)
+                if pdf_content:
+                    logger.info("PDF generado correctamente para adjuntar al correo")
+                else:
+                    logger.warning("No se pudo generar el PDF para adjuntar al correo")
+            except Exception as e:
+                logger.error(f"Error generando PDF: {str(e)}")
+
         # Enviar correo
         subject = (
             f"InversorIA Pro - Boletín de Trading {datetime.now().strftime('%d/%m/%Y')}"
         )
-        success = self.email_manager.send_email(recipients, subject, html_content)
+        success = self.email_manager.send_email(
+            recipients, subject, html_content, pdf_content
+        )
 
         # Registrar envío en la base de datos si fue exitoso
         if success:
@@ -1449,6 +2171,8 @@ with tab1:
         days_back=dias_atras,
         categories=categoria_filtro,
         confidence_levels=confianza,
+        direction=direccion,
+        high_confidence_only=alta_confianza_only,
         refresh=refresh,  # Forzar actualización si se presiona el botón
     )
 
@@ -1468,14 +2192,17 @@ with tab1:
                 if signal.get("direction") == "CALL":
                     card_bg = "rgba(40, 167, 69, 0.2)"  # Verde semi-transparente
                     text_color = "#28a745"  # Verde
+                    border_color = "#28a745"
                     direction_text = "📈 COMPRA"
                 elif signal.get("direction") == "PUT":
                     card_bg = "rgba(220, 53, 69, 0.2)"  # Rojo semi-transparente
                     text_color = "#dc3545"  # Rojo
+                    border_color = "#dc3545"
                     direction_text = "📉 VENTA"
                 else:
                     card_bg = "rgba(108, 117, 125, 0.2)"  # Gris semi-transparente
                     text_color = "#6c757d"  # Gris
+                    border_color = "#6c757d"
                     direction_text = "↔️ NEUTRAL"
 
                 # Formatear fecha (asegurarse de que no sea futura)
@@ -1495,11 +2222,131 @@ with tab1:
                         datetime.now()
                     )  # Actualizar la fecha en el objeto original
 
+                # Badge para Alta Confianza
+                high_confidence_badge = ""
+                if signal.get("is_high_confidence") == 1:
+                    high_confidence_badge = f"""
+                    <div style="position: absolute; top: 10px; right: 10px; 
+                                background-color: #28a745; color: white; 
+                                padding: 5px 10px; border-radius: 20px; 
+                                font-size: 12px; font-weight: bold;">
+                        Alta Confianza
+                    </div>
+                    """
+
+                # Setup type (si está disponible)
+                setup_badge = ""
+                if signal.get("setup_type"):
+                    setup_badge = f"""
+                    <div style="display: inline-block; margin-top: 10px; margin-bottom: 5px;
+                                padding: 5px 10px; background-color: #e9f5ff; 
+                                border-radius: 20px; font-size: 13px; color: #0275d8;">
+                        {signal.get("setup_type")}
+                    </div>
+                    """
+
+                # Datos de precio target/stop loss (si disponibles)
+                price_targets = ""
+                entry_price = signal.get("entry_price")
+                stop_loss = signal.get("stop_loss")
+                target_price = signal.get("target_price")
+                risk_reward = signal.get("risk_reward")
+
+                if entry_price or stop_loss or target_price:
+                    price_targets = """
+                    <div style="display: flex; flex-wrap: wrap; 
+                                margin-top: 15px; padding: 10px; 
+                                background-color: #f8f9fa; border-radius: 6px;">
+                    """
+
+                    if entry_price:
+                        price_targets += f"""
+                        <div style="flex: 1; min-width: 100px; text-align: center; margin-bottom: 5px;">
+                            <div style="font-size: 12px; color: #6c757d;">Entrada</div>
+                            <div style="font-size: 16px; font-weight: 700; color: #0275d8;">
+                                ${entry_price:,.2f}
+                            </div>
+                        </div>
+                        """
+
+                    if stop_loss:
+                        price_targets += f"""
+                        <div style="flex: 1; min-width: 100px; text-align: center; margin-bottom: 5px;">
+                            <div style="font-size: 12px; color: #6c757d;">Stop Loss</div>
+                            <div style="font-size: 16px; font-weight: 700; color: #dc3545;">
+                                ${stop_loss:,.2f}
+                            </div>
+                        </div>
+                        """
+
+                    if target_price:
+                        price_targets += f"""
+                        <div style="flex: 1; min-width: 100px; text-align: center; margin-bottom: 5px;">
+                            <div style="font-size: 12px; color: #6c757d;">Objetivo</div>
+                            <div style="font-size: 16px; font-weight: 700; color: #28a745;">
+                                ${target_price:,.2f}
+                            </div>
+                        </div>
+                        """
+
+                    price_targets += "</div>"
+
+                    # Añadir Ratio Riesgo/Recompensa si está disponible
+                    if risk_reward:
+                        rr_color = (
+                            "#28a745"
+                            if risk_reward >= 2
+                            else ("#6c757d" if risk_reward >= 1 else "#dc3545")
+                        )
+                        price_targets += f"""
+                        <div style="text-align: center; margin-top: 5px;">
+                            <span style="display: inline-block; padding: 5px 10px; 
+                                    background-color: #f2f6f9; border-radius: 4px; 
+                                    font-weight: 500; color: {rr_color};">
+                                R/R: {risk_reward:,.2f}
+                            </span>
+                        </div>
+                        """
+
+                # Tendencia (si está disponible)
+                trend_info = ""
+                trend = signal.get("trend", "")
+                trend_strength = signal.get("trend_strength", "")
+
+                if trend:
+                    trend_color = (
+                        "#28a745"
+                        if "ALCISTA" in trend.upper()
+                        else ("#dc3545" if "BAJISTA" in trend.upper() else "#6c757d")
+                    )
+                    trend_info = f"""
+                    <div style="margin-top: 15px;">
+                        <div style="font-size: 13px; color: #6c757d; margin-bottom: 5px;">Tendencia:</div>
+                        <div style="display: inline-block; padding: 5px 10px; 
+                                    background-color: rgba({
+                                        "40, 167, 69, 0.1" if "ALCISTA" in trend.upper() else
+                                        ("220, 53, 69, 0.1" if "BAJISTA" in trend.upper() else "108, 117, 125, 0.1")
+                                    }); border-radius: 5px; color: {trend_color}; font-weight: 500;">
+                            {trend}
+                            {f' • <span style="font-size: 12px; opacity: 0.8;">{trend_strength}</span>' if trend_strength else ''}
+                        </div>
+                    </div>
+                    """
+
                 # Crear tarjeta con CSS mejorado (compatible con modo oscuro)
                 st.markdown(
                     f"""
-                <div style="background-color: {card_bg}; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                    <h3 style="margin-top: 0; color: {text_color}; font-size: 20px; font-weight: 600;">{signal.get('symbol', '')} - {direction_text}</h3>
+                <div style="position: relative; background-color: {card_bg}; padding: 20px; 
+                           border-radius: 10px; margin-bottom: 20px; 
+                           border: 1px solid {border_color}; 
+                           box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                    {high_confidence_badge}
+                    <h3 style="margin-top: 0; color: {text_color}; font-size: 20px; font-weight: 600;">
+                        {signal.get('symbol', '')} - {direction_text}
+                    </h3>
+                    
+                    {setup_badge}
+                    
                     <div style="display: flex; flex-wrap: wrap; margin-bottom: 10px;">
                         <div style="flex: 1; min-width: 140px; margin-bottom: 10px;">
                             <strong style="color: #555;">Precio:</strong> 
@@ -1510,6 +2357,7 @@ with tab1:
                             <span style="font-size: 16px; font-weight: 500;">{signal.get('confidence_level', 'Baja')}</span>
                         </div>
                     </div>
+                    
                     <div style="display: flex; flex-wrap: wrap; margin-bottom: 15px;">
                         <div style="flex: 1; min-width: 140px; margin-bottom: 10px;">
                             <strong style="color: #555;">Estrategia:</strong> 
@@ -1520,16 +2368,26 @@ with tab1:
                             <span>{signal.get('timeframe', 'Corto')}</span>
                         </div>
                     </div>
+                    
                     <div style="margin-bottom: 10px;">
                         <strong style="color: #555;">Categoría:</strong> {signal.get('category', 'N/A')}
                     </div>
+                    
                     <div style="margin-bottom: 10px;">
                         <strong style="color: #555;">Fecha:</strong> {fecha}
                     </div>
+                    
+                    {price_targets}
+                    
+                    {trend_info}
+                    
                     <details style="margin-top: 15px; cursor: pointer;">
                         <summary style="color: {text_color}; font-weight: 500;">Ver análisis detallado</summary>
-                        <div style="background-color: rgba(255,255,255,0.5); padding: 15px; border-radius: 8px; margin-top: 10px;">
+                        <div style="background-color: rgba(255,255,255,0.5); padding: 15px; 
+                                   border-radius: 8px; margin-top: 10px;">
                             <p style="margin: 0;">{signal.get('analysis', 'No hay análisis disponible.')}</p>
+                            
+                            {f'<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.1);"><strong>Análisis Técnico:</strong><p>{signal.get("technical_analysis", "")}</p></div>' if signal.get("technical_analysis") else ''}
                         </div>
                     </details>
                 </div>
@@ -1547,7 +2405,7 @@ with tab1:
         1. **Prueba a cambiar los filtros** - Selecciona "Todas" en la categoría o "Baja" en el nivel de confianza para ver más resultados.
         2. **Actualiza los datos** - Usa el botón "Actualizar Datos" para forzar una nueva consulta de la base de datos.
         3. **Verifica la conexión** - Asegúrate de tener una conexión a la base de datos configurada correctamente.
-        4. **Añade señales manualmente** - Si estás desarrollando, asegúrate de que existan registros en la tabla 'trading_signals'.
+        4. **Verifica que haya datos** - Asegúrate de que existan registros en la tabla 'trading_signals' de la base de datos.
         """
         )
 
@@ -1655,12 +2513,19 @@ with tab1:
             # Mostrar noticia con diseño mejorado (compatible con modo oscuro)
             st.markdown(
                 f"""
-            <div style="background-color: rgba(255,255,255,0.05); padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.03);">
-                <h4 style="margin-top: 0; color: #0275d8; font-weight: 600; font-size: 18px;">{item.get('title', '')}</h4>
-                <p style="margin-bottom: 15px;">{item.get('summary', '')}</p>
+            <div style="background-color: rgba(255,255,255,0.05); padding: 20px; 
+                       border-radius: 10px; margin-bottom: 15px; 
+                       border: 1px solid rgba(0,0,0,0.05); 
+                       box-shadow: 0 4px 6px rgba(0,0,0,0.03);">
+                <h4 style="margin-top: 0; color: #0275d8; font-weight: 600; font-size: 18px;">
+                    {item.get('title', '')}
+                </h4>
+                <p>{item.get('summary', '')}</p>
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                     <div>
-                        <span style="color: {impact_color}; font-weight: 500; margin-right: 10px;">Impacto: {impact}</span>
+                        <span style="color: {impact_color}; font-weight: 500; margin-right: 10px;">
+                            Impacto: {impact}
+                        </span>
                         <span style="color: #6c757d; margin-right: 10px;">·</span>
                         <span style="color: #6c757d;">Fuente: {item.get('source', '')}</span>
                     </div>
@@ -1722,14 +2587,26 @@ with tab2:
                 if signal.get("direction") == "CALL"
                 else "VENTA" if signal.get("direction") == "PUT" else "NEUTRAL"
             )
-            key = f"{signal.get('symbol')} - {direction} - {signal.get('confidence_level')}"
+            confidence = signal.get("confidence_level", "")
+            high_confidence = "⭐" if signal.get("is_high_confidence") == 1 else ""
+            key = (
+                f"{signal.get('symbol')} - {direction} - {confidence} {high_confidence}"
+            )
             signal_options[key] = signal
 
-        # Permitir al usuario seleccionar señales
+        # Permitir al usuario seleccionar señales (priorizar alta confianza en defaults)
+        high_confidence_keys = [k for k in signal_options.keys() if "⭐" in k]
+        default_keys = high_confidence_keys[: min(3, len(high_confidence_keys))]
+        if len(default_keys) < 3 and len(signal_options) > 0:
+            remaining_keys = [k for k in signal_options.keys() if k not in default_keys]
+            default_keys.extend(
+                remaining_keys[: min(3 - len(default_keys), len(remaining_keys))]
+            )
+
         selected_signals = st.multiselect(
             "Seleccionar señales para incluir:",
             options=list(signal_options.keys()),
-            default=list(signal_options.keys())[: min(3, len(signal_options))],
+            default=default_keys,
         )
 
         # Obtener las señales seleccionadas
@@ -1749,6 +2626,37 @@ with tab2:
     include_sentiment = st.checkbox("Incluir Sentimiento de Mercado", value=True)
     include_news = st.checkbox("Incluir Noticias Relevantes", value=True)
 
+    # Permitir seleccionar cuántas señales detalladas mostrar
+    if signals_to_include:
+        max_detailed = min(len(signals_to_include), 5)
+        num_detailed = st.slider(
+            "Número de señales con análisis detallado a incluir",
+            min_value=1,
+            max_value=max_detailed,
+            value=min(3, max_detailed),
+            help="Las señales de alta confianza se mostrarán primero",
+        )
+
+        # Ordenar señales para mostrar alta confianza primero
+        signals_to_include = sorted(
+            signals_to_include,
+            key=lambda x: (
+                0 if x.get("is_high_confidence") == 1 else 1,
+                (
+                    0
+                    if x.get("confidence_level") == "Alta"
+                    else (1 if x.get("confidence_level") == "Media" else 2)
+                ),
+            ),
+        )
+
+        # Limitar las señales detalladas
+        detailed_signals = signals_to_include[:num_detailed]
+        summary_signals = signals_to_include
+    else:
+        detailed_signals = []
+        summary_signals = []
+
     # Validar destinatarios
     if not destinatarios:
         st.warning("Por favor, ingrese al menos un destinatario en la barra lateral.")
@@ -1760,13 +2668,15 @@ with tab2:
     preview_sentiment = market_sentiment if include_sentiment else {}
     preview_news = market_news if include_news else []
 
-    html_content = signal_manager.email_manager.create_newsletter_html(
-        signals_to_include, preview_sentiment, preview_news
-    )
+    # Mostrar un mensaje de espera mientras se genera la vista previa
+    with st.spinner("Generando vista previa del boletín..."):
+        html_content = signal_manager.email_manager.create_newsletter_html(
+            summary_signals, preview_sentiment, preview_news
+        )
 
     # Mostrar vista previa
     with st.expander("Ver Vista Previa del Boletín", expanded=True):
-        st.components.v1.html(html_content, height=500, scrolling=True)
+        st.components.v1.html(html_content, height=600, scrolling=True)
 
     # Botón para enviar boletín
     st.subheader("Paso 4: Enviar Boletín")
@@ -1810,7 +2720,11 @@ with tab2:
             else:
                 # Usar la función real de envío de correos
                 success = signal_manager.send_newsletter(
-                    recipient_list, signals_to_include, preview_sentiment, preview_news
+                    recipient_list,
+                    summary_signals,
+                    preview_sentiment,
+                    preview_news,
+                    include_pdf,
                 )
 
             # Registrar el resultado en el log
@@ -1854,6 +2768,30 @@ with tab3:
                 key="hist_confidence_selectbox",
             )
 
+        # Filtro adicional para alta confianza
+        col1, col2 = st.columns(2)
+        with col1:
+            hist_high_confidence = st.checkbox(
+                "Solo señales de alta confianza",
+                value=False,
+                key="hist_high_confidence_checkbox",
+            )
+        with col2:
+            hist_category = st.selectbox(
+                "Categoría",
+                [
+                    "Todas",
+                    "Tecnología",
+                    "Finanzas",
+                    "Salud",
+                    "Energía",
+                    "Consumo",
+                    "Índices",
+                    "Materias Primas",
+                ],
+                key="hist_category_selectbox",
+            )
+
         # Obtener señales históricas de la base de datos
         try:
             # Construir la consulta base
@@ -1873,6 +2811,13 @@ with tab3:
                 query += " AND confidence_level = %s"
                 params.append(hist_confidence)
 
+            if hist_high_confidence:
+                query += " AND is_high_confidence = 1"
+
+            if hist_category != "Todas":
+                query += " AND category = %s"
+                params.append(hist_category)
+
             query += " ORDER BY created_at DESC"
 
             # Conectar a la base de datos y ejecutar la consulta
@@ -1883,6 +2828,12 @@ with tab3:
                 logger.info(
                     f"Se obtuvieron {len(historic_signals)} señales históricas de la base de datos"
                 )
+
+                # Convertir valores Decimal a float
+                for signal in historic_signals:
+                    for key, value in signal.items():
+                        if isinstance(value, decimal.Decimal):
+                            signal[key] = float(value)
             else:
                 logger.warning("No se pudieron obtener señales históricas")
                 historic_signals = []
@@ -1906,28 +2857,67 @@ with tab3:
                     )
                 )
 
+            # Formatear la dirección (CALL/PUT/NEUTRAL) para mejor visualización
+            if "direction" in df_signals.columns:
+                df_signals["Dirección"] = df_signals["direction"].apply(
+                    lambda x: (
+                        "📈 Compra"
+                        if x == "CALL"
+                        else "📉 Venta" if x == "PUT" else "↔️ Neutral"
+                    )
+                )
+
+            # Indicar señales de alta confianza
+            if "is_high_confidence" in df_signals.columns:
+                df_signals["Alta Conf."] = df_signals["is_high_confidence"].apply(
+                    lambda x: "⭐" if x == 1 else ""
+                )
+
             # Seleccionar y renombrar columnas para la tabla
             display_cols = {
                 "symbol": "Símbolo",
-                "direction": "Dirección",
+                "Dirección": "Dirección",
                 "price": "Precio",
+                "entry_price": "Entrada",
+                "stop_loss": "Stop Loss",
+                "target_price": "Objetivo",
+                "risk_reward": "R/R",
                 "confidence_level": "Confianza",
+                "Alta Conf.": "Alta Conf.",
                 "strategy": "Estrategia",
+                "setup_type": "Setup",
                 "category": "Categoría",
                 "Fecha": "Fecha",
             }
 
-            # Crear DataFrame para mostrar
-            df_display = df_signals[
-                [c for c in display_cols.keys() if c in df_signals.columns]
-            ].copy()
-            df_display.columns = [display_cols[c] for c in df_display.columns]
+            # Crear DataFrame para mostrar (seleccionar solo columnas disponibles)
+            available_cols = [c for c in display_cols.keys() if c in df_signals.columns]
+            df_display = df_signals[available_cols].copy()
+            df_display.columns = [display_cols[c] for c in available_cols]
+
+            # Aplicar formato condicional para la columna de dirección
+            styled_df = df_display.style
+
+            # Aquí aplicamos estilos manualmente para evitar problemas de compatibilidad
+            if "Dirección" in df_display.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: (
+                        "color: #28a745; font-weight: bold"
+                        if "Compra" in str(x)
+                        else (
+                            "color: #dc3545; font-weight: bold"
+                            if "Venta" in str(x)
+                            else "color: #6c757d"
+                        )
+                    ),
+                    subset=["Dirección"],
+                )
 
             # Mostrar tabla con estilo
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Opción para exportar datos
-            if st.button("📥 Exportar a CSV"):
+            if st.button("📥 Exportar a CSV", key="export_signals"):
                 # Generar CSV para descarga
                 csv = df_display.to_csv(index=False).encode("utf-8")
                 st.download_button(
@@ -2004,8 +2994,21 @@ with tab3:
             ].copy()
             df_display.columns = [display_cols[c] for c in df_display.columns]
 
+            # Aplicar formato condicional para la columna de estado
+            styled_df = df_display.style
+
+            if "Estado" in df_display.columns:
+                styled_df = styled_df.applymap(
+                    lambda x: (
+                        "color: #28a745; font-weight: bold"
+                        if "Exitoso" in str(x)
+                        else "color: #dc3545; font-weight: bold"
+                    ),
+                    subset=["Estado"],
+                )
+
             # Mostrar tabla
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Añadir explicación detallada del significado de "Señales Incluidas"
             st.info(
