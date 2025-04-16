@@ -33,3 +33,5 @@ statsmodels
 # Base de datos y correo
 mysql-connector-python>=8.0.0
 watchdog>=2.1.0
+
+# Nota: smtplib, email e importlib son parte de la biblioteca estándar de Python

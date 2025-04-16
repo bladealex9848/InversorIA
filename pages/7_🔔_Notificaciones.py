@@ -173,6 +173,7 @@ class RealTimeSignalAnalyzer:
         """Escanea el mercado por sector para encontrar señales de trading en tiempo real"""
         try:
             logger.info(f"Escaneando sector: {sector} en tiempo real")
+            st.session_state.scan_progress = 0
 
             # Usar el escaner de mercado del proyecto principal
             if sector == "Todas":
@@ -180,7 +181,74 @@ class RealTimeSignalAnalyzer:
             else:
                 sectors_to_scan = [sector]
 
+            # Intentar obtener el market_scanner desde el contexto de Streamlit
+            market_scanner = None
+            try:
+                if "market_scanner" in st.session_state:
+                    market_scanner = st.session_state.market_scanner
+                    logger.info("Usando market_scanner desde session_state")
+                else:
+                    # Intentar importar desde el archivo principal
+                    try:
+                        import sys
+                        import os
+
+                        # Asegurar que el directorio raíz está en el path
+                        root_dir = os.path.dirname(
+                            os.path.dirname(os.path.abspath(__file__))
+                        )
+                        if root_dir not in sys.path:
+                            sys.path.append(root_dir)
+
+                        # Importar MarketScanner del archivo principal
+                        main_file = os.path.join(root_dir, "📊_InversorIA_Pro.py")
+                        import importlib.util
+
+                        spec = importlib.util.spec_from_file_location(
+                            "main_module", main_file
+                        )
+                        main_module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(main_module)
+                        MarketScanner = main_module.MarketScanner
+                        market_scanner = MarketScanner()
+                        st.session_state.market_scanner = market_scanner
+                        logger.info(
+                            "Creado nuevo market_scanner desde archivo principal"
+                        )
+                    except ImportError:
+                        # Si falla, intentar importar desde market_scanner.py
+                        try:
+                            from market_scanner import MarketScanner
+
+                            market_scanner = MarketScanner()
+                            st.session_state.market_scanner = market_scanner
+                            logger.info(
+                                "Creado nuevo market_scanner desde market_scanner.py"
+                            )
+                        except ImportError:
+                            logger.warning("No se pudo importar MarketScanner")
+                            market_scanner = None
+            except Exception as scanner_error:
+                logger.warning(f"Error obteniendo market_scanner: {str(scanner_error)}")
+
             all_signals = []
+            total_symbols = 0
+            processed_symbols = 0
+
+            # Contar total de símbolos para la barra de progreso
+            for current_sector in sectors_to_scan:
+                symbols = [
+                    symbol
+                    for symbol, info in self.company_info.items()
+                    if info.get("sector") == current_sector
+                ]
+                total_symbols += len(symbols)
+
+            # Crear barra de progreso
+            progress_text = "Escaneando mercado en busca de oportunidades..."
+            progress_bar = st.progress(0, text=progress_text)
+
+            # Escanear cada sector
             for current_sector in sectors_to_scan:
                 # Obtener símbolos del sector
                 symbols = [
@@ -195,9 +263,67 @@ class RealTimeSignalAnalyzer:
                     )
                     continue
 
+                logger.info(
+                    f"Escaneando {len(symbols)} símbolos del sector {current_sector}"
+                )
+
                 # Escanear cada símbolo
                 for symbol in symbols:
                     try:
+                        # Actualizar barra de progreso
+                        processed_symbols += 1
+                        progress = processed_symbols / total_symbols
+                        progress_bar.progress(
+                            progress,
+                            text=f"{progress_text} ({processed_symbols}/{total_symbols}: {symbol})",
+                        )
+
+                        # Si tenemos un market_scanner, usarlo directamente
+                        if market_scanner is not None:
+                            # Intentar usar el método scan_symbol del market_scanner
+                            try:
+                                scan_result = market_scanner.scan_symbol(symbol)
+                                if scan_result and "recommendation" in scan_result:
+                                    # Mapear el formato del market_scanner al formato de señal
+                                    direction = scan_result.get("recommendation")
+                                    confidence = scan_result.get("confidence", "Media")
+                                    price = scan_result.get("price", 0.0)
+                                    strategy = scan_result.get(
+                                        "strategy", "Análisis Técnico"
+                                    )
+                                    timeframe = scan_result.get(
+                                        "timeframe", "Medio Plazo"
+                                    )
+                                    analysis = scan_result.get("summary", "")
+
+                                    # Filtrar por nivel de confianza
+                                    if (
+                                        confidence in [confidence_threshold, "Alta"]
+                                        and direction != "NEUTRAL"
+                                    ):
+                                        signal = {
+                                            "symbol": symbol,
+                                            "price": price,
+                                            "direction": direction,
+                                            "confidence_level": confidence,
+                                            "timeframe": timeframe,
+                                            "strategy": strategy,
+                                            "category": current_sector,
+                                            "analysis": analysis,
+                                            "created_at": datetime.now(),
+                                            "detailed_analysis": scan_result,
+                                        }
+                                        all_signals.append(signal)
+                                        logger.info(
+                                            f"Señal encontrada para {symbol}: {direction} con confianza {confidence}"
+                                        )
+                                continue
+                            except Exception as scan_error:
+                                logger.warning(
+                                    f"Error usando scan_symbol: {str(scan_error)}"
+                                )
+                                # Continuar con el método alternativo
+
                         # Obtener datos de mercado en tiempo real
                         df = self.fetch_market_data(symbol, days=days)
 
@@ -252,6 +378,20 @@ class RealTimeSignalAnalyzer:
                                 strategy = signals["options"].get(
                                     "strategy", "Análisis Técnico"
                                 )
+                            elif (
+                                "support_resistance" in market_context
+                                and direction == "CALL"
+                            ):
+                                strategy = "Tendencia + Soporte"
+                            elif (
+                                "support_resistance" in market_context
+                                and direction == "PUT"
+                            ):
+                                strategy = "Tendencia + Resistencia"
+                            elif "momentum" in signals and direction == "CALL":
+                                strategy = "Impulso Alcista"
+                            elif "momentum" in signals and direction == "PUT":
+                                strategy = "Impulso Bajista"
 
                             # Obtener timeframe
                             timeframe = "Medio Plazo"
@@ -329,8 +469,11 @@ class RealTimeSignalAnalyzer:
                             )
                             price = float(df["Close"].iloc[-1])
 
-                        # Filtrar por nivel de confianza
-                        if confidence in [confidence_threshold, "Alta"]:
+                        # Filtrar por nivel de confianza y dirección
+                        if (
+                            confidence in [confidence_threshold, "Alta"]
+                            and direction != "NEUTRAL"
+                        ):
                             # Crear señal
                             signal = {
                                 "symbol": symbol,
@@ -345,9 +488,27 @@ class RealTimeSignalAnalyzer:
                                 "detailed_analysis": detailed_analysis,  # Guardar análisis completo para fichas detalladas
                             }
                             all_signals.append(signal)
+                            logger.info(
+                                f"Señal encontrada para {symbol}: {direction} con confianza {confidence}"
+                            )
                     except Exception as symbol_error:
                         logger.error(f"Error analizando {symbol}: {str(symbol_error)}")
                         continue
+
+            # Completar la barra de progreso
+            progress_bar.progress(1.0, text="Escaneo completado")
+
+            # Ordenar señales por confianza (Alta primero) y luego por fecha (más recientes primero)
+            all_signals.sort(
+                key=lambda x: (
+                    0 if x.get("confidence_level") == "Alta" else 1,
+                    (
+                        -datetime.timestamp(x.get("created_at"))
+                        if isinstance(x.get("created_at"), datetime)
+                        else 0
+                    ),
+                )
+            )
 
             logger.info(f"Se encontraron {len(all_signals)} señales en tiempo real")
             return all_signals
@@ -504,18 +665,125 @@ class RealTimeSignalAnalyzer:
                         )
 
                 # Añadir análisis experto para señales de alta confianza
-                if confidence == "Alta" and hasattr(self, "process_expert_analysis"):
+                if confidence == "Alta":
+                    # 1. Intentar obtener análisis experto usando process_expert_analysis
+                    if hasattr(self, "process_expert_analysis"):
+                        try:
+                            logger.info(f"Generando análisis experto para {symbol}")
+                            expert_analysis = self.process_expert_analysis(
+                                symbol, market_context
+                            )
+                            if expert_analysis and "error" not in expert_analysis:
+                                analysis["expert_analysis"] = expert_analysis
+                                logger.info(f"Análisis experto generado para {symbol}")
+                        except Exception as expert_error:
+                            logger.warning(
+                                f"Error generando análisis experto: {str(expert_error)}"
+                            )
+
+                    # 2. Intentar obtener análisis del Trading Specialist
                     try:
-                        logger.info(f"Generando análisis experto para {symbol}")
-                        expert_analysis = self.process_expert_analysis(
-                            symbol, market_context
-                        )
-                        if expert_analysis and "error" not in expert_analysis:
-                            analysis["expert_analysis"] = expert_analysis
-                            logger.info(f"Análisis experto generado para {symbol}")
-                    except Exception as expert_error:
+                        if "trading_specialist" in st.session_state:
+                            trading_specialist = st.session_state.trading_specialist
+                            logger.info(
+                                f"Obteniendo análisis del Trading Specialist para {symbol}"
+                            )
+
+                            # Intentar obtener análisis del Trading Specialist
+                            specialist_analysis = (
+                                trading_specialist.get_analysis(symbol)
+                                if hasattr(trading_specialist, "get_analysis")
+                                else None
+                            )
+
+                            if specialist_analysis and isinstance(
+                                specialist_analysis, dict
+                            ):
+                                analysis["trading_specialist"] = specialist_analysis
+                                logger.info(
+                                    f"Análisis del Trading Specialist obtenido para {symbol}"
+                                )
+                        else:
+                            # Intentar importar el Trading Specialist
+                            try:
+                                import sys
+                                import os
+
+                                # Asegurar que el directorio raíz está en el path
+                                root_dir = os.path.dirname(
+                                    os.path.dirname(os.path.abspath(__file__))
+                                )
+                                if root_dir not in sys.path:
+                                    sys.path.append(root_dir)
+
+                                # Intentar importar el Trading Specialist
+                                try:
+                                    # Intentar importar usando importlib
+                                    specialist_file = os.path.join(
+                                        root_dir, "trading_specialist.py"
+                                    )
+                                    if os.path.exists(specialist_file):
+                                        import importlib.util
+
+                                        spec = importlib.util.spec_from_file_location(
+                                            "trading_specialist_module", specialist_file
+                                        )
+                                        specialist_module = (
+                                            importlib.util.module_from_spec(spec)
+                                        )
+                                        spec.loader.exec_module(specialist_module)
+                                        TradingSpecialist = (
+                                            specialist_module.TradingSpecialist
+                                        )
+                                        trading_specialist = TradingSpecialist()
+                                        st.session_state.trading_specialist = (
+                                            trading_specialist
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"No se encontró el archivo trading_specialist.py en {root_dir}"
+                                        )
+
+                                    # Obtener análisis si se pudo cargar el Trading Specialist
+                                    if (
+                                        "trading_specialist" in locals()
+                                        and trading_specialist is not None
+                                    ):
+                                        specialist_analysis = (
+                                            trading_specialist.get_analysis(symbol)
+                                        )
+                                        if specialist_analysis:
+                                            analysis["trading_specialist"] = (
+                                                specialist_analysis
+                                            )
+                                            logger.info(
+                                                f"Análisis del Trading Specialist obtenido para {symbol}"
+                                            )
+                                except ImportError:
+                                    logger.warning(
+                                        "No se pudo importar TradingSpecialist"
+                                    )
+                            except Exception as import_error:
+                                logger.warning(
+                                    f"Error importando Trading Specialist: {str(import_error)}"
+                                )
+                    except Exception as specialist_error:
                         logger.warning(
-                            f"Error generando análisis experto: {str(expert_error)}"
+                            f"Error obteniendo análisis del Trading Specialist: {str(specialist_error)}"
+                        )
+
+                    # 3. Obtener resumen técnico si está disponible
+                    try:
+                        if hasattr(self, "get_technical_summary"):
+                            technical_summary = self.get_technical_summary(
+                                symbol, market_context
+                            )
+                            if technical_summary and "error" not in technical_summary:
+                                analysis["technical_summary"] = technical_summary
+                                logger.info(f"Resumen técnico generado para {symbol}")
+                    except Exception as summary_error:
+                        logger.warning(
+                            f"Error generando resumen técnico: {str(summary_error)}"
                         )
 
                 return analysis
@@ -1808,28 +2076,108 @@ class EmailManager:
                         </div>
                         """
 
-                    # Añadir análisis experto si está disponible (para señales de alta confianza)
-                    expert_analysis = detailed_analysis.get("expert_analysis", {})
-                    if expert_analysis and signal.get("confidence_level") == "Alta":
-                        # Extraer mensaje del análisis experto
-                        expert_message = expert_analysis.get("message", "")
-                        expert_summary = expert_analysis.get("summary", "")
+                    # Añadir análisis detallados si están disponibles (para señales de alta confianza)
+                    if signal.get("confidence_level") == "Alta":
+                        # 1. Añadir análisis experto si está disponible
+                        expert_analysis = detailed_analysis.get("expert_analysis", {})
+                        if expert_analysis:
+                            # Extraer mensaje del análisis experto
+                            expert_message = expert_analysis.get("message", "")
+                            expert_summary = expert_analysis.get("summary", "")
 
-                        if expert_message or expert_summary:
-                            html += f"""
-                            <div style="background-color: rgba(0, 123, 255, 0.1); padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #007bff;">
-                                <h4 style="color: #007bff;">Análisis Experto</h4>
-                            """
+                            if expert_message or expert_summary:
+                                html += f"""
+                                <div style="background-color: rgba(0, 123, 255, 0.1); padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #007bff;">
+                                    <h4 style="color: #007bff;">Análisis Experto</h4>
+                                """
 
-                            if expert_summary:
-                                html += (
-                                    f"<p><strong>Resumen:</strong> {expert_summary}</p>"
-                                )
+                                if expert_summary:
+                                    html += f"<p><strong>Resumen:</strong> {expert_summary}</p>"
 
-                            if expert_message:
-                                html += f"<p>{expert_message}</p>"
+                                if expert_message:
+                                    html += f"<p>{expert_message}</p>"
 
-                            html += "</div>"
+                                html += "</div>"
+
+                        # 2. Añadir análisis del Trading Specialist si está disponible
+                        trading_specialist = detailed_analysis.get(
+                            "trading_specialist", {}
+                        )
+                        if trading_specialist:
+                            # Extraer datos del Trading Specialist
+                            specialist_recommendation = trading_specialist.get(
+                                "recommendation", ""
+                            )
+                            specialist_analysis = trading_specialist.get("analysis", "")
+                            specialist_key_points = trading_specialist.get(
+                                "key_points", []
+                            )
+
+                            if (
+                                specialist_recommendation
+                                or specialist_analysis
+                                or specialist_key_points
+                            ):
+                                html += f"""
+                                <div style="background-color: rgba(40, 167, 69, 0.1); padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #28a745;">
+                                    <h4 style="color: #28a745;">Trading Specialist</h4>
+                                """
+
+                                if specialist_recommendation:
+                                    html += f"<p><strong>Recomendación:</strong> {specialist_recommendation}</p>"
+
+                                if specialist_analysis:
+                                    html += f"<p>{specialist_analysis}</p>"
+
+                                if (
+                                    specialist_key_points
+                                    and len(specialist_key_points) > 0
+                                ):
+                                    html += "<p><strong>Puntos clave:</strong></p><ul>"
+                                    for point in specialist_key_points:
+                                        html += f"<li>{point}</li>"
+                                    html += "</ul>"
+
+                                html += "</div>"
+
+                        # 3. Añadir resumen técnico si está disponible
+                        technical_summary = detailed_analysis.get(
+                            "technical_summary", {}
+                        )
+                        if technical_summary:
+                            # Extraer datos del resumen técnico
+                            summary_text = technical_summary.get("summary", "")
+                            indicators = technical_summary.get("indicators", {})
+                            patterns = technical_summary.get("patterns", [])
+
+                            if summary_text or indicators or patterns:
+                                html += f"""
+                                <div style="background-color: rgba(108, 117, 125, 0.1); padding: 15px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #6c757d;">
+                                    <h4 style="color: #6c757d;">Resumen Técnico</h4>
+                                """
+
+                                if summary_text:
+                                    html += f"<p>{summary_text}</p>"
+
+                                if indicators and len(indicators) > 0:
+                                    html += "<p><strong>Indicadores:</strong></p>"
+                                    html += (
+                                        "<div style='display: flex; flex-wrap: wrap;'>"
+                                    )
+                                    for name, value in indicators.items():
+                                        html += f"<div style='flex: 1; min-width: 150px; margin: 5px;'><strong>{name}:</strong> {value}</div>"
+                                    html += "</div>"
+
+                                if patterns and len(patterns) > 0:
+                                    html += (
+                                        "<p><strong>Patrones detectados:</strong></p>"
+                                    )
+                                    for pattern in patterns:
+                                        html += (
+                                            f"<span class='pattern'>{pattern}</span> "
+                                        )
+
+                                html += "</div>"
 
                     html += "</div>"
         else:
