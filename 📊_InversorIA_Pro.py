@@ -5333,14 +5333,13 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
     # Si llegamos aquí, tenemos datos para mostrar
 
     # Crear pestañas para diferentes tipos de análisis
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
             "📊 Análisis Técnico",
             "🎯 Opciones",
             "⚙️ Multi-Timeframe",
             "🧠 Análisis Experto",
             "📰 Noticias y Sentimiento",
-            "🔍 Scanner",
         ]
     )
 
@@ -6410,187 +6409,6 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                         f"Error creando gráfico de impacto de noticias: {str(e)}"
                     )
                     st.warning("No se pudo generar el gráfico de impacto de noticias.")
-
-    # Código para la pestaña Scanner de Mercado
-    with tab6:
-        st.markdown("### 🔍 Scanner de Mercado")
-
-        # Selección de sectores para escanear
-        selected_sectors = st.multiselect(
-            "Sectores a Escanear",
-            list(SYMBOLS.keys()),
-            default=st.session_state.last_scan_sectors,
-            help="Seleccione sectores para buscar oportunidades",
-            key="scanner_tab_sectors",  # Añadir key única
-        )
-
-        col1, col2 = st.columns([3, 1])
-
-        with col1:
-            # Filtro de señales
-            filtro = st.selectbox(
-                "Filtrar Señales",
-                ["Todas", "ALCISTA", "BAJISTA", "Solo Alta Confianza"],
-                index=0,
-            )
-
-        with col2:
-            if st.button("🔍 Escanear Mercado", use_container_width=True):
-                with st.spinner("Escaneando mercado en busca de oportunidades..."):
-                    st.session_state.last_scan_sectors = selected_sectors
-                    st.session_state.scan_results = (
-                        st.session_state.scanner.scan_market(selected_sectors)
-                    )
-                    st.session_state.last_scan_time = datetime.now()
-
-        # Mostrar resultados del scanner
-        if (
-            hasattr(st.session_state, "scan_results")
-            and not st.session_state.scan_results.empty
-        ):
-            # Estadísticas resumen
-            st.markdown("#### Resumen de Oportunidades")
-
-            calls_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "ALCISTA"
-                ]
-            )
-            puts_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "BAJISTA"
-                ]
-            )
-            neutral_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "NEUTRAL"
-                ]
-            )
-
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric(
-                    "Señales Alcistas",
-                    calls_count,
-                    delta=(
-                        f"{calls_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col2:
-                st.metric(
-                    "Señales Bajistas",
-                    puts_count,
-                    delta=(
-                        f"{puts_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col3:
-                st.metric(
-                    "Señales Neutrales",
-                    neutral_count,
-                    delta=(
-                        f"{neutral_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col4:
-                st.metric("Total Señales", len(st.session_state.scan_results))
-
-            # Aplicar filtro
-            filtered_results = st.session_state.scan_results
-            if filtro == "ALCISTA":
-                filtered_results = filtered_results[
-                    filtered_results["Tendencia"] == "ALCISTA"
-                ]
-            elif filtro == "BAJISTA":
-                filtered_results = filtered_results[
-                    filtered_results["Tendencia"] == "BAJISTA"
-                ]
-            elif filtro == "Solo Alta Confianza":
-                filtered_results = filtered_results[
-                    filtered_results["Confianza"] == "ALTA"
-                ]
-
-            if not filtered_results.empty:
-                # Optimizar tamaño de tabla
-                display_cols = [
-                    "Symbol",
-                    "Sector",
-                    "Tendencia",
-                    "Precio",
-                    "RSI",
-                    "Estrategia",
-                    "Confianza",
-                    "Entry",
-                    "Stop",
-                    "Target",
-                    "R/R",
-                ]
-
-                # Personalizar formato de la tabla
-                styled_df = filtered_results[display_cols].style.format(
-                    {
-                        "Precio": "${:.2f}",
-                        "RSI": "{:.1f}",
-                        "Entry": "${:.2f}",
-                        "Stop": "${:.2f}",
-                        "Target": "${:.2f}",
-                        "R/R": "{:.2f}",
-                    }
-                )
-
-                # Colorear filas según tendencia
-                def color_rows(row):
-                    if row["Tendencia"] == "ALCISTA":
-                        return ["background-color: rgba(0,128,0,0.1)"] * len(row)
-                    elif row["Tendencia"] == "BAJISTA":
-                        return ["background-color: rgba(255,0,0,0.1)"] * len(row)
-                    else:
-                        return [""] * len(row)
-
-                styled_df = styled_df.apply(color_rows, axis=1)
-
-                # Mostrar tabla con resultados
-                st.dataframe(styled_df, use_container_width=True, height=400)
-
-                # Mostrar timestamp
-                st.caption(
-                    f"Última actualización: {st.session_state.last_scan_time.strftime('%d/%m/%Y %H:%M:%S')}"
-                )
-
-                # Sección para analizar activos del scanner
-                # st.markdown("#### 🔍 Analizar Activo del Scanner")
-
-                # Lista de símbolos del scanner como selectbox
-                # symbol_list = filtered_results["Symbol"].unique().tolist()
-                # selected_scanner_symbol = st.selectbox(
-                #    "Seleccionar activo para análisis", symbol_list
-                # )
-
-                # if st.button("Ver Análisis Detallado", key="scanner_analyze_btn"):
-                # Cambiar símbolo activo y recargar la página
-                #    st.session_state.current_symbol = selected_scanner_symbol
-                #    st.rerun()
-            else:
-                st.info(
-                    "No hay resultados que coincidan con el filtro seleccionado. Prueba con otro filtro o escanea más sectores."
-                )
-        else:
-            st.info(
-                """
-            ### Sin datos de escaneo reciente
-
-            Para obtener señales actualizadas:
-            1. Selecciona los sectores que deseas monitorear
-            2. Pulsa el botón "Escanear Mercado"
-            3. Los resultados aparecerán en esta sección
-            """
-            )
 
 
 # =================================================
