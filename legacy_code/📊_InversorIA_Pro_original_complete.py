@@ -17,6 +17,15 @@ Características:
 import os
 import time
 import streamlit as st
+
+# Configuración de la página - DEBE SER EL PRIMER COMANDO DE STREAMLIT
+st.set_page_config(
+    page_title="InversorIA Pro",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -32,7 +41,15 @@ import traceback
 import logging
 import base64
 import re
-import mysql.connector
+
+# Importar mysql.connector para la clase DatabaseManager
+import_errors = []
+try:
+    import mysql.connector
+except ImportError:
+    import_errors.append(
+        "Error: No se pudo importar mysql.connector. Instálelo con 'pip install mysql-connector-python'"
+    )
 
 # Las importaciones relacionadas con el envío de correos electrónicos han sido eliminadas
 # ya que esta funcionalidad se ha movido a la página de Notificaciones
@@ -44,6 +61,7 @@ try:
 except Exception as e:
     logger = logging.getLogger(__name__)
     logger.warning(f"Error importando pandas_config: {str(e)}")
+    import_errors.append(f"Error importando pandas_config: {str(e)}")
 
 # Configurar logging
 logging.basicConfig(
@@ -65,7 +83,7 @@ try:
         _data_cache,
     )
 except Exception as e:
-    st.error(f"Error importando market_utils: {str(e)}")
+    import_errors.append(f"Error importando market_utils: {str(e)}")
 
 try:
     from trading_dashboard import (
@@ -79,17 +97,17 @@ try:
         TIMEFRAMES,
     )
 except Exception as e:
-    st.error(f"Error importando trading_dashboard: {str(e)}")
+    import_errors.append(f"Error importando trading_dashboard: {str(e)}")
 
 try:
     from authenticator import check_password, validate_session, clear_session
 except Exception as e:
-    st.error(f"Error importando authenticator: {str(e)}")
+    import_errors.append(f"Error importando authenticator: {str(e)}")
 
 try:
     from openai_utils import process_tool_calls, tools
 except Exception as e:
-    st.error(f"Error importando openai_utils: {str(e)}")
+    import_errors.append(f"Error importando openai_utils: {str(e)}")
 
 try:
     from technical_analysis import (
@@ -99,15 +117,62 @@ try:
         detect_candle_patterns,
     )
 except Exception as e:
-    st.error(f"Error importando technical_analysis: {str(e)}")
+    import_errors.append(f"Error importando technical_analysis: {str(e)}")
 
-# Configuración de la página
-st.set_page_config(
-    page_title="InversorIA Pro",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+# Importar componentes refactorizados
+try:
+    from company_data import COMPANY_INFO, SYMBOLS, get_company_info
+except Exception as e:
+    import_errors.append(f"Error importando company_data: {str(e)}")
+
+try:
+    from database_utils import DatabaseManager
+except Exception as e:
+    import_errors.append(f"Error importando database_utils: {str(e)}")
+
+try:
+    from market_scanner import MarketScanner
+except Exception as e:
+    import_errors.append(f"Error importando market_scanner: {str(e)}")
+
+try:
+    from signal_analyzer import RealTimeSignalAnalyzer
+except Exception as e:
+    import_errors.append(f"Error importando signal_analyzer: {str(e)}")
+
+try:
+    from signal_manager import SignalManager
+except Exception as e:
+    import_errors.append(f"Error importando signal_manager: {str(e)}")
+
+try:
+    from visualization_utils import (
+        display_asset_info,
+        display_expert_opinion,
+        display_sentiment_analysis,
+        display_news_feed,
+        display_web_insights,
+        display_technical_summary,
+        display_signal_card,
+    )
+except Exception as e:
+    import_errors.append(f"Error importando visualization_utils: {str(e)}")
+
+try:
+    from ai_utils import (
+        process_expert_analysis,
+        process_message_with_citations,
+        format_patterns_for_prompt,
+        process_chat_input_with_openai,
+    )
+except Exception as e:
+    import_errors.append(f"Error importando ai_utils: {str(e)}")
+
+# Mostrar errores de importación después de st.set_page_config
+for error in import_errors:
+    st.error(error)
+
+# Configuración de la página ya se realizó al inicio del archivo
 
 
 # Clase para manejar la codificación JSON
@@ -136,619 +201,9 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 
-# Información de símbolos y nombres completos
-COMPANY_INFO = {
-    # Tecnología
-    "AAPL": {
-        "name": "Apple Inc.",
-        "sector": "Tecnología",
-        "description": "Fabricante de dispositivos electrónicos y software",
-    },
-    "MSFT": {
-        "name": "Microsoft Corporation",
-        "sector": "Tecnología",
-        "description": "Empresa de software y servicios en la nube",
-    },
-    "GOOGL": {
-        "name": "Alphabet Inc. (Google)",
-        "sector": "Tecnología",
-        "description": "Conglomerado especializado en productos y servicios de Internet",
-    },
-    "AMZN": {
-        "name": "Amazon.com Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Comercio electrónico y servicios en la nube",
-    },
-    "TSLA": {
-        "name": "Tesla Inc.",
-        "sector": "Automóviles",
-        "description": "Fabricante de vehículos eléctricos y tecnología de energía limpia",
-    },
-    "NVDA": {
-        "name": "NVIDIA Corporation",
-        "sector": "Tecnología",
-        "description": "Fabricante de unidades de procesamiento gráfico",
-    },
-    "META": {
-        "name": "Meta Platforms Inc.",
-        "sector": "Tecnología",
-        "description": "Empresa de redes sociales y tecnología",
-    },
-    "NFLX": {
-        "name": "Netflix Inc.",
-        "sector": "Comunicación",
-        "description": "Servicio de streaming y producción de contenido",
-    },
-    "PYPL": {
-        "name": "PayPal Holdings Inc.",
-        "sector": "Servicios Financieros",
-        "description": "Plataforma de pagos en línea",
-    },
-    "CRM": {
-        "name": "Salesforce Inc.",
-        "sector": "Tecnología",
-        "description": "Software de gestión de relaciones con clientes",
-    },
-    # Finanzas
-    "JPM": {
-        "name": "JPMorgan Chase & Co.",
-        "sector": "Finanzas",
-        "description": "Banco multinacional y servicios financieros",
-    },
-    "BAC": {
-        "name": "Bank of America Corp.",
-        "sector": "Finanzas",
-        "description": "Institución bancaria multinacional",
-    },
-    "WFC": {
-        "name": "Wells Fargo & Co.",
-        "sector": "Finanzas",
-        "description": "Servicios bancarios y financieros",
-    },
-    "C": {
-        "name": "Citigroup Inc.",
-        "sector": "Finanzas",
-        "description": "Banca de inversión y servicios financieros",
-    },
-    "GS": {
-        "name": "Goldman Sachs Group Inc.",
-        "sector": "Finanzas",
-        "description": "Banca de inversión y gestión de activos",
-    },
-    "MS": {
-        "name": "Morgan Stanley",
-        "sector": "Finanzas",
-        "description": "Servicios financieros y banca de inversión",
-    },
-    "V": {
-        "name": "Visa Inc.",
-        "sector": "Finanzas",
-        "description": "Servicios de pagos electrónicos",
-    },
-    "MA": {
-        "name": "Mastercard Inc.",
-        "sector": "Finanzas",
-        "description": "Tecnología de pagos globales",
-    },
-    "AXP": {
-        "name": "American Express Co.",
-        "sector": "Finanzas",
-        "description": "Servicios financieros y tarjetas de crédito",
-    },
-    "BLK": {
-        "name": "BlackRock Inc.",
-        "sector": "Finanzas",
-        "description": "Gestión de inversiones y servicios financieros",
-    },
-    # ETFs e Índices
-    "SPY": {
-        "name": "SPDR S&P 500 ETF Trust",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice S&P 500",
-    },
-    "QQQ": {
-        "name": "Invesco QQQ Trust",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Nasdaq-100",
-    },
-    "DIA": {
-        "name": "SPDR Dow Jones Industrial Average ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Dow Jones Industrial Average",
-    },
-    "IWM": {
-        "name": "iShares Russell 2000 ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Russell 2000 de small caps",
-    },
-    "EFA": {
-        "name": "iShares MSCI EAFE ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue acciones internacionales desarrolladas",
-    },
-    "VWO": {
-        "name": "Vanguard FTSE Emerging Markets ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue mercados emergentes",
-    },
-    "XLE": {
-        "name": "Energy Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector energético",
-    },
-    "XLF": {
-        "name": "Financial Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector financiero",
-    },
-    "XLV": {
-        "name": "Health Care Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector sanitario",
-    },
-    # Energía
-    "XOM": {
-        "name": "Exxon Mobil Corp.",
-        "sector": "Energía",
-        "description": "Compañía integrada de petróleo y gas",
-    },
-    "CVX": {
-        "name": "Chevron Corporation",
-        "sector": "Energía",
-        "description": "Producción y refinación de petróleo",
-    },
-    "SHEL": {
-        "name": "Shell PLC",
-        "sector": "Energía",
-        "description": "Multinacional energética integrada",
-    },
-    "TTE": {
-        "name": "TotalEnergies SE",
-        "sector": "Energía",
-        "description": "Compañía energética multinacional",
-    },
-    "COP": {
-        "name": "ConocoPhillips",
-        "sector": "Energía",
-        "description": "Exploración y producción de petróleo y gas",
-    },
-    "EOG": {
-        "name": "EOG Resources Inc.",
-        "sector": "Energía",
-        "description": "Exploración y producción de petróleo",
-    },
-    "PXD": {
-        "name": "Pioneer Natural Resources Co.",
-        "sector": "Energía",
-        "description": "Compañía de exploración y producción de petróleo",
-    },
-    "DVN": {
-        "name": "Devon Energy Corp.",
-        "sector": "Energía",
-        "description": "Compañía independiente de petróleo y gas",
-    },
-    "MPC": {
-        "name": "Marathon Petroleum Corp.",
-        "sector": "Energía",
-        "description": "Refinación y comercialización de petróleo",
-    },
-    "PSX": {
-        "name": "Phillips 66",
-        "sector": "Energía",
-        "description": "Refinación de petróleo y productos químicos",
-    },
-    # Salud
-    "JNJ": {
-        "name": "Johnson & Johnson",
-        "sector": "Salud",
-        "description": "Productos farmacéuticos y dispositivos médicos",
-    },
-    "UNH": {
-        "name": "UnitedHealth Group Inc.",
-        "sector": "Salud",
-        "description": "Seguros médicos y servicios de salud",
-    },
-    "PFE": {
-        "name": "Pfizer Inc.",
-        "sector": "Salud",
-        "description": "Farmacéutica multinacional",
-    },
-    "MRK": {
-        "name": "Merck & Co Inc.",
-        "sector": "Salud",
-        "description": "Compañía farmacéutica global",
-    },
-    "ABBV": {
-        "name": "AbbVie Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología y productos farmacéuticos",
-    },
-    "LLY": {
-        "name": "Eli Lilly and Co.",
-        "sector": "Salud",
-        "description": "Farmacéutica especializada en medicamentos innovadores",
-    },
-    "AMGN": {
-        "name": "Amgen Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología y terapias médicas",
-    },
-    "BMY": {
-        "name": "Bristol-Myers Squibb Co.",
-        "sector": "Salud",
-        "description": "Compañía biofarmacéutica global",
-    },
-    "GILD": {
-        "name": "Gilead Sciences Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología especializada en antivirales",
-    },
-    "TMO": {
-        "name": "Thermo Fisher Scientific Inc.",
-        "sector": "Salud",
-        "description": "Equipamiento científico y servicios de laboratorio",
-    },
-    # Consumo Discrecional
-    "MCD": {
-        "name": "McDonald's Corp.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena mundial de restaurantes de comida rápida",
-    },
-    "SBUX": {
-        "name": "Starbucks Corp.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena internacional de cafeterías",
-    },
-    "NKE": {
-        "name": "Nike Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Fabricante de calzado y ropa deportiva",
-    },
-    "TGT": {
-        "name": "Target Corporation",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena minorista de grandes almacenes",
-    },
-    "HD": {
-        "name": "Home Depot Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de mejoras para el hogar",
-    },
-    "LOW": {
-        "name": "Lowe's Companies Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de artículos para el hogar",
-    },
-    "TJX": {
-        "name": "TJX Companies Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de ropa y artículos para el hogar",
-    },
-    "ROST": {
-        "name": "Ross Stores Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de descuento de ropa y hogar",
-    },
-    "CMG": {
-        "name": "Chipotle Mexican Grill Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena de restaurantes de comida rápida mexicana",
-    },
-    "DHI": {
-        "name": "D.R. Horton Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Constructora residencial",
-    },
-    # Cripto ETFs
-    "BITO": {
-        "name": "ProShares Bitcoin Strategy ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF vinculado a futuros de Bitcoin",
-    },
-    "GBTC": {
-        "name": "Grayscale Bitcoin Trust",
-        "sector": "Cripto ETF",
-        "description": "Fideicomiso de inversión en Bitcoin",
-    },
-    "ETHE": {
-        "name": "Grayscale Ethereum Trust",
-        "sector": "Cripto ETF",
-        "description": "Fideicomiso de inversión en Ethereum",
-    },
-    "ARKW": {
-        "name": "ARK Next Generation Internet ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF con exposición a blockchain y cripto",
-    },
-    "BLOK": {
-        "name": "Amplify Transformational Data Sharing ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF enfocado en tecnologías blockchain",
-    },
-    # Materias Primas
-    "GLD": {
-        "name": "SPDR Gold Shares",
-        "sector": "Materias Primas",
-        "description": "ETF respaldado por oro físico",
-    },
-    "SLV": {
-        "name": "iShares Silver Trust",
-        "sector": "Materias Primas",
-        "description": "ETF respaldado por plata física",
-    },
-    "USO": {
-        "name": "United States Oil Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado al precio del petróleo",
-    },
-    "UNG": {
-        "name": "United States Natural Gas Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado al precio del gas natural",
-    },
-    "CORN": {
-        "name": "Teucrium Corn Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de maíz",
-    },
-    "SOYB": {
-        "name": "Teucrium Soybean Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de soja",
-    },
-    "WEAT": {
-        "name": "Teucrium Wheat Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de trigo",
-    },
-    # Bonos
-    "AGG": {
-        "name": "iShares Core U.S. Aggregate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de grado de inversión",
-    },
-    "BND": {
-        "name": "Vanguard Total Bond Market ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de amplio mercado",
-    },
-    "IEF": {
-        "name": "iShares 7-10 Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a 7-10 años",
-    },
-    "TLT": {
-        "name": "iShares 20+ Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a largo plazo",
-    },
-    "LQD": {
-        "name": "iShares iBoxx $ Investment Grade Corporate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos corporativos grado inversión",
-    },
-    "HYG": {
-        "name": "iShares iBoxx $ High Yield Corporate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de alto rendimiento",
-    },
-    "JNK": {
-        "name": "SPDR Bloomberg High Yield Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos basura",
-    },
-    "TIP": {
-        "name": "iShares TIPS Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos protegidos contra inflación",
-    },
-    "MUB": {
-        "name": "iShares National Muni Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos municipales",
-    },
-    "SHY": {
-        "name": "iShares 1-3 Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a corto plazo",
-    },
-    # Inmobiliario
-    "VNQ": {
-        "name": "Vanguard Real Estate ETF",
-        "sector": "Inmobiliario",
-        "description": "ETF del sector inmobiliario",
-    },
-    "XLRE": {
-        "name": "Real Estate Select Sector SPDR Fund",
-        "sector": "Inmobiliario",
-        "description": "ETF de bienes raíces",
-    },
-    "REIT": {
-        "name": "iShares Global REIT ETF",
-        "sector": "Inmobiliario",
-        "description": "ETF global de REITs",
-    },
-    "HST": {
-        "name": "Host Hotels & Resorts Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de hoteles de lujo",
-    },
-    "EQR": {
-        "name": "Equity Residential",
-        "sector": "Inmobiliario",
-        "description": "REIT de apartamentos residenciales",
-    },
-    "AVB": {
-        "name": "AvalonBay Communities Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de comunidades residenciales",
-    },
-    "PLD": {
-        "name": "Prologis Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de almacenes logísticos",
-    },
-    "SPG": {
-        "name": "Simon Property Group Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de centros comerciales",
-    },
-    "AMT": {
-        "name": "American Tower Corporation",
-        "sector": "Inmobiliario",
-        "description": "REIT de torres de comunicaciones",
-    },
-    # Volatilidad
-    "VXX": {
-        "name": "iPath Series B S&P 500 VIX Short-Term Futures ETN",
-        "sector": "Volatilidad",
-        "description": "Vinculado a futuros de VIX a corto plazo",
-    },
-    "UVXY": {
-        "name": "ProShares Ultra VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "ETF apalancado vinculado al VIX",
-    },
-    "SVXY": {
-        "name": "ProShares Short VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "ETF inverso vinculado al VIX",
-    },
-    "VIXY": {
-        "name": "ProShares VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "Exposición directa a futuros del VIX",
-    },
-    # Forex (Principales pares por volumen)
-    "EURUSD": {
-        "name": "Euro/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Par más negociado del mundo",
-    },
-    "USDJPY": {
-        "name": "Dólar Estadounidense/Yen Japonés",
-        "sector": "Forex",
-        "description": "Par clave de Asia con alta liquidez",
-    },
-    "GBPUSD": {
-        "name": "Libra Esterlina/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Volátil par influenciado por política del Reino Unido",
-    },
-    "USDCHF": {
-        "name": "Dólar Estadounidense/Franco Suizo",
-        "sector": "Forex",
-        "description": "Par considerado 'refugio seguro'",
-    },
-    "AUDUSD": {
-        "name": "Dólar Australiano/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Vinculado a materias primas y China",
-    },
-    "USDCAD": {
-        "name": "Dólar Estadounidense/Dólar Canadiense",
-        "sector": "Forex",
-        "description": "Par sensible al precio del petróleo",
-    },
-    "NZDUSD": {
-        "name": "Dólar Neozelandés/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Conocido como 'kiwi', volátil en sesiones asiáticas",
-    },
-    "EURGBP": {
-        "name": "Euro/Libra Esterlina",
-        "sector": "Forex",
-        "description": "Par clave europeo con alta liquidez",
-    },
-    "EURJPY": {
-        "name": "Euro/Yen Japonés",
-        "sector": "Forex",
-        "description": "Cruce importante entre economías principales",
-    },
-    "GBPJPY": {
-        "name": "Libra Esterlina/Yen Japonés",
-        "sector": "Forex",
-        "description": "Par volátil popular entre traders intradía",
-    },
-    "USDCNH": {
-        "name": "Dólar Estadounidense/Yuan Chino",
-        "sector": "Forex",
-        "description": "Par clave para exposición a China",
-    },
-    "USDINR": {
-        "name": "Dólar Estadounidense/Rupia India",
-        "sector": "Forex",
-        "description": "Par emergente con creciente importancia",
-    },
-    "USDTRY": {
-        "name": "Dólar Estadounidense/Lira Turca",
-        "sector": "Forex",
-        "description": "Par emergente de alta volatilidad",
-    },
-}
+# COMPANY_INFO ahora se importa desde company_data.py
 
-# Universo de Trading
-SYMBOLS = {
-    "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
-    "Tecnología": [
-        "AAPL",
-        "MSFT",
-        "GOOGL",
-        "AMZN",
-        "TSLA",
-        "NVDA",
-        "META",
-        "NFLX",
-        "PYPL",
-        "CRM",
-    ],
-    "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"],
-    "Energía": ["XOM", "CVX", "SHEL", "TTE", "COP", "EOG", "PXD", "DVN", "MPC", "PSX"],
-    "Salud": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "AMGN", "BMY", "GILD", "TMO"],
-    "Consumo Discrecional": [
-        "MCD",
-        "SBUX",
-        "NKE",
-        "TGT",
-        "HD",
-        "LOW",
-        "TJX",
-        "ROST",
-        "CMG",
-        "DHI",
-    ],
-    "Cripto ETFs": ["BITO", "GBTC", "ETHE", "ARKW", "BLOK"],
-    "Materias Primas": ["GLD", "SLV", "USO", "UNG", "CORN", "SOYB", "WEAT"],
-    "Bonos": ["AGG", "BND", "IEF", "TLT", "LQD", "HYG", "JNK", "TIP", "MUB", "SHY"],
-    "Inmobiliario": [
-        "VNQ",
-        "XLRE",
-        "IYR",
-        "REIT",
-        "HST",
-        "EQR",
-        "AVB",
-        "PLD",
-        "SPG",
-        "AMT",
-    ],
-    "Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
-    "Forex": [
-        "EURUSD",
-        "USDJPY",
-        "GBPUSD",
-        "USDCHF",
-        "AUDUSD",
-        "USDCAD",
-        "NZDUSD",
-        "EURGBP",
-        "EURJPY",
-        "GBPJPY",
-        "USDCNH",
-        "USDINR",
-        "USDTRY",
-    ],
-}
+# SYMBOLS ahora se importa desde company_data.py
 
 # Estilos personalizados
 st.markdown(
@@ -1177,207 +632,10 @@ st.markdown(
 # =================================================
 
 
-class DataCache:
-    """Sistema de caché con invalidación por tiempo"""
-
-    def __init__(self, ttl_minutes=30):
-        self.cache = {}
-        self.ttl_minutes = ttl_minutes
-        self.request_timestamps = {}
-        self.hit_counter = 0
-        self.miss_counter = 0
-
-    def get(self, key):
-        """Obtiene dato del caché si es válido"""
-        if key in self.cache:
-            timestamp, data = self.cache[key]
-            if (datetime.now() - timestamp).total_seconds() < (self.ttl_minutes * 60):
-                self.hit_counter += 1
-                return data
-        self.miss_counter += 1
-        return None
-
-    def set(self, key, data):
-        """Almacena dato en caché con timestamp"""
-        self.cache[key] = (datetime.now(), data)
-
-    def clear(self):
-        """Limpia caché completo"""
-        old_count = len(self.cache)
-        self.cache = {}
-        logger.info(f"Caché limpiado. {old_count} entradas eliminadas.")
-        return old_count
-
-    def can_request(self, symbol: str, min_interval_sec: int = 2) -> bool:
-        """Controla frecuencia de solicitudes por símbolo"""
-        now = datetime.now()
-
-        if symbol in self.request_timestamps:
-            elapsed = (now - self.request_timestamps[symbol]).total_seconds()
-            if elapsed < min_interval_sec:
-                return False
-
-        self.request_timestamps[symbol] = now
-        return True
-
-    def get_stats(self) -> Dict:
-        """Retorna estadísticas del caché"""
-        total_requests = self.hit_counter + self.miss_counter
-        hit_rate = (
-            (self.hit_counter / total_requests * 100) if total_requests > 0 else 0
-        )
-
-        return {
-            "entradas": len(self.cache),
-            "hit_rate": f"{hit_rate:.1f}%",
-            "hits": self.hit_counter,
-            "misses": self.miss_counter,
-        }
+# DataCache ahora se importa desde market_utils.py
 
 
-class MarketScanner:
-    """Escáner de mercado con detección de estrategias"""
-
-    def __init__(self, symbols: Dict[str, List[str]], analyzer: TechnicalAnalyzer):
-        self.symbols = symbols
-        self.analyzer = analyzer
-        self.cache = {}
-        self.last_scan_time = None
-
-    def get_cached_analysis(self, symbol: str) -> Optional[Dict]:
-        """Obtiene análisis cacheado si existe"""
-        if symbol in self.cache:
-            return self.cache[symbol]
-        return None
-
-    def scan_market(self, selected_sectors: Optional[List[str]] = None) -> pd.DataFrame:
-        """Ejecuta escaneo de mercado enfocado en sectores seleccionados"""
-        try:
-            self.last_scan_time = datetime.now()
-            results = []
-
-            # Filtrar símbolos por sectores
-            symbols_to_scan = {}
-            if selected_sectors:
-                for sector in selected_sectors:
-                    if sector in self.symbols:
-                        symbols_to_scan[sector] = self.symbols[sector]
-            else:
-                symbols_to_scan = self.symbols
-
-            # Procesar símbolos
-            for sector, symbols in symbols_to_scan.items():
-                for symbol in symbols:
-                    try:
-                        # Obtener contexto de mercado
-                        context = get_market_context(symbol)
-                        if not context or "error" in context:
-                            continue
-
-                        # Extraer datos clave
-                        price = context.get("last_price", 0)
-                        change = context.get("change_percent", 0)
-                        signals = context.get("signals", {})
-
-                        # Obtener señal general
-                        overall_signal = "NEUTRAL"
-                        confidence = "MEDIA"
-                        if "overall" in signals:
-                            signal = signals["overall"]["signal"]
-                            confidence = signals["overall"]["confidence"]
-                            if signal in ["compra", "compra_fuerte"]:
-                                overall_signal = "ALCISTA"
-                            elif signal in ["venta", "venta_fuerte"]:
-                                overall_signal = "BAJISTA"
-
-                        # Obtener señal de opciones
-                        option_signal = "NEUTRAL"
-                        option_strategy = "N/A"
-                        if "options" in signals:
-                            option_signal = signals["options"]["direction"]
-                            option_strategy = signals["options"]["strategy"]
-
-                        # Calcular ratio riesgo/recompensa
-                        support_resistance = context.get("support_resistance", {})
-                        supports = sorted(
-                            support_resistance.get("supports", []), reverse=True
-                        )
-                        resistances = sorted(support_resistance.get("resistances", []))
-
-                        rr_ratio = 0
-                        stop_level = 0
-                        target_level = 0
-
-                        if supports and resistances:
-                            if overall_signal == "ALCISTA":
-                                stop_level = (
-                                    supports[0] if len(supports) > 0 else price * 0.97
-                                )
-                                target_level = (
-                                    resistances[0]
-                                    if len(resistances) > 0
-                                    else price * 1.05
-                                )
-                            elif overall_signal == "BAJISTA":
-                                stop_level = (
-                                    resistances[0]
-                                    if len(resistances) > 0
-                                    else price * 1.03
-                                )
-                                target_level = (
-                                    supports[0] if len(supports) > 0 else price * 0.95
-                                )
-
-                            # Evitar división por cero
-                            risk = abs(price - stop_level)
-                            reward = abs(target_level - price)
-                            rr_ratio = reward / risk if risk > 0 else 0
-
-                        # Añadir resultado al scanner
-                        results.append(
-                            {
-                                "Symbol": symbol,
-                                "Sector": sector,
-                                "Tendencia": overall_signal,
-                                "Fuerza": confidence,
-                                "Precio": price,
-                                "Cambio": change,
-                                "RSI": signals.get("momentum", {}).get("rsi", 50),
-                                "Estrategia": option_signal,
-                                "Setup": option_strategy,
-                                "Confianza": confidence,
-                                "Entry": price,
-                                "Stop": stop_level,
-                                "Target": target_level,
-                                "R/R": round(rr_ratio, 2),
-                                "Timestamp": datetime.now().strftime("%H:%M:%S"),
-                            }
-                        )
-
-                        # Guardar en caché
-                        self.cache[symbol] = {
-                            "trend_data": signals,
-                            "price": price,
-                            "change": change,
-                            "timestamp": datetime.now(),
-                        }
-                    except Exception as e:
-                        logger.error(f"Error escaneando {symbol}: {str(e)}")
-                        continue
-
-            # Convertir a DataFrame
-            if results:
-                df = pd.DataFrame(results)
-                # Filtrar señales vacías o neutras si hay suficientes resultados
-                if len(df) > 5:
-                    df = df[df["Tendencia"] != "NEUTRAL"]
-                return df
-            else:
-                return pd.DataFrame()
-
-        except Exception as e:
-            logger.error(f"Error en scan_market: {str(e)}")
-            return pd.DataFrame()
+# MarketScanner ahora se importa desde market_scanner.py
 
 
 # =================================================
@@ -1385,6 +643,7 @@ class MarketScanner:
 # =================================================
 
 
+# DatabaseManager ahora se importa desde database_utils.py
 class DatabaseManager:
     """Gestiona la conexión y operaciones con la base de datos"""
 
@@ -1793,6 +1052,7 @@ class DatabaseManager:
 # se ha movido a la página de Notificaciones
 
 
+# RealTimeSignalAnalyzer ahora se importa desde signal_analyzer.py
 class RealTimeSignalAnalyzer:
     """Analiza el mercado en tiempo real para generar señales de trading"""
 
@@ -2368,6 +1628,7 @@ class RealTimeSignalAnalyzer:
             return []
 
 
+# SignalManager ahora se importa desde signal_manager.py
 class SignalManager:
     """Gestiona las señales de trading y su procesamiento"""
 
@@ -4869,13 +4130,27 @@ def initialize_session_state():
 
     # Inicializar estado para el scanner de mercado
     if "data_cache" not in st.session_state:
-        st.session_state.data_cache = DataCache()
+        # Usar _data_cache importado desde market_utils
+        st.session_state.data_cache = _data_cache
 
     if "analyzer" not in st.session_state:
         st.session_state.analyzer = TechnicalAnalyzer(_data_cache)
 
     if "scanner" not in st.session_state:
-        st.session_state.scanner = MarketScanner(SYMBOLS, st.session_state.analyzer)
+        # Usar MarketScanner importado al inicio del archivo
+        try:
+            # Verificar si MarketScanner está disponible
+            if "MarketScanner" in globals():
+                st.session_state.scanner = MarketScanner(SYMBOLS)
+            else:
+                # Si no está disponible, usar un mensaje de error
+                st.session_state.scanner = None
+                import_errors.append(
+                    "MarketScanner no está disponible. Verifique la importación desde market_scanner.py"
+                )
+        except Exception as e:
+            st.session_state.scanner = None
+            import_errors.append(f"Error inicializando MarketScanner: {str(e)}")
 
     if "last_scan_time" not in st.session_state:
         st.session_state.last_scan_time = datetime.now() - timedelta(hours=1)
@@ -5333,14 +4608,13 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
     # Si llegamos aquí, tenemos datos para mostrar
 
     # Crear pestañas para diferentes tipos de análisis
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
             "📊 Análisis Técnico",
             "🎯 Opciones",
             "⚙️ Multi-Timeframe",
             "🧠 Análisis Experto",
             "📰 Noticias y Sentimiento",
-            "🔍 Scanner",
         ]
     )
 
@@ -6411,186 +5685,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
                     )
                     st.warning("No se pudo generar el gráfico de impacto de noticias.")
 
-    # Código para la pestaña Scanner de Mercado
-    with tab6:
-        st.markdown("### 🔍 Scanner de Mercado")
-
-        # Selección de sectores para escanear
-        selected_sectors = st.multiselect(
-            "Sectores a Escanear",
-            list(SYMBOLS.keys()),
-            default=st.session_state.last_scan_sectors,
-            help="Seleccione sectores para buscar oportunidades",
-            key="scanner_tab_sectors",  # Añadir key única
-        )
-
-        col1, col2 = st.columns([3, 1])
-
-        with col1:
-            # Filtro de señales
-            filtro = st.selectbox(
-                "Filtrar Señales",
-                ["Todas", "ALCISTA", "BAJISTA", "Solo Alta Confianza"],
-                index=0,
-            )
-
-        with col2:
-            if st.button("🔍 Escanear Mercado", use_container_width=True):
-                with st.spinner("Escaneando mercado en busca de oportunidades..."):
-                    st.session_state.last_scan_sectors = selected_sectors
-                    st.session_state.scan_results = (
-                        st.session_state.scanner.scan_market(selected_sectors)
-                    )
-                    st.session_state.last_scan_time = datetime.now()
-
-        # Mostrar resultados del scanner
-        if (
-            hasattr(st.session_state, "scan_results")
-            and not st.session_state.scan_results.empty
-        ):
-            # Estadísticas resumen
-            st.markdown("#### Resumen de Oportunidades")
-
-            calls_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "ALCISTA"
-                ]
-            )
-            puts_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "BAJISTA"
-                ]
-            )
-            neutral_count = len(
-                st.session_state.scan_results[
-                    st.session_state.scan_results["Tendencia"] == "NEUTRAL"
-                ]
-            )
-
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric(
-                    "Señales Alcistas",
-                    calls_count,
-                    delta=(
-                        f"{calls_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col2:
-                st.metric(
-                    "Señales Bajistas",
-                    puts_count,
-                    delta=(
-                        f"{puts_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col3:
-                st.metric(
-                    "Señales Neutrales",
-                    neutral_count,
-                    delta=(
-                        f"{neutral_count/(calls_count+puts_count+neutral_count)*100:.1f}%"
-                        if (calls_count + puts_count + neutral_count) > 0
-                        else "0%"
-                    ),
-                )
-            with col4:
-                st.metric("Total Señales", len(st.session_state.scan_results))
-
-            # Aplicar filtro
-            filtered_results = st.session_state.scan_results
-            if filtro == "ALCISTA":
-                filtered_results = filtered_results[
-                    filtered_results["Tendencia"] == "ALCISTA"
-                ]
-            elif filtro == "BAJISTA":
-                filtered_results = filtered_results[
-                    filtered_results["Tendencia"] == "BAJISTA"
-                ]
-            elif filtro == "Solo Alta Confianza":
-                filtered_results = filtered_results[
-                    filtered_results["Confianza"] == "ALTA"
-                ]
-
-            if not filtered_results.empty:
-                # Optimizar tamaño de tabla
-                display_cols = [
-                    "Symbol",
-                    "Sector",
-                    "Tendencia",
-                    "Precio",
-                    "RSI",
-                    "Estrategia",
-                    "Confianza",
-                    "Entry",
-                    "Stop",
-                    "Target",
-                    "R/R",
-                ]
-
-                # Personalizar formato de la tabla
-                styled_df = filtered_results[display_cols].style.format(
-                    {
-                        "Precio": "${:.2f}",
-                        "RSI": "{:.1f}",
-                        "Entry": "${:.2f}",
-                        "Stop": "${:.2f}",
-                        "Target": "${:.2f}",
-                        "R/R": "{:.2f}",
-                    }
-                )
-
-                # Colorear filas según tendencia
-                def color_rows(row):
-                    if row["Tendencia"] == "ALCISTA":
-                        return ["background-color: rgba(0,128,0,0.1)"] * len(row)
-                    elif row["Tendencia"] == "BAJISTA":
-                        return ["background-color: rgba(255,0,0,0.1)"] * len(row)
-                    else:
-                        return [""] * len(row)
-
-                styled_df = styled_df.apply(color_rows, axis=1)
-
-                # Mostrar tabla con resultados
-                st.dataframe(styled_df, use_container_width=True, height=400)
-
-                # Mostrar timestamp
-                st.caption(
-                    f"Última actualización: {st.session_state.last_scan_time.strftime('%d/%m/%Y %H:%M:%S')}"
-                )
-
-                # Sección para analizar activos del scanner
-                # st.markdown("#### 🔍 Analizar Activo del Scanner")
-
-                # Lista de símbolos del scanner como selectbox
-                # symbol_list = filtered_results["Symbol"].unique().tolist()
-                # selected_scanner_symbol = st.selectbox(
-                #    "Seleccionar activo para análisis", symbol_list
-                # )
-
-                # if st.button("Ver Análisis Detallado", key="scanner_analyze_btn"):
-                # Cambiar símbolo activo y recargar la página
-                #    st.session_state.current_symbol = selected_scanner_symbol
-                #    st.rerun()
-            else:
-                st.info(
-                    "No hay resultados que coincidan con el filtro seleccionado. Prueba con otro filtro o escanea más sectores."
-                )
-        else:
-            st.info(
-                """
-            ### Sin datos de escaneo reciente
-
-            Para obtener señales actualizadas:
-            1. Selecciona los sectores que deseas monitorear
-            2. Pulsa el botón "Escanear Mercado"
-            3. Los resultados aparecerán en esta sección
-            """
-            )
+    # La pestaña Scanner de Mercado ha sido eliminada ya que existe como pestaña principal
 
 
 # =================================================
@@ -7129,9 +6224,20 @@ def main():
                     st.session_state.analyzer = TechnicalAnalyzer(_data_cache)
 
                 # Crear scanner con SYMBOLS (universo de trading definido)
-                st.session_state.scanner = MarketScanner(
-                    SYMBOLS, st.session_state.analyzer
-                )
+                # Usar MarketScanner importado al inicio del archivo
+                try:
+                    # Verificar si MarketScanner está disponible
+                    if "MarketScanner" in globals():
+                        st.session_state.scanner = MarketScanner(SYMBOLS)
+                    else:
+                        # Si no está disponible, usar un mensaje de error
+                        st.session_state.scanner = None
+                        st.error(
+                            "MarketScanner no está disponible. Verifique la importación desde market_scanner.py"
+                        )
+                except Exception as e:
+                    st.session_state.scanner = None
+                    st.error(f"Error inicializando MarketScanner: {str(e)}")
 
                 # Si no hay resultados previos, dar valores iniciales
                 if "scan_results" not in st.session_state:
@@ -7415,292 +6521,158 @@ def main():
                     """
                 )
 
-        # Pestaña de Scanner de Mercado
+                # Pestaña de Scanner de Mercado
         with main_tab2:
             st.markdown("## 🔍 Scanner de Mercado")
-
-            # Sección para selección de sectores y configuración
-            st.markdown("### Configuración del Scanner")
-
-            # Configuración en dos columnas
-            col1, col2 = st.columns([3, 1])
-
-            with col1:
-                # Selección de sectores para escanear
-                selected_sectors = st.multiselect(
-                    "Sectores a Escanear",
-                    list(SYMBOLS.keys()),
-                    default=st.session_state.last_scan_sectors,
-                    help="Seleccione sectores para buscar oportunidades",
-                    key="scanner_main_sectors",  # Añadir key única
-                )
-
-                # Filtro de señales
-                filtro = st.selectbox(
-                    "Filtrar Señales",
-                    ["Todas", "ALCISTA", "BAJISTA", "CALL", "PUT", "Alta Confianza"],
-                    index=0,
-                )
-
-            with col2:
-                # Botón para ejecutar scanner
-                if st.button(
-                    "🔍 Escanear Mercado", type="primary", use_container_width=True
-                ):
-                    with st.spinner("Escaneando mercado en busca de oportunidades..."):
-                        st.session_state.last_scan_sectors = selected_sectors
-                        st.session_state.scan_results = (
-                            st.session_state.scanner.scan_market(selected_sectors)
-                        )
-                        st.session_state.last_scan_time = datetime.now()
-
+            
+            # Usar la función mejorada de display_opportunities
+            from market_scanner import display_opportunities
+            
+            # Verificar si el scanner está disponible
+            if st.session_state.scanner is not None:
+                # Mostrar el scanner mejorado
+                display_opportunities(st.session_state.scanner)
+                
+                # Guardar señales en la base de datos cuando hay resultados
+                if "scan_results" in st.session_state and not st.session_state.scan_results.empty:
+                    # Botón para guardar señales en la base de datos
+                    if st.button("Guardar Señales en Base de Datos", type="primary"):
                         # Inicializar gestor de señales si no existe
                         if "signal_manager" not in locals():
                             signal_manager = SignalManager()
-
-                        # Guardar señales en la base de datos
-                        if not st.session_state.scan_results.empty:
-                            with st.spinner("Guardando señales en la base de datos..."):
-                                signals_saved = 0
-                                for _, row in st.session_state.scan_results.iterrows():
-                                    try:
-                                        # Mapear dirección
-                                        direction = (
-                                            "CALL"
-                                            if row["Estrategia"] == "CALL"
-                                            else (
-                                                "PUT"
-                                                if row["Estrategia"] == "PUT"
-                                                else "NEUTRAL"
-                                            )
+                            
+                        with st.spinner("Guardando señales en la base de datos..."):
+                            signals_saved = 0
+                            for _, row in st.session_state.scan_results.iterrows():
+                                try:
+                                    # Mapear dirección
+                                    direction = (
+                                        "CALL"
+                                        if row["Estrategia"] == "CALL"
+                                        else (
+                                            "PUT"
+                                            if row["Estrategia"] == "PUT"
+                                            else "NEUTRAL"
                                         )
-
-                                        # Mapear confianza
-                                        confidence = (
-                                            row["Confianza"].capitalize()
-                                            if isinstance(row["Confianza"], str)
-                                            else "Media"
-                                        )
-                                        if confidence == "Alta" or confidence == "ALTA":
-                                            confidence = "Alta"
-                                        elif (
-                                            confidence == "Media"
-                                            or confidence == "MEDIA"
-                                        ):
-                                            confidence = "Media"
-                                        else:
-                                            confidence = "Baja"
-
-                                        # Crear señal
-                                        signal = {
-                                            "symbol": row["Symbol"],
-                                            "price": (
-                                                row["Precio"]
-                                                if isinstance(
-                                                    row["Precio"], (int, float)
-                                                )
-                                                else 0.0
-                                            ),
-                                            "direction": direction,
-                                            "confidence_level": confidence,
-                                            "timeframe": "Medio Plazo",
-                                            "strategy": (
-                                                row["Setup"]
-                                                if "Setup" in row
-                                                else "Análisis Técnico"
-                                            ),
-                                            "category": row["Sector"],
-                                            "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
-                                            "created_at": datetime.now(),
-                                        }
-
-                                        # Verificar si la señal ya existe en la base de datos
-                                        existing_signals = signal_manager.db_manager.execute_query(
-                                            "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
-                                            [signal["symbol"]],
-                                        )
-
-                                        if not existing_signals:
-                                            # Guardar señal en la base de datos
-                                            signal_manager.db_manager.save_signal(
-                                                signal
-                                            )
-                                            signals_saved += 1
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Error guardando señal en la base de datos: {str(e)}"
-                                        )
-
-                                if signals_saved > 0:
-                                    st.success(
-                                        f"Se guardaron {signals_saved} señales en la base de datos"
                                     )
 
-                # Mostrar última actualización
-                if hasattr(st.session_state, "last_scan_time"):
-                    st.caption(
-                        f"Última actualización: {st.session_state.last_scan_time.strftime('%H:%M:%S')}"
-                    )
+                                    # Mapear confianza
+                                    confidence = (
+                                        row["Confianza"].capitalize()
+                                        if isinstance(row["Confianza"], str)
+                                        else "Media"
+                                    )
+                                    if confidence == "Alta" or confidence == "ALTA":
+                                        confidence = "Alta"
+                                    elif (
+                                        confidence == "Media"
+                                        or confidence == "MEDIA"
+                                    ):
+                                        confidence = "Media"
+                                    else:
+                                        confidence = "Baja"
 
-            # Mostrar resultados del scanner
-            if (
-                hasattr(st.session_state, "scan_results")
-                and not st.session_state.scan_results.empty
-            ):
-                # Estadísticas resumen
-                st.markdown("### Resumen de Oportunidades")
+                                    # Crear señal
+                                    signal = {
+                                        "symbol": row["Symbol"],
+                                        "price": (
+                                            row["Precio"]
+                                            if isinstance(
+                                                row["Precio"], (int, float)
+                                            )
+                                            else 0.0
+                                        ),
+                                        "direction": direction,
+                                        "confidence_level": confidence,
+                                        "timeframe": "Medio Plazo",
+                                        "strategy": (
+                                            row["Setup"]
+                                            if "Setup" in row
+                                            else "Análisis Técnico"
+                                        ),
+                                        "category": row["Sector"],
+                                        "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
+                                        "created_at": datetime.now(),
+                                    }
+                                    
+                                    # Añadir información adicional si está disponible
+                                    if "Trading_Specialist" in row and row["Trading_Specialist"] != "NEUTRAL":
+                                        signal["analysis"] += f" Trading Specialist: {row['Trading_Specialist']}"
+                                    
+                                    if "Sentimiento" in row and row["Sentimiento"] != "neutral":
+                                        signal["analysis"] += f" Sentimiento: {row['Sentimiento']}"
 
-                # Conteo de señales por tipo
-                calls_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "CALL"
-                    ]
+                                    # Verificar si la señal ya existe en la base de datos
+                                    existing_signals = signal_manager.db_manager.execute_query(
+                                        "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                                        [signal["symbol"]],
+                                    )
+
+                                    if not existing_signals:
+                                        # Guardar señal en la base de datos
+                                        signal_manager.db_manager.save_signal(
+                                            signal
+                                        )
+                                        signals_saved += 1
+                                except Exception as e:
+                                    logger.error(
+                                        f"Error guardando señal en la base de datos: {str(e)}"
+                                    )
+
+                            if signals_saved > 0:
+                                st.success(
+                                    f"Se guardaron {signals_saved} señales en la base de datos"
+                                )
+                            else:
+                                st.info("No se guardaron nuevas señales en la base de datos")
+            else:
+                st.error(
+                    "El scanner de mercado no está disponible. Verifique la importación desde market_scanner.py"
                 )
-                puts_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "PUT"
-                    ]
-                )
-                neutral_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Estrategia"] == "NEUTRAL"
-                    ]
-                )
+                st.session_state.scan_results = pd.DataFrame()
+            
+            # Sección de información
+            with st.expander("ℹ️ Acerca del Scanner"):
+                st.markdown(
+                    """
+                    ### Algoritmo de Scanner
 
-                # Conteo por tendencia
-                alcista_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Tendencia"] == "ALCISTA"
-                    ]
+                    El scanner de mercado de InversorIA Pro utiliza un enfoque multifactorial que evalúa:
+
+                    - **Análisis técnico**: Medias móviles, RSI, MACD, patrones de velas y tendencias
+                    - **Opciones**: Flujo de opciones, volatilidad implícita y superficie de volatilidad
+                    - **Niveles clave**: Soportes, resistencias y zonas de interés
+
+                    Cada oportunidad es calificada con un nivel de confianza basado en la alineación de factores y la calidad de la configuración.
+
+                    ### Interpretación de las Señales
+
+                    - **Alta Confianza**: Fuerte alineación de múltiples factores
+                    - **Media Confianza**: Buena configuración con algunos factores contradictorios
+                    - **Baja Confianza**: Configuración básica que requiere más análisis
+
+                    El ratio R/R (Riesgo/Recompensa) se calcula automáticamente basado en niveles técnicos y volatilidad del activo.
+                    """
                 )
-                bajista_count = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Tendencia"] == "BAJISTA"
-                    ]
-                )
-
-                # Conteo por confianza
-                alta_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "ALTA"
-                    ]
-                )
-                media_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "MEDIA"
-                    ]
-                )
-                baja_conf = len(
-                    st.session_state.scan_results[
-                        st.session_state.scan_results["Confianza"] == "BAJA"
-                    ]
-                )
-
-                # Métricas en filas
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Alcistas", alcista_count)
-                with col2:
-                    st.metric("Bajistas", bajista_count)
-                with col3:
-                    st.metric("Alta Confianza", alta_conf)
-                with col4:
-                    st.metric("Total Señales", len(st.session_state.scan_results))
-
-                # Nueva fila para opciones
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric(
-                        "CALL",
-                        calls_count,
-                        delta=(
-                            f"{calls_count/len(st.session_state.scan_results)*100:.1f}%"
-                            if len(st.session_state.scan_results) > 0
-                            else "0%"
-                        ),
-                    )
-                with col2:
-                    st.metric(
-                        "PUT",
-                        puts_count,
-                        delta=(
-                            f"{puts_count/len(st.session_state.scan_results)*100:.1f}%"
-                            if len(st.session_state.scan_results) > 0
-                            else "0%"
-                        ),
-                    )
-                with col3:
-                    # Calcular ratio R/R promedio
-                    avg_rr = st.session_state.scan_results["R/R"].mean()
-                    st.metric("R/R Promedio", f"{avg_rr:.2f}")
-                with col4:
-                    # Volatilidad promedio o algún otro indicador interesante
-                    vix = get_vix_level()
-                    st.metric("VIX Actual", f"{vix:.2f}")
-
-                # Aplicar filtro
-                filtered_results = st.session_state.scan_results
-                if filtro == "ALCISTA":
-                    filtered_results = filtered_results[
-                        filtered_results["Tendencia"] == "ALCISTA"
-                    ]
-                elif filtro == "BAJISTA":
-                    filtered_results = filtered_results[
-                        filtered_results["Tendencia"] == "BAJISTA"
-                    ]
-                elif filtro == "CALL":
-                    filtered_results = filtered_results[
-                        filtered_results["Estrategia"] == "CALL"
-                    ]
-                elif filtro == "PUT":
-                    filtered_results = filtered_results[
-                        filtered_results["Estrategia"] == "PUT"
-                    ]
-                elif filtro == "Alta Confianza":
-                    filtered_results = filtered_results[
-                        filtered_results["Confianza"] == "ALTA"
-                    ]
-
-                if not filtered_results.empty:
-                    # Tabla con resultados
-                    st.markdown("### Oportunidades Detectadas")
-
-                    # Columnas a mostrar
-                    display_cols = [
-                        "Symbol",
-                        "Sector",
-                        "Tendencia",
-                        "Precio",
-                        "Cambio",
-                        "RSI",
-                        "Estrategia",
-                        "Confianza",
-                        "Entry",
-                        "Stop",
-                        "Target",
-                        "R/R",
-                    ]
 
                     # Formatear la tabla
-                    styled_df = filtered_results[
-                        (
-                            display_cols
-                            if all(
-                                col in filtered_results.columns for col in display_cols
-                            )
-                            else filtered_results.columns
+                    try:
+                        styled_df = filtered_results[available_cols].style.format(
+                            {
+                                "Precio": "${:.2f}",
+                                "Cambio": "{:+.2f}%",
+                                "RSI": "{:.1f}",
+                                "Entry": "${:.2f}",
+                                "Stop": "${:.2f}",
+                                "Target": "${:.2f}",
+                                "R/R": "{:.2f}",
+                            }
                         )
-                    ].style.format(
-                        {
-                            "Precio": "${:.2f}",
-                            "Cambio": "{:+.2f}%",
-                            "RSI": "{:.1f}",
-                            "Entry": "${:.2f}",
-                            "Stop": "${:.2f}",
-                            "Target": "${:.2f}",
-                            "R/R": "{:.2f}",
-                        }
-                    )
+                    except Exception as e:
+                        st.error(f"Error al formatear la tabla: {str(e)}")
+                        logger.error(f"Error al formatear la tabla: {str(e)}")
+                        # Mostrar sin formato
+                        styled_df = filtered_results[available_cols].style
 
                     # Colorear filas según tendencia o estrategia
                     def highlight_rows(row):

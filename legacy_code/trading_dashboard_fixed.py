@@ -498,105 +498,50 @@ def render_option_recommendations(signals, symbol, options_params, vix_level=Non
                 st.markdown("🔴 **Alta volatilidad** - Considerar:")
                 st.markdown("- Reducir tamaño de posición")
                 st.markdown("- Usar spreads en lugar de opciones directas")
-                st.markdown("- Strike más alejado del precio actual")
+                st.markdown("- Acortar duración (vencimientos más cercanos)")
             elif vix_level < 15:
                 st.markdown("🟢 **Baja volatilidad** - Considerar:")
-                st.markdown("- Strike más cercano al precio actual")
-                st.markdown("- Opciones directas preferibles a spreads")
-                st.markdown("- Mayor duración en la estrategia")
-            else:
-                st.markdown("⚪ **Volatilidad normal** - Parámetros estándar")
-
-        # Ejemplo concreto de trading
-        st.markdown("#### Ejemplo de Trade")
-        st.markdown(f"- **Activo:** {symbol}")
-        st.markdown(f"- **Tipo:** {direction}")
-        st.markdown(f"- **Estrategia:** {strategy}")
-        st.markdown(
-            f"- **Distancia Strike:** {options_params.get('distance_spot_strike', 'N/A')}"
-        )
-        st.markdown(f"- **Volumen Mínimo:** {options_params.get('volumen_min', 'N/A')}")
+                st.markdown("- Estrategias de volatilidad (straddles/strangles)")
+                st.markdown("- Vencimientos más largos")
+                st.markdown("- Posible aumento de tamaño de posición")
 
     except Exception as e:
-        st.warning(f"Error mostrando recomendaciones: {str(e)}")
+        st.warning(f"Error mostrando recomendaciones de opciones: {str(e)}")
 
 
-def render_dashboard(symbol, timeframe, data=None, context=None):
-    """Renderiza dashboard completo con análisis técnico"""
+def render_dashboard(symbol, df):
+    """Renderiza dashboard principal con análisis técnico"""
     try:
-        from market_utils import (
-            fetch_market_data,
-            TechnicalAnalyzer,
-            get_market_context,
-        )
+        if df is None or df.empty:
+            st.error(f"No hay datos disponibles para {symbol}")
+            return
 
-        # Si no se proporcionan datos o contexto, obtenerlos
-        if data is None:
-            data = fetch_market_data(symbol, "6mo", timeframe)
+        # Mostrar métricas técnicas
+        render_technical_metrics(df)
 
-        if context is None:
-            context = get_market_context(symbol)
+        # Crear gráfico avanzado
+        fig = create_advanced_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Mostrar gráfico principal
-        with st.container():
-            st.subheader(f"Análisis Técnico: {symbol}")
+        # Obtener contexto de mercado
+        from market_utils import get_market_context
 
-            if data is not None and not data.empty:
-                # Crear el analizador
-                analyzer = TechnicalAnalyzer(data)
-                df_technical = analyzer.calculate_indicators()
+        context = get_market_context(symbol)
 
-                # Mostrar gráfico si hay datos suficientes
-                if df_technical is not None and len(df_technical) >= 20:
-                    fig = create_advanced_chart(df_technical, timeframe)
-                    if fig:
-                        st.plotly_chart(fig, use_container_width=True)
-
-                    # Mostrar métricas clave
-                    render_technical_metrics(df_technical)
-                else:
-                    st.warning(f"Datos insuficientes para análisis técnico de {symbol}")
-            else:
-                st.error(f"No se pudieron obtener datos para {symbol}")
-
-        # Mostrar señales y recomendaciones si hay contexto
         if context and "error" not in context:
-            with st.container():
-                st.markdown("---")
+            # Mostrar resumen de señales
+            if "signals" in context:
+                render_signal_summary(context["signals"], context.get("vix_level"))
 
-                # Resumen de señales
-                st.subheader("📊 Resumen de Señales")
-                if "signals" in context:
-                    render_signal_summary(context["signals"], context.get("vix_level"))
-
-                # Análisis multi-timeframe
-                st.markdown("---")
-                st.subheader("⏱️ Análisis por Timeframe")
-                if "multi_timeframe" in context:
-                    render_timeframe_analysis(context["multi_timeframe"])
-
-                # Niveles clave
-                st.markdown("---")
-                st.subheader("🎯 Niveles y Zonas Clave")
-                if "support_resistance" in context:
-                    render_support_resistance(
-                        context["support_resistance"], context.get("last_price")
-                    )
-
-                # Recomendación de opciones
-                st.markdown("---")
-                st.subheader("💰 Trading de Opciones")
-                if "signals" in context and "options_params" in context:
-                    render_option_recommendations(
-                        context["signals"],
-                        symbol,
-                        context["options_params"],
-                        context.get("vix_level"),
-                    )
+            # Mostrar niveles de soporte/resistencia
+            if "levels" in context:
+                current_price = df["Close"].iloc[-1] if not df.empty else None
+                render_support_resistance(context["levels"], current_price)
         else:
             error_msg = (
-                context.get("error", "Error desconocido")
-                if context
+                context.get("error", "")
+                if isinstance(context, dict)
                 else "No hay contexto disponible"
             )
             st.error(f"Error obteniendo análisis: {error_msg}")
@@ -605,9 +550,9 @@ def render_dashboard(symbol, timeframe, data=None, context=None):
         st.error(f"Error renderizando dashboard: {str(e)}")
 
 
-def render_technical_tab(symbol, timeframe):
+def render_technical_tab(symbol, df):
     """Renderiza pestaña de análisis técnico"""
-    render_dashboard(symbol, timeframe)
+    render_dashboard(symbol, df)
 
 
 def render_options_tab(symbol, df):
@@ -626,7 +571,7 @@ def render_options_tab(symbol, df):
         st.error("No se pudo obtener información de opciones")
 
 
-def render_multiframe_tab(symbol, df=None):
+def render_multiframe_tab(symbol):
     """Renderiza pestaña de análisis multi-timeframe"""
     from market_utils import get_market_context
 
@@ -637,16 +582,16 @@ def render_multiframe_tab(symbol, df=None):
         st.error("No se pudo obtener análisis multi-timeframe")
 
 
-def render_fundamental_tab(symbol, df=None):
+def render_fundamental_tab(symbol):
     """Renderiza pestaña de análisis fundamental"""
     st.info(f"Análisis fundamental para {symbol} no disponible en esta versión")
 
 
-def render_report_tab(symbol, df=None):
+def render_report_tab(symbol, df):
     """Renderiza pestaña de reporte ejecutivo"""
     st.info(f"Reportes ejecutivos para {symbol} no disponibles en esta versión")
 
 
-def render_risk_tab(symbol, df=None):
+def render_risk_tab(symbol, df):
     """Renderiza pestaña de gestión de riesgo"""
     st.info(f"Análisis de riesgo para {symbol} no disponible en esta versión")

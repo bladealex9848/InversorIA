@@ -2686,9 +2686,15 @@ def get_market_context(symbol: str) -> Dict:
         context = {
             "symbol": symbol,
             "last_price": float(data["Close"].iloc[-1]),
-            "change": float(data["Close"].iloc[-1] - data["Close"].iloc[-2]),
-            "change_percent": float(
-                (data["Close"].iloc[-1] / data["Close"].iloc[-2] - 1) * 100
+            "change": (
+                float(data["Close"].iloc[-1] - data["Close"].iloc[-2])
+                if len(data) > 1
+                else 0.0
+            ),
+            "change_percent": (
+                float((data["Close"].iloc[-1] / data["Close"].iloc[-2] - 1) * 100)
+                if len(data) > 1
+                else 0.0
             ),
             "signals": signals,
             "candle_patterns": candle_patterns,
