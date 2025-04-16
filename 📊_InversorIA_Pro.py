@@ -32,6 +32,12 @@ import traceback
 import logging
 import base64
 import re
+import mysql.connector
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 from typing import Dict, List, Tuple, Any, Optional
 
 # Importar configuración de pandas para mejorar rendimiento
@@ -1374,6 +1380,1643 @@ class MarketScanner:
         except Exception as e:
             logger.error(f"Error en scan_market: {str(e)}")
             return pd.DataFrame()
+
+
+# =================================================
+# CLASES PARA EL SISTEMA DE NOTIFICACIONES
+# =================================================
+
+
+class DatabaseManager:
+    """Gestiona la conexión y operaciones con la base de datos"""
+
+    def __init__(self):
+        """Inicializa el gestor de base de datos"""
+        self.connection = None
+        self.config = self._get_db_config()
+
+    def _get_db_config(self):
+        """Obtiene la configuración de la base de datos desde secrets.toml"""
+        try:
+            # Intentar obtener configuración desde secrets.toml con los nombres de variables correctos
+            if hasattr(st, "secrets") and "db_host" in st.secrets:
+                logger.info("Usando configuración de base de datos desde secrets.toml")
+                return {
+                    "host": st.secrets.get("db_host", "localhost"),
+                    "port": st.secrets.get("db_port", 3306),
+                    "user": st.secrets.get("db_user", "root"),
+                    "password": st.secrets.get("db_password", ""),
+                    "database": st.secrets.get("db_name", "inversoria"),
+                }
+            # Intentar con nombres alternativos
+            elif hasattr(st, "secrets") and "mysql_host" in st.secrets:
+                logger.info(
+                    "Usando configuración alternativa de base de datos desde secrets.toml"
+                )
+                return {
+                    "host": st.secrets.get("mysql_host", "localhost"),
+                    "port": st.secrets.get("mysql_port", 3306),
+                    "user": st.secrets.get("mysql_user", "root"),
+                    "password": st.secrets.get("mysql_password", ""),
+                    "database": st.secrets.get("mysql_database", "inversoria"),
+                }
+            else:
+                logger.warning(
+                    "No se encontró configuración de base de datos en secrets.toml, usando valores por defecto"
+                )
+                return {
+                    "host": "localhost",
+                    "port": 3306,
+                    "user": "root",
+                    "password": "",
+                    "database": "inversoria",
+                }
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración de BD: {str(e)}")
+            return {
+                "host": "localhost",
+                "port": 3306,
+                "user": "root",
+                "password": "",
+                "database": "inversoria",
+            }
+
+    def connect(self):
+        """Establece conexión con la base de datos"""
+        try:
+            # Primero intentar conectar sin especificar la base de datos
+            config_without_db = self.config.copy()
+            if "database" in config_without_db:
+                del config_without_db["database"]
+
+            # Conectar al servidor MySQL
+            temp_connection = mysql.connector.connect(**config_without_db)
+            temp_cursor = temp_connection.cursor()
+
+            # Verificar si la base de datos existe
+            temp_cursor.execute("SHOW DATABASES")
+            databases = [db[0] for db in temp_cursor]
+
+            # Si la base de datos no existe, crearla
+            if self.config["database"] not in databases:
+                logger.info(f"Creando base de datos {self.config['database']}")
+                temp_cursor.execute(f"CREATE DATABASE {self.config['database']}")
+                temp_connection.commit()
+
+                # Crear tablas necesarias
+                temp_cursor.execute(f"USE {self.config['database']}")
+
+                # Tabla de señales de trading con estructura mejorada
+                temp_cursor.execute(
+                    """
+                CREATE TABLE IF NOT EXISTS trading_signals (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    symbol VARCHAR(20) NOT NULL,
+                    price DECIMAL(10, 2) NOT NULL,
+                    direction ENUM('CALL', 'PUT', 'NEUTRAL') NOT NULL,
+                    confidence_level ENUM('Alta', 'Media', 'Baja') NOT NULL,
+                    timeframe VARCHAR(50) NOT NULL,
+                    strategy VARCHAR(100) NOT NULL,
+                    category VARCHAR(50) NOT NULL,
+                    analysis TEXT,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_symbol (symbol),
+                    INDEX idx_direction (direction),
+                    INDEX idx_confidence (confidence_level),
+                    INDEX idx_category (category),
+                    INDEX idx_created_at (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                )
+
+                # Tabla de logs de correos con estructura mejorada
+                temp_cursor.execute(
+                    """
+                CREATE TABLE IF NOT EXISTS email_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    recipients TEXT NOT NULL,
+                    subject VARCHAR(255) NOT NULL,
+                    content_summary VARCHAR(255),
+                    signals_included VARCHAR(255) COMMENT 'IDs de las señales incluidas en el boletín, separados por comas',
+                    sent_at DATETIME NOT NULL,
+                    status ENUM('success', 'error') DEFAULT 'success',
+                    error_message TEXT,
+                    INDEX idx_sent_at (sent_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                )
+
+                # Tabla de sentimiento de mercado con estructura mejorada
+                temp_cursor.execute(
+                    """
+                CREATE TABLE IF NOT EXISTS market_sentiment (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    date DATE NOT NULL,
+                    overall ENUM('Alcista', 'Bajista', 'Neutral') NOT NULL,
+                    vix VARCHAR(50),
+                    sp500_trend VARCHAR(100),
+                    technical_indicators VARCHAR(100),
+                    volume VARCHAR(100),
+                    notes TEXT,
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE INDEX idx_date (date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                )
+
+                # Tabla de noticias de mercado con estructura mejorada
+                temp_cursor.execute(
+                    """
+                CREATE TABLE IF NOT EXISTS market_news (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    summary TEXT,
+                    source VARCHAR(100),
+                    url VARCHAR(255),
+                    news_date DATETIME NOT NULL,
+                    impact ENUM('Alto', 'Medio', 'Bajo') DEFAULT 'Medio',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_news_date (news_date),
+                    INDEX idx_impact (impact)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                )
+
+                temp_connection.commit()
+                logger.info("Tablas creadas correctamente")
+
+            # Cerrar conexión temporal
+            temp_cursor.close()
+            temp_connection.close()
+
+            # Conectar a la base de datos
+            self.connection = mysql.connector.connect(**self.config)
+            logger.info(
+                f"Conexión establecida con la base de datos {self.config['database']}"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error conectando a la base de datos: {str(e)}")
+            return False
+
+    def disconnect(self):
+        """Cierra la conexión con la base de datos"""
+        if self.connection and self.connection.is_connected():
+            self.connection.close()
+
+    def execute_query(self, query, params=None):
+        """Ejecuta una consulta SQL y devuelve los resultados"""
+        results = []
+        try:
+            if self.connect():
+                cursor = self.connection.cursor(dictionary=True)
+                cursor.execute(query, params or [])
+
+                # Obtener resultados como diccionarios
+                results = cursor.fetchall()
+
+                # Si los resultados no son diccionarios, convertirlos
+                if results and not isinstance(results[0], dict):
+                    # Obtener nombres de columnas
+                    column_names = [desc[0] for desc in cursor.description]
+
+                    # Convertir cada fila a diccionario
+                    dict_results = []
+                    for row in results:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            if i < len(column_names):
+                                row_dict[column_names[i]] = value
+                        dict_results.append(row_dict)
+                    results = dict_results
+
+                cursor.close()
+                self.disconnect()
+                return results
+            else:
+                logger.warning("No se pudo conectar a la base de datos")
+                return []
+        except Exception as e:
+            logger.error(f"Error ejecutando consulta: {str(e)}")
+            return []
+
+    def get_signals(self, days_back=7, categories=None, confidence_levels=None):
+        """Obtiene señales de trading filtradas"""
+        query = """SELECT * FROM trading_signals
+                  WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)"""
+        params = [days_back]
+
+        # Añadir filtros adicionales
+        if categories and "Todas" not in categories:
+            placeholders = ", ".join(["%s"] * len(categories))
+            query += f" AND category IN ({placeholders})"
+            params.extend(categories)
+
+        if confidence_levels and len(confidence_levels) > 0:
+            placeholders = ", ".join(["%s"] * len(confidence_levels))
+            query += f" AND confidence_level IN ({placeholders})"
+            params.extend(confidence_levels)
+
+        query += " ORDER BY created_at DESC"
+
+        return self.execute_query(query, params)
+
+    def save_signal(self, signal_data):
+        """Guarda una señal de trading en la base de datos"""
+        try:
+            if self.connect():
+                cursor = self.connection.cursor()
+
+                # Preparar consulta
+                query = """INSERT INTO trading_signals
+                          (symbol, price, direction, confidence_level, timeframe,
+                           strategy, category, analysis, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+
+                # Preparar datos
+                params = (
+                    signal_data.get("symbol", ""),
+                    signal_data.get("price", 0.0),
+                    signal_data.get("direction", "NEUTRAL"),
+                    signal_data.get("confidence_level", "Baja"),
+                    signal_data.get("timeframe", "Corto Plazo"),
+                    signal_data.get("strategy", "Análisis Técnico"),
+                    signal_data.get("category", "General"),
+                    signal_data.get("analysis", ""),
+                    signal_data.get("created_at", datetime.now()),
+                )
+
+                # Ejecutar consulta
+                cursor.execute(query, params)
+                self.connection.commit()
+
+                # Obtener ID insertado
+                signal_id = cursor.lastrowid
+                cursor.close()
+                self.disconnect()
+
+                return signal_id
+            else:
+                logger.warning(
+                    "No se pudo conectar a la base de datos para guardar la señal"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error guardando señal: {str(e)}")
+            return None
+
+    def log_email_sent(self, email_data):
+        """Registra el envío de un correo electrónico"""
+        try:
+            if self.connect():
+                cursor = self.connection.cursor()
+
+                # Preparar consulta
+                query = """INSERT INTO email_logs
+                          (recipients, subject, content_summary, signals_included, sent_at, status, error_message)
+                          VALUES (%s, %s, %s, %s, NOW(), %s, %s)"""
+
+                # Preparar datos
+                params = (
+                    email_data.get("recipients", ""),
+                    email_data.get("subject", ""),
+                    email_data.get("content_summary", ""),
+                    email_data.get("signals_included", ""),
+                    email_data.get("status", "success"),
+                    email_data.get("error_message", ""),
+                )
+
+                # Ejecutar consulta
+                cursor.execute(query, params)
+                self.connection.commit()
+
+                # Obtener ID insertado
+                log_id = cursor.lastrowid
+                cursor.close()
+                self.disconnect()
+
+                logger.info(f"Registro de correo guardado con ID: {log_id}")
+                return log_id
+            else:
+                logger.warning(
+                    "No se pudo conectar a la base de datos para registrar el correo"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error registrando correo: {str(e)}")
+            return None
+
+    def save_market_sentiment(self, sentiment_data):
+        """Guarda datos de sentimiento de mercado"""
+        try:
+            if self.connect():
+                cursor = self.connection.cursor()
+
+                # Preparar consulta
+                query = """INSERT INTO market_sentiment
+                          (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+
+                # Preparar datos
+                params = (
+                    sentiment_data.get("date", datetime.now().date()),
+                    sentiment_data.get("overall", "Neutral"),
+                    sentiment_data.get("vix", "N/A"),
+                    sentiment_data.get("sp500_trend", "N/A"),
+                    sentiment_data.get("technical_indicators", "N/A"),
+                    sentiment_data.get("volume", "N/A"),
+                    sentiment_data.get("notes", ""),
+                )
+
+                # Ejecutar consulta
+                cursor.execute(query, params)
+                self.connection.commit()
+
+                # Obtener ID insertado
+                sentiment_id = cursor.lastrowid
+                cursor.close()
+                self.disconnect()
+
+                return sentiment_id
+            else:
+                logger.warning(
+                    "No se pudo conectar a la base de datos para guardar el sentimiento"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error guardando sentimiento: {str(e)}")
+            return None
+
+    def save_market_news(self, news_data):
+        """Guarda noticias de mercado"""
+        try:
+            if self.connect():
+                cursor = self.connection.cursor()
+
+                # Preparar consulta
+                query = """INSERT INTO market_news
+                          (title, summary, source, url, news_date, impact, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+
+                # Preparar datos
+                params = (
+                    news_data.get("title", ""),
+                    news_data.get("summary", ""),
+                    news_data.get("source", ""),
+                    news_data.get("url", ""),
+                    news_data.get("news_date", datetime.now()),
+                    news_data.get("impact", "Medio"),
+                )
+
+                # Ejecutar consulta
+                cursor.execute(query, params)
+                self.connection.commit()
+
+                # Obtener ID insertado
+                news_id = cursor.lastrowid
+                cursor.close()
+                self.disconnect()
+
+                return news_id
+            else:
+                logger.warning(
+                    "No se pudo conectar a la base de datos para guardar la noticia"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error guardando noticia: {str(e)}")
+            return None
+
+
+class EmailManager:
+    """Gestiona el envío de correos electrónicos"""
+
+    def __init__(self):
+        """Inicializa el gestor de correos"""
+        self.config = self._get_email_config()
+
+    def _get_email_config(self):
+        """Obtiene la configuración de correo desde secrets.toml"""
+        try:
+            # Intentar obtener configuración desde secrets.toml con los nombres de variables correctos
+            if hasattr(st, "secrets") and "smtp_server" in st.secrets:
+                logger.info("Usando configuración de correo desde secrets.toml")
+                return {
+                    "smtp_server": st.secrets.get("smtp_server", "smtp.gmail.com"),
+                    "smtp_port": int(st.secrets.get("smtp_port", 587)),
+                    "email_user": st.secrets.get("email_user", ""),
+                    "email_password": st.secrets.get("email_password", ""),
+                    "email_from": st.secrets.get(
+                        "email_from", "InversorIA Pro <noreply@inversoria.com>"
+                    ),
+                }
+            # Intentar con nombres alternativos
+            elif hasattr(st, "secrets") and "email_user" in st.secrets:
+                logger.info(
+                    "Usando configuración alternativa de correo desde secrets.toml"
+                )
+                return {
+                    "smtp_server": st.secrets.get("smtp_server", "smtp.gmail.com"),
+                    "smtp_port": int(st.secrets.get("smtp_port", 587)),
+                    "email_user": st.secrets.get("email_user", ""),
+                    "email_password": st.secrets.get("email_password", ""),
+                    "email_from": st.secrets.get(
+                        "email_from", "InversorIA Pro <noreply@inversoria.com>"
+                    ),
+                }
+            else:
+                logger.warning(
+                    "No se encontró configuración de correo en secrets.toml, usando valores por defecto"
+                )
+                return {
+                    "smtp_server": "smtp.gmail.com",
+                    "smtp_port": 587,
+                    "email_user": "",
+                    "email_password": "",
+                    "email_from": "InversorIA Pro <noreply@inversoria.com>",
+                }
+        except Exception as e:
+            logger.error(f"Error obteniendo configuración de correo: {str(e)}")
+            return {
+                "smtp_server": "smtp.gmail.com",
+                "smtp_port": 587,
+                "email_user": "",
+                "email_password": "",
+                "email_from": "InversorIA Pro <noreply@inversoria.com>",
+            }
+
+    def send_email(self, recipients, subject, html_content):
+        """Envía un correo electrónico con contenido HTML"""
+        try:
+            # Validar que hay destinatarios
+            if not recipients:
+                logger.warning("No se especificaron destinatarios")
+                return False
+
+            # Convertir string a lista si es necesario
+            if isinstance(recipients, str):
+                recipients = [
+                    email.strip() for email in recipients.split(",") if email.strip()
+                ]
+
+            # Validar que hay al menos un destinatario válido
+            if not recipients:
+                logger.warning("No hay destinatarios válidos")
+                return False
+
+            # Crear mensaje
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = self.config["email_from"]
+            msg["To"] = ", ".join(recipients)
+
+            # Adjuntar contenido HTML
+            msg.attach(MIMEText(html_content, "html"))
+
+            # Conectar al servidor SMTP
+            context = ssl.create_default_context()
+            with smtplib.SMTP(
+                self.config["smtp_server"], self.config["smtp_port"]
+            ) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                server.login(self.config["email_user"], self.config["email_password"])
+                server.send_message(msg)
+
+            logger.info(
+                f"Correo enviado correctamente a {len(recipients)} destinatarios"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(f"Error enviando correo: {str(e)}")
+            return False
+
+    def create_newsletter_html(self, signals, market_sentiment, news_summary):
+        """Crea el contenido HTML para el boletín de trading"""
+        # Obtener fecha actual
+        current_date = datetime.now().strftime("%d/%m/%Y")
+
+        # Crear encabezado del boletín
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Boletín de Trading - {current_date}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                }}
+                .header {{
+                    background-color: #1E88E5;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 5px 5px 0 0;
+                }}
+                .content {{
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                    border: 1px solid #ddd;
+                }}
+                .signal {{
+                    margin-bottom: 30px;
+                    padding: 15px;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                .signal.call {{
+                    background-color: rgba(40, 167, 69, 0.1);
+                    border-left: 5px solid #28a745;
+                }}
+                .signal.put {{
+                    background-color: rgba(220, 53, 69, 0.1);
+                    border-left: 5px solid #dc3545;
+                }}
+                .signal h3 {{
+                    margin-top: 0;
+                    color: #333;
+                }}
+                .signal-details {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    margin-bottom: 10px;
+                }}
+                .signal-detail {{
+                    flex: 1 0 30%;
+                    margin-bottom: 5px;
+                }}
+                .sentiment {{
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    border-radius: 5px;
+                    background-color: #f5f5f5;
+                }}
+                .sentiment.bullish {{
+                    background-color: rgba(40, 167, 69, 0.1);
+                    border-left: 5px solid #28a745;
+                }}
+                .sentiment.bearish {{
+                    background-color: rgba(220, 53, 69, 0.1);
+                    border-left: 5px solid #dc3545;
+                }}
+                .sentiment.neutral {{
+                    background-color: rgba(108, 117, 125, 0.1);
+                    border-left: 5px solid #6c757d;
+                }}
+                .news {{
+                    margin-bottom: 20px;
+                }}
+                .news-item {{
+                    padding: 10px;
+                    margin-bottom: 10px;
+                    border-bottom: 1px solid #eee;
+                }}
+                .news-item h4 {{
+                    margin-top: 0;
+                    color: #1E88E5;
+                }}
+                .news-source {{
+                    color: #6c757d;
+                    font-size: 0.9em;
+                }}
+                .footer {{
+                    text-align: center;
+                    padding: 20px;
+                    font-size: 0.9em;
+                    color: #6c757d;
+                    border-top: 1px solid #eee;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Boletín de Trading - InversorIA Pro</h1>
+                <p>{current_date}</p>
+            </div>
+            <div class="content">
+        """
+
+        # Añadir señales de trading
+        html += """
+                <h2>Señales de Trading</h2>
+        """
+
+        if signals and len(signals) > 0:
+            for signal in signals:
+                # Determinar tipo de señal
+                signal_class = (
+                    "call"
+                    if signal.get("direction") == "CALL"
+                    else "put" if signal.get("direction") == "PUT" else "neutral"
+                )
+                direction_text = (
+                    "COMPRA"
+                    if signal.get("direction") == "CALL"
+                    else "VENTA" if signal.get("direction") == "PUT" else "NEUTRAL"
+                )
+
+                # Formatear precio
+                price = signal.get("price", 0)
+                if isinstance(price, (int, float)):
+                    price_formatted = f"${price:.2f}"
+                else:
+                    price_formatted = str(price)
+
+                # Crear tarjeta de señal
+                html += f"""
+                <div class="signal {signal_class}">
+                    <h3>{signal.get('symbol', '')} - {direction_text}</h3>
+                    <div class="signal-details">
+                        <div class="signal-detail"><strong>Precio:</strong> {price_formatted}</div>
+                        <div class="signal-detail"><strong>Confianza:</strong> {signal.get('confidence_level', 'Baja')}</div>
+                        <div class="signal-detail"><strong>Estrategia:</strong> {signal.get('strategy', 'N/A')}</div>
+                        <div class="signal-detail"><strong>Timeframe:</strong> {signal.get('timeframe', 'Corto Plazo')}</div>
+                        <div class="signal-detail"><strong>Categoría:</strong> {signal.get('category', 'N/A')}</div>
+                    </div>
+                    <p><strong>Análisis:</strong> {signal.get('analysis', 'No hay análisis disponible.')}</p>
+                </div>
+                """
+        else:
+            html += "<p>No hay señales de trading disponibles en este momento.</p>"
+
+        # Añadir sentimiento de mercado
+        if market_sentiment and len(market_sentiment) > 0:
+            # Determinar clase de sentimiento
+            sentiment_overall = market_sentiment.get("overall", "Neutral")
+            sentiment_class = "neutral"
+            if sentiment_overall == "Alcista":
+                sentiment_class = "bullish"
+            elif sentiment_overall == "Bajista":
+                sentiment_class = "bearish"
+
+            html += f"""
+                <h2>Sentimiento de Mercado</h2>
+                <div class="sentiment {sentiment_class}">
+                    <h3>Sentimiento General: {market_sentiment.get('overall', 'Neutral')}</h3>
+                    <p><strong>VIX:</strong> {market_sentiment.get('vix', 'N/A')}</p>
+                    <p><strong>Tendencia S&P 500:</strong> {market_sentiment.get('sp500_trend', 'N/A')}</p>
+                    <p><strong>Indicadores Técnicos:</strong> {market_sentiment.get('technical_indicators', 'N/A')}</p>
+                    <p><strong>Volumen:</strong> {market_sentiment.get('volume', 'N/A')}</p>
+                </div>
+        """
+
+        # Sección de noticias
+        html += """
+                <h2>Noticias Relevantes</h2>
+                <div class="news">
+        """
+
+        if news_summary and len(news_summary) > 0:
+            for news in news_summary:
+                # Formatear fecha
+                news_date = news.get("date")
+                if isinstance(news_date, datetime):
+                    date_formatted = news_date.strftime("%d/%m/%Y")
+                else:
+                    date_formatted = (
+                        str(news_date) if news_date else "Fecha no disponible"
+                    )
+
+                html += f"""
+                    <div class="news-item">
+                        <h4>{news.get('title', '')}</h4>
+                        <p>{news.get('summary', '')}</p>
+                        <p class="news-source">Fuente: {news.get('source', '')} - {date_formatted}</p>
+                    </div>
+                """
+        else:
+            html += "<p>No hay noticias relevantes disponibles en este momento.</p>"
+
+        html += """
+                </div>
+            </div>
+            <div class="footer">
+                <p>Este boletín es generado automáticamente por InversorIA Pro. La información proporcionada es solo para fines educativos y no constituye asesoramiento financiero.</p>
+                <p>Los datos presentados son calculados en tiempo real utilizando análisis técnico avanzado y algoritmos de inteligencia artificial.</p>
+                <p>&copy; 2025 InversorIA Pro. Todos los derechos reservados.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html
+
+
+class RealTimeSignalAnalyzer:
+    """Analiza el mercado en tiempo real para generar señales de trading"""
+
+    def __init__(self):
+        """Inicializa el analizador de señales en tiempo real"""
+        self.market_data_cache = {}
+        self.analysis_cache = {}
+        self.sectors = [
+            "Tecnología",
+            "Finanzas",
+            "Salud",
+            "Energía",
+            "Consumo",
+            "Índices",
+            "Materias Primas",
+        ]
+        self.company_info = COMPANY_INFO
+        self.import_success = True
+
+    def scan_market_by_sector(
+        self, sector="Todas", days=30, confidence_threshold="Media"
+    ):
+        """Escanea el mercado por sector para encontrar señales de trading en tiempo real"""
+        try:
+            logger.info(f"Escaneando sector: {sector} en tiempo real")
+            st.session_state.scan_progress = 0
+
+            # Usar el escaner de mercado del proyecto principal
+            if sector == "Todas":
+                sectors_to_scan = self.sectors
+            else:
+                sectors_to_scan = [sector]
+
+            # Obtener el market_scanner
+            market_scanner = None
+
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Inicializando escaner de mercado...")
+
+            # 1. Primero intentar obtenerlo desde session_state si ya existe
+            if "scanner" in st.session_state and st.session_state.scanner is not None:
+                market_scanner = st.session_state.scanner
+                logger.info("Usando market_scanner existente desde session_state")
+
+            # Limpiar mensaje de estado
+            status_placeholder.empty()
+
+            all_signals = []
+            total_symbols = 0
+            processed_symbols = 0
+
+            # Contar total de símbolos para la barra de progreso
+            for current_sector in sectors_to_scan:
+                symbols = [
+                    symbol
+                    for symbol, info in self.company_info.items()
+                    if info.get("sector") == current_sector
+                ]
+                total_symbols += len(symbols)
+
+            # Crear barra de progreso
+            progress_text = "Escaneando mercado en busca de oportunidades..."
+            progress_bar = st.progress(0, text=progress_text)
+
+            # Escanear cada sector
+            for current_sector in sectors_to_scan:
+                # Obtener símbolos del sector
+                symbols = [
+                    symbol
+                    for symbol, info in self.company_info.items()
+                    if info.get("sector") == current_sector
+                ]
+
+                if not symbols:
+                    logger.warning(
+                        f"No se encontraron símbolos para el sector {current_sector}"
+                    )
+                    continue
+
+                logger.info(
+                    f"Escaneando {len(symbols)} símbolos del sector {current_sector}"
+                )
+
+                # Escanear cada símbolo
+                for symbol in symbols:
+                    try:
+                        # Actualizar barra de progreso
+                        processed_symbols += 1
+                        progress = processed_symbols / total_symbols
+                        progress_bar.progress(
+                            progress,
+                            text=f"{progress_text} ({processed_symbols}/{total_symbols}: {symbol})",
+                        )
+
+                        # Si tenemos un market_scanner, usarlo directamente
+                        if market_scanner is not None:
+                            # Intentar usar el método scan_symbol del market_scanner
+                            try:
+                                scan_result = market_scanner.scan_market(
+                                    [current_sector]
+                                )
+                                if not scan_result.empty:
+                                    # Filtrar por símbolo
+                                    symbol_result = scan_result[
+                                        scan_result["Symbol"] == symbol
+                                    ]
+                                    if not symbol_result.empty:
+                                        # Mapear el formato del market_scanner al formato de señal
+                                        row = symbol_result.iloc[0]
+                                        direction = (
+                                            "CALL"
+                                            if row["Estrategia"] == "CALL"
+                                            else (
+                                                "PUT"
+                                                if row["Estrategia"] == "PUT"
+                                                else "NEUTRAL"
+                                            )
+                                        )
+                                        confidence = row["Confianza"]
+                                        price = row["Precio"]
+                                        strategy = row["Setup"]
+                                        timeframe = "Medio Plazo"
+                                        analysis = f"Señal {direction} con confianza {confidence}. {strategy}."
+
+                                        # Filtrar por nivel de confianza
+                                        if (
+                                            confidence in [confidence_threshold, "ALTA"]
+                                            and direction != "NEUTRAL"
+                                        ):
+                                            signal = {
+                                                "symbol": symbol,
+                                                "price": price,
+                                                "direction": direction,
+                                                "confidence_level": confidence,
+                                                "timeframe": timeframe,
+                                                "strategy": strategy,
+                                                "category": current_sector,
+                                                "analysis": analysis,
+                                                "created_at": datetime.now(),
+                                                "detailed_analysis": row.to_dict(),
+                                            }
+                                            all_signals.append(signal)
+                                            logger.info(
+                                                f"Señal encontrada para {symbol}: {direction} con confianza {confidence}"
+                                            )
+                                continue
+                            except Exception as scan_error:
+                                logger.warning(
+                                    f"Error usando scan_symbol: {str(scan_error)}"
+                                )
+                                # Continuar con el método alternativo
+
+                        # Obtener datos de mercado en tiempo real
+                        df = fetch_market_data(symbol, period=f"{days}d")
+
+                        if df is None or df.empty:
+                            logger.warning(
+                                f"No se pudieron obtener datos para {symbol}"
+                            )
+                            continue
+
+                        # Obtener contexto de mercado completo
+                        market_context = get_market_context(symbol)
+
+                        # Analizar el símbolo usando el contexto de mercado si está disponible
+                        if market_context and "error" not in market_context:
+                            # Extraer señales del contexto de mercado
+                            signals = market_context.get("signals", {})
+                            price = market_context.get(
+                                "last_price", float(df["Close"].iloc[-1])
+                            )
+                            change = market_context.get("change_percent", 0)
+
+                            # Determinar dirección y confianza
+                            direction = "NEUTRAL"
+                            confidence = "Baja"
+
+                            if "overall" in signals:
+                                signal_data = signals["overall"]
+                                signal_type = signal_data.get("signal", "")
+                                confidence = signal_data.get("confidence", "Baja")
+
+                                if signal_type in ["compra", "compra_fuerte"]:
+                                    direction = "CALL"
+                                elif signal_type in ["venta", "venta_fuerte"]:
+                                    direction = "PUT"
+
+                                # Mapear confianza
+                                if signal_data.get("confidence", "").lower() == "alta":
+                                    confidence = "Alta"
+                                elif (
+                                    signal_data.get("confidence", "").lower()
+                                    == "moderada"
+                                ):
+                                    confidence = "Media"
+
+                            # Obtener estrategia
+                            strategy = "Análisis Técnico"
+                            if "options" in signals:
+                                strategy = signals["options"].get(
+                                    "strategy", "Análisis Técnico"
+                                )
+                            elif (
+                                "support_resistance" in market_context
+                                and direction == "CALL"
+                            ):
+                                strategy = "Tendencia + Soporte"
+                            elif (
+                                "support_resistance" in market_context
+                                and direction == "PUT"
+                            ):
+                                strategy = "Tendencia + Resistencia"
+                            elif "momentum" in signals and direction == "CALL":
+                                strategy = "Impulso Alcista"
+                            elif "momentum" in signals and direction == "PUT":
+                                strategy = "Impulso Bajista"
+
+                            # Obtener timeframe
+                            timeframe = "Medio Plazo"
+                            if direction == "CALL" and confidence == "Alta":
+                                timeframe = "Medio-Largo Plazo"
+                            elif direction == "PUT" and confidence == "Alta":
+                                timeframe = "Medio-Largo Plazo"
+                            elif confidence == "Media":
+                                timeframe = "Corto-Medio Plazo"
+                            else:
+                                timeframe = "Corto Plazo"
+
+                            # Crear resumen de análisis
+                            analysis_summary = f"{symbol} muestra tendencia {'alcista' if direction == 'CALL' else 'bajista' if direction == 'PUT' else 'neutral'} "
+                            analysis_summary += f"con confianza {confidence.lower()}. "
+
+                            # Añadir detalles de indicadores
+                            if "momentum" in signals:
+                                rsi = signals["momentum"].get("rsi", 50)
+                                analysis_summary += f"RSI en {rsi:.1f}. "
+
+                            # Añadir detalles de soporte/resistencia
+                            if "support_resistance" in market_context:
+                                sr_data = market_context["support_resistance"]
+                                supports = sr_data.get("supports", [])
+                                resistances = sr_data.get("resistances", [])
+
+                                if supports and direction == "CALL":
+                                    analysis_summary += (
+                                        f"Soporte clave en ${supports[0]:.2f}. "
+                                    )
+                                if resistances and direction == "PUT":
+                                    analysis_summary += (
+                                        f"Resistencia clave en ${resistances[0]:.2f}. "
+                                    )
+
+                            # Añadir detalles de tendencia
+                            if "trend" in signals:
+                                trend_data = signals["trend"]
+                                trend_type = trend_data.get("type", "")
+                                if trend_type:
+                                    analysis_summary += f"Tendencia {trend_type}. "
+
+                            # Añadir detalles de patrones de velas
+                            if "patterns" in signals:
+                                patterns = signals["patterns"]
+                                if patterns:
+                                    pattern_names = [
+                                        p.get("name", "")
+                                        for p in patterns
+                                        if p.get("name")
+                                    ]
+                                    if pattern_names:
+                                        analysis_summary += f"Patrones detectados: {', '.join(pattern_names)}. "
+
+                            # Guardar análisis detallado para la ficha
+                            detailed_analysis = {
+                                "price": price,
+                                "change": change,
+                                "signals": signals,
+                                "direction": direction,
+                                "confidence": confidence,
+                                "strategy": strategy,
+                                "timeframe": timeframe,
+                                "analysis": analysis_summary,
+                            }
+
+                            # Filtrar por nivel de confianza y dirección
+                            if (
+                                confidence in [confidence_threshold, "Alta"]
+                                and direction != "NEUTRAL"
+                            ):
+                                # Crear señal
+                                signal = {
+                                    "symbol": symbol,
+                                    "price": price,
+                                    "direction": direction,
+                                    "confidence_level": confidence,
+                                    "timeframe": timeframe,
+                                    "strategy": strategy,
+                                    "category": current_sector,
+                                    "analysis": analysis_summary,
+                                    "created_at": datetime.now(),
+                                    "detailed_analysis": detailed_analysis,  # Guardar análisis completo para fichas detalladas
+                                }
+                                all_signals.append(signal)
+                                logger.info(
+                                    f"Señal encontrada para {symbol}: {direction} con confianza {confidence}"
+                                )
+                    except Exception as symbol_error:
+                        logger.error(f"Error analizando {symbol}: {str(symbol_error)}")
+                        continue
+
+            # Completar la barra de progreso
+            progress_bar.progress(1.0, text="Escaneo completado")
+
+            # Ordenar señales por confianza (Alta primero) y luego por fecha (más recientes primero)
+            all_signals.sort(
+                key=lambda x: (
+                    0 if x.get("confidence_level") == "Alta" else 1,
+                    (
+                        -datetime.timestamp(x.get("created_at"))
+                        if isinstance(x.get("created_at"), datetime)
+                        else 0
+                    ),
+                )
+            )
+
+            logger.info(f"Se encontraron {len(all_signals)} señales en tiempo real")
+            return all_signals
+        except Exception as e:
+            logger.error(f"Error escaneando mercado: {str(e)}")
+            # No usar datos simulados, retornar lista vacía
+            return []
+
+    def get_real_time_market_sentiment(self):
+        """Obtiene el sentimiento actual del mercado en tiempo real"""
+        try:
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Analizando sentimiento de mercado...")
+
+            # Inicializar variables
+            overall = "Neutral"
+            bullish_count = 0
+            bearish_count = 0
+            volume_status = "Normal"
+            sp500_trend = "Neutral"
+
+            # Obtener datos del VIX
+            vix_value = "N/A"
+            vix_status = "N/A"
+            try:
+                # Intentar importar get_vix_level desde market_utils
+                vix_value = get_vix_level()
+
+                # Interpretar el valor
+                if vix_value < 15:
+                    vix_status = "Volatilidad Muy Baja"
+                elif vix_value < 20:
+                    vix_status = "Volatilidad Baja"
+                elif vix_value < 30:
+                    vix_status = "Volatilidad Moderada"
+                elif vix_value < 40:
+                    vix_status = "Volatilidad Alta"
+                else:
+                    vix_status = "Volatilidad Extrema"
+            except Exception as vix_error:
+                logger.warning(f"Error obteniendo datos del VIX: {str(vix_error)}")
+                # Intentar obtener datos del VIX directamente
+                vix_df = fetch_market_data("^VIX", period="30d")
+                if vix_df is not None and not vix_df.empty:
+                    vix_value = round(float(vix_df["Close"].iloc[-1]), 2)
+                    if vix_value < 20:
+                        vix_status = "Volatilidad Baja"
+                    elif vix_value < 30:
+                        vix_status = "Volatilidad Moderada"
+                    else:
+                        vix_status = "Volatilidad Alta"
+
+            # Obtener datos del S&P 500
+            try:
+                sp500_df = fetch_market_data("^GSPC", period="5d")
+                if sp500_df is not None and not sp500_df.empty:
+                    # Calcular cambio porcentual
+                    current_price = sp500_df["Close"].iloc[-1]
+                    prev_price = sp500_df["Close"].iloc[-2]
+                    change_pct = ((current_price - prev_price) / prev_price) * 100
+
+                    # Determinar tendencia
+                    if change_pct > 1.0:
+                        sp500_trend = "Fuertemente Alcista"
+                    elif change_pct > 0.3:
+                        sp500_trend = "Alcista"
+                    elif change_pct < -1.0:
+                        sp500_trend = "Fuertemente Bajista"
+                    elif change_pct < -0.3:
+                        sp500_trend = "Bajista"
+                    else:
+                        sp500_trend = "Neutral"
+
+                    # Calcular volumen
+                    if "Volume" in sp500_df.columns:
+                        current_vol = sp500_df["Volume"].iloc[-1]
+                        avg_vol = sp500_df["Volume"].mean()
+                        vol_ratio = current_vol / avg_vol
+
+                        if vol_ratio > 1.5:
+                            volume_status = "Muy Alto"
+                        elif vol_ratio > 1.2:
+                            volume_status = "Alto"
+                        elif vol_ratio < 0.8:
+                            volume_status = "Bajo"
+                        elif vol_ratio < 0.5:
+                            volume_status = "Muy Bajo"
+                        else:
+                            volume_status = "Normal"
+            except Exception as sp500_error:
+                logger.warning(
+                    f"Error obteniendo datos del S&P 500: {str(sp500_error)}"
+                )
+
+            # Escanear índices principales para determinar sentimiento general
+            indices = ["^GSPC", "^DJI", "^IXIC", "^RUT"]
+            for index in indices:
+                try:
+                    context = get_market_context(index)
+                    if (
+                        context
+                        and "signals" in context
+                        and "overall" in context["signals"]
+                    ):
+                        signal = context["signals"]["overall"]["signal"]
+                        if signal in ["compra", "compra_fuerte"]:
+                            bullish_count += 1
+                        elif signal in ["venta", "venta_fuerte"]:
+                            bearish_count += 1
+                except Exception:
+                    continue
+
+            # Determinar sentimiento general basado en conteos
+            if bullish_count > bearish_count:
+                overall = "Alcista"
+            elif bearish_count > bullish_count:
+                overall = "Bajista"
+            else:
+                overall = "Neutral"
+
+            # Limpiar mensaje de estado
+            status_placeholder.empty()
+
+            # Crear objeto de sentimiento
+            sentiment = {
+                "overall": overall,
+                "vix": f"{vix_value} - {vix_status}",
+                "sp500_trend": sp500_trend,
+                "technical_indicators": f"{int(bullish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Alcistas, {int(bearish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Bajistas",
+                "volume": volume_status,
+                "notes": f"Datos en tiempo real - {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            }
+
+            return sentiment
+        except Exception as e:
+            logger.error(f"Error obteniendo sentimiento de mercado: {str(e)}")
+            return {
+                "overall": "Neutral",
+                "vix": "N/A",
+                "sp500_trend": "N/A",
+                "technical_indicators": "N/A",
+                "volume": "N/A",
+                "notes": f"Error obteniendo datos - {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            }
+
+    def get_market_news(self):
+        """Obtiene noticias relevantes del mercado en tiempo real"""
+        try:
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Buscando noticias relevantes...")
+
+            # Intentar obtener noticias desde el market_scanner
+            if "scanner" in st.session_state and st.session_state.scanner is not None:
+                market_scanner = st.session_state.scanner
+                # Verificar si el market_scanner tiene método get_market_news
+                if hasattr(market_scanner, "get_market_news"):
+                    try:
+                        news = market_scanner.get_market_news()
+                        if news and isinstance(news, list) and len(news) > 0:
+                            status_placeholder.empty()
+                            return news
+                    except Exception as scanner_error:
+                        logger.warning(
+                            f"Error usando market_scanner.get_market_news: {str(scanner_error)}"
+                        )
+
+            # Si no se pudieron obtener noticias del scanner, generar noticias básicas
+            news_summary = []
+
+            # Obtener datos del S&P 500 para generar noticias básicas
+            try:
+                sp500_df = fetch_market_data("^GSPC", period="5d")
+                if sp500_df is not None and not sp500_df.empty:
+                    # Calcular cambio porcentual
+                    current_price = sp500_df["Close"].iloc[-1]
+                    prev_price = sp500_df["Close"].iloc[-2]
+                    change_pct = ((current_price - prev_price) / prev_price) * 100
+                    change_sign = "+" if change_pct > 0 else ""
+
+                    # Crear noticia sobre el S&P 500
+                    news_summary.append(
+                        {
+                            "title": f"S&P 500 {change_sign}{change_pct:.2f}% en la última sesión",
+                            "summary": f"El índice S&P 500 cerró en ${current_price:.2f}, un cambio de {change_sign}{change_pct:.2f}% respecto a la sesión anterior.",
+                            "source": "InversorIA Pro",
+                            "date": datetime.now(),
+                        }
+                    )
+
+                    # Añadir noticia sobre el VIX si está disponible
+                    try:
+                        vix_df = fetch_market_data("^VIX", period="5d")
+                        if vix_df is not None and not vix_df.empty:
+                            vix_value = vix_df["Close"].iloc[-1]
+                            vix_prev = vix_df["Close"].iloc[-2]
+                            vix_change = ((vix_value - vix_prev) / vix_prev) * 100
+                            vix_sign = "+" if vix_change > 0 else ""
+
+                            news_summary.append(
+                                {
+                                    "title": f"VIX en {vix_value:.2f}, {vix_sign}{vix_change:.2f}%",
+                                    "summary": f"El índice de volatilidad VIX se situó en {vix_value:.2f}, un cambio de {vix_sign}{vix_change:.2f}% respecto a la sesión anterior.",
+                                    "source": "InversorIA Pro",
+                                    "date": datetime.now(),
+                                }
+                            )
+                    except Exception:
+                        pass
+
+                    # Añadir noticia sobre el mercado en general
+                    if change_pct > 1.0:
+                        news_summary.append(
+                            {
+                                "title": "Fuerte impulso alcista en los mercados",
+                                "summary": "Los mercados muestran un fuerte impulso alcista con ganancias significativas en los principales índices.",
+                                "source": "InversorIA Pro",
+                                "date": datetime.now(),
+                            }
+                        )
+                    elif change_pct < -1.0:
+                        news_summary.append(
+                            {
+                                "title": "Presión vendedora domina los mercados",
+                                "summary": "Los mercados experimentan una fuerte presión vendedora con caídas significativas en los principales índices.",
+                                "source": "InversorIA Pro",
+                                "date": datetime.now(),
+                            }
+                        )
+                    else:
+                        news_summary.append(
+                            {
+                                "title": "Mercados en consolidación",
+                                "summary": "Los principales índices se mantienen en un rango estrecho mientras los inversores evalúan las condiciones actuales del mercado.",
+                                "source": "InversorIA Pro",
+                                "date": datetime.now(),
+                            }
+                        )
+            except Exception as news_error:
+                logger.warning(f"Error generando noticias básicas: {str(news_error)}")
+
+            # Limpiar mensaje de estado
+            status_placeholder.empty()
+
+            return news_summary
+        except Exception as e:
+            logger.error(f"Error obteniendo noticias: {str(e)}")
+            return []
+
+
+class SignalManager:
+    """Gestiona las señales de trading y su procesamiento"""
+
+    def __init__(self):
+        """Inicializa el gestor de señales"""
+        self.db_manager = DatabaseManager()
+        self.email_manager = EmailManager()
+        self.real_time_analyzer = RealTimeSignalAnalyzer()
+
+    def get_active_signals(
+        self, days_back=7, categories=None, confidence_levels=None, force_realtime=False
+    ):
+        """Obtiene las señales activas filtradas"""
+        # Verificar si hay señales en caché de sesión
+        if (
+            "cached_signals" in st.session_state
+            and st.session_state.cached_signals
+            and not force_realtime
+        ):
+            logger.info(
+                f"Usando {len(st.session_state.cached_signals)} señales desde la caché de sesión"
+            )
+            cached_signals = st.session_state.cached_signals
+
+            # Aplicar filtros a las señales en caché
+            filtered_signals = []
+            for signal in cached_signals:
+                # Filtrar por categoría
+                if (
+                    categories
+                    and categories != "Todas"
+                    and signal.get("category") not in categories
+                ):
+                    continue
+
+                # Filtrar por nivel de confianza
+                if (
+                    confidence_levels
+                    and signal.get("confidence_level") not in confidence_levels
+                ):
+                    continue
+
+                # Filtrar por fecha
+                created_at = signal.get("created_at")
+                if isinstance(created_at, datetime):
+                    if (datetime.now() - created_at).days > days_back:
+                        continue
+
+                filtered_signals.append(signal)
+
+            if filtered_signals:
+                logger.info(
+                    f"Se encontraron {len(filtered_signals)} señales en caché que cumplen los filtros"
+                )
+                return filtered_signals
+
+        # Si no hay señales en caché o se fuerza el escaneo en tiempo real, intentar obtener de la base de datos
+        if not force_realtime:
+            # Intentar obtener señales de la base de datos
+            signals_from_db = self.db_manager.get_signals(
+                days_back, categories, confidence_levels
+            )
+
+            # Si hay señales en la base de datos, usarlas y actualizar la caché
+            if signals_from_db and len(signals_from_db) > 0:
+                logger.info(
+                    f"Se encontraron {len(signals_from_db)} señales en la base de datos"
+                )
+
+                # Verificar que las fechas no sean futuras
+                for signal in signals_from_db:
+                    if "created_at" in signal and isinstance(
+                        signal["created_at"], datetime
+                    ):
+                        # Si la fecha es futura, corregirla a la fecha actual
+                        if signal["created_at"] > datetime.now():
+                            signal["created_at"] = datetime.now()
+                            logger.warning(
+                                f"Se corrigió una fecha futura para la señal {signal.get('symbol')}"
+                            )
+
+                # Actualizar la caché de sesión
+                st.session_state.cached_signals = signals_from_db
+                return signals_from_db
+
+        # Generar señales en tiempo real
+        logger.info("Generando señales en tiempo real...")
+
+        # Verificar si hay resultados del scanner en session_state
+        if (
+            hasattr(st.session_state, "scan_results")
+            and not st.session_state.scan_results.empty
+        ):
+            logger.info("Usando resultados del scanner para generar señales")
+
+            # Convertir resultados del scanner a formato de señal
+            scanner_signals = []
+            scan_results = st.session_state.scan_results
+
+            # Filtrar por categoría si es necesario
+            if categories and categories != "Todas":
+                scan_results = scan_results[scan_results["Sector"] == categories]
+
+            # Filtrar por confianza si es necesario
+            if confidence_levels:
+                # Mapear confianza a formato del scanner (ALTA, MEDIA, BAJA)
+                scanner_confidence = [c.upper() for c in confidence_levels]
+                scan_results = scan_results[
+                    scan_results["Confianza"].isin(scanner_confidence)
+                ]
+
+            # Convertir cada fila a formato de señal
+            for _, row in scan_results.iterrows():
+                try:
+                    # Mapear dirección
+                    direction = (
+                        "CALL"
+                        if row["Estrategia"] == "CALL"
+                        else "PUT" if row["Estrategia"] == "PUT" else "NEUTRAL"
+                    )
+
+                    # Mapear confianza (convertir a formato de señal: Alta, Media, Baja)
+                    confidence = (
+                        row["Confianza"].capitalize()
+                        if isinstance(row["Confianza"], str)
+                        else "Media"
+                    )
+                    if confidence == "Alta" or confidence == "ALTA":
+                        confidence = "Alta"
+                    elif confidence == "Media" or confidence == "MEDIA":
+                        confidence = "Media"
+                    else:
+                        confidence = "Baja"
+
+                    # Crear señal
+                    signal = {
+                        "symbol": row["Symbol"],
+                        "price": (
+                            row["Precio"]
+                            if isinstance(row["Precio"], (int, float))
+                            else 0.0
+                        ),
+                        "direction": direction,
+                        "confidence_level": confidence,
+                        "timeframe": "Medio Plazo",
+                        "strategy": (
+                            row["Setup"] if "Setup" in row else "Análisis Técnico"
+                        ),
+                        "category": row["Sector"],
+                        "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
+                        "created_at": datetime.now(),
+                    }
+                    scanner_signals.append(signal)
+                except Exception as e:
+                    logger.error(
+                        f"Error convirtiendo fila del scanner a señal: {str(e)}"
+                    )
+                    continue
+
+            # Si se encontraron señales del scanner, usarlas
+            if scanner_signals:
+                logger.info(
+                    f"Se encontraron {len(scanner_signals)} señales desde el scanner"
+                )
+                return scanner_signals
+            else:
+                logger.info(
+                    "No se encontraron señales desde el scanner, usando analizador en tiempo real"
+                )
+
+        # Si no hay resultados del scanner o están vacíos, usar el analizador en tiempo real
+        # Determinar sector y confianza para el escaneo
+        sector = "Todas"
+        if categories and categories != "Todas":
+            sector = categories[0] if isinstance(categories, list) else categories
+
+        confidence = "Media"
+        if confidence_levels and len(confidence_levels) > 0:
+            confidence = confidence_levels[0]
+
+        # Escanear mercado en tiempo real
+        real_time_signals = self.real_time_analyzer.scan_market_by_sector(
+            sector=sector, days=days_back, confidence_threshold=confidence
+        )
+
+        # Si se encontraron señales en tiempo real, asignar IDs temporales
+        if real_time_signals and len(real_time_signals) > 0:
+            for i, signal in enumerate(real_time_signals):
+                signal["id"] = i + 1
+                # Asegurar que la fecha sea la actual
+                signal["created_at"] = datetime.now()
+
+            logger.info(f"Se generaron {len(real_time_signals)} señales en tiempo real")
+
+            # Actualizar la caché de sesión con las nuevas señales
+            # Combinar señales sin duplicados
+            if "cached_signals" in st.session_state:
+                existing_symbols = {
+                    signal.get("symbol") for signal in st.session_state.cached_signals
+                }
+                for signal in real_time_signals:
+                    if signal.get("symbol") not in existing_symbols:
+                        st.session_state.cached_signals.append(signal)
+                        existing_symbols.add(signal.get("symbol"))
+            else:
+                st.session_state.cached_signals = real_time_signals
+
+            # Compartir señales con otras páginas
+            st.session_state.market_signals = real_time_signals
+
+            return real_time_signals
+
+        # Si no se encontraron señales en tiempo real, devolver lista vacía
+        logger.info("No se encontraron señales en tiempo real, devolviendo lista vacía")
+        return []
+
+    def get_market_sentiment(self):
+        """Obtiene el sentimiento actual del mercado en tiempo real"""
+        return self.real_time_analyzer.get_real_time_market_sentiment()
+
+    def get_market_news(self):
+        """Obtiene noticias relevantes del mercado"""
+        return self.real_time_analyzer.get_market_news()
+
+    def send_newsletter(self, recipients, signals, market_sentiment, news_summary):
+        """Envía un boletín de trading por correo electrónico"""
+        # Guardar señales en la base de datos si no existen
+        signal_ids = []
+        for signal in signals:
+            try:
+                # Verificar si la señal ya tiene ID (viene de la base de datos)
+                if "id" in signal and signal["id"]:
+                    signal_id = signal["id"]
+                    signal_ids.append(str(signal_id))
+                    logger.info(f"Usando señal existente con ID: {signal_id}")
+                    continue
+
+                # Verificar si la señal ya existe en la base de datos
+                existing_signals = self.db_manager.execute_query(
+                    "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                    [signal.get("symbol")],
+                )
+
+                if existing_signals and len(existing_signals) > 0:
+                    # Si ya existe, usar ese ID
+                    signal_id = existing_signals[0][
+                        0
+                    ]  # Acceder al primer elemento de la tupla
+                    signal_ids.append(str(signal_id))
+                    logger.info(f"Señal ya existente con ID: {signal_id}")
+                else:
+                    # Si no existe, guardarla
+                    new_id = self.db_manager.save_signal(signal)
+
+                    # Añadir ID a la lista de señales incluidas
+                    if new_id:
+                        signal_ids.append(str(new_id))
+                        logger.info(f"Señal guardada con ID: {new_id}")
+                    else:
+                        # Si no se pudo obtener el ID, usar un ID temporal
+                        signal_ids.append(str(len(signal_ids) + 1))
+                        logger.warning(
+                            f"No se pudo obtener el ID de la señal guardada, usando ID temporal"
+                        )
+            except Exception as e:
+                # En caso de error, usar un ID temporal
+                signal_ids.append(str(len(signal_ids) + 1))
+                logger.error(
+                    f"Error al guardar la señal {signal.get('symbol')}: {str(e)}"
+                )
+
+        # Guardar sentimiento de mercado en la base de datos
+        if market_sentiment and len(market_sentiment) > 0:
+            try:
+                logger.info("Guardando sentimiento de mercado en la base de datos")
+
+                # Extraer solo el valor numérico del VIX (por ejemplo, de "16.5 - Volatilidad Baja" a "16.5")
+                vix_value = market_sentiment.get("vix", "0")
+                if isinstance(vix_value, str) and "-" in vix_value:
+                    vix_value = vix_value.split("-")[0].strip()
+
+                # Crear una copia del sentimiento con el VIX corregido
+                sentiment_data = market_sentiment.copy()
+                sentiment_data["vix"] = vix_value
+
+                self.db_manager.save_market_sentiment(sentiment_data)
+            except Exception as e:
+                logger.error(f"Error al guardar sentimiento del mercado: {str(e)}")
+
+        # Guardar las noticias en la base de datos
+        if news_summary and len(news_summary) > 0:
+            try:
+                logger.info(
+                    f"Guardando {len(news_summary)} noticias en la base de datos"
+                )
+                for news in news_summary:
+                    self.db_manager.save_market_news(news)
+            except Exception as e:
+                logger.error(f"Error al guardar noticias: {str(e)}")
+
+        # Crear contenido HTML del boletín
+        html_content = self.email_manager.create_newsletter_html(
+            signals, market_sentiment, news_summary
+        )
+
+        # Enviar correo
+        subject = (
+            f"InversorIA Pro - Boletín de Trading {datetime.now().strftime('%d/%m/%Y')}"
+        )
+        success = self.email_manager.send_email(recipients, subject, html_content)
+
+        # Registrar envío en la base de datos (exitoso o fallido)
+        # Usar los IDs de las señales guardadas o existentes
+        signal_ids_str = ", ".join(signal_ids) if signal_ids else "Ninguna"
+
+        email_data = {
+            "recipients": (
+                recipients if isinstance(recipients, str) else ", ".join(recipients)
+            ),
+            "subject": subject,
+            "content_summary": f"Boletín con {len(signals) if signals else 0} señales",
+            "signals_included": signal_ids_str,
+            "status": "success" if success else "error",
+            "error_message": "Error al enviar el correo" if not success else "",
+        }
+        self.db_manager.log_email_sent(email_data)
+
+        return success
 
 
 # =================================================
@@ -5938,9 +7581,26 @@ def main():
         )
 
         # Crear pestañas principales de la aplicación
-        main_tab1, main_tab2 = st.tabs(
-            ["📊 Análisis Individual", "🔍 Scanner de Mercado"]
+        main_tab1, main_tab2, main_tab3, main_tab4, main_tab5 = st.tabs(
+            [
+                "📊 Análisis Individual",
+                "🔍 Scanner de Mercado",
+                "📋 Señales Activas",
+                "📬 Envío de Boletines",
+                "📊 Historial de Señales",
+            ]
         )
+
+        # Inicializar estado de sesión para señales
+        if "cached_signals" not in st.session_state:
+            st.session_state.cached_signals = []
+
+        # Inicializar historial de señales y boletines enviados
+        if "signals_history" not in st.session_state:
+            st.session_state.signals_history = []
+
+        if "sent_bulletins" not in st.session_state:
+            st.session_state.sent_bulletins = []
 
         # Pestaña de análisis individual
         with main_tab1:
@@ -6227,6 +7887,88 @@ def main():
                             st.session_state.scanner.scan_market(selected_sectors)
                         )
                         st.session_state.last_scan_time = datetime.now()
+
+                        # Inicializar gestor de señales si no existe
+                        if "signal_manager" not in locals():
+                            signal_manager = SignalManager()
+
+                        # Guardar señales en la base de datos
+                        if not st.session_state.scan_results.empty:
+                            with st.spinner("Guardando señales en la base de datos..."):
+                                signals_saved = 0
+                                for _, row in st.session_state.scan_results.iterrows():
+                                    try:
+                                        # Mapear dirección
+                                        direction = (
+                                            "CALL"
+                                            if row["Estrategia"] == "CALL"
+                                            else (
+                                                "PUT"
+                                                if row["Estrategia"] == "PUT"
+                                                else "NEUTRAL"
+                                            )
+                                        )
+
+                                        # Mapear confianza
+                                        confidence = (
+                                            row["Confianza"].capitalize()
+                                            if isinstance(row["Confianza"], str)
+                                            else "Media"
+                                        )
+                                        if confidence == "Alta" or confidence == "ALTA":
+                                            confidence = "Alta"
+                                        elif (
+                                            confidence == "Media"
+                                            or confidence == "MEDIA"
+                                        ):
+                                            confidence = "Media"
+                                        else:
+                                            confidence = "Baja"
+
+                                        # Crear señal
+                                        signal = {
+                                            "symbol": row["Symbol"],
+                                            "price": (
+                                                row["Precio"]
+                                                if isinstance(
+                                                    row["Precio"], (int, float)
+                                                )
+                                                else 0.0
+                                            ),
+                                            "direction": direction,
+                                            "confidence_level": confidence,
+                                            "timeframe": "Medio Plazo",
+                                            "strategy": (
+                                                row["Setup"]
+                                                if "Setup" in row
+                                                else "Análisis Técnico"
+                                            ),
+                                            "category": row["Sector"],
+                                            "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
+                                            "created_at": datetime.now(),
+                                        }
+
+                                        # Verificar si la señal ya existe en la base de datos
+                                        existing_signals = signal_manager.db_manager.execute_query(
+                                            "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                                            [signal["symbol"]],
+                                        )
+
+                                        if not existing_signals:
+                                            # Guardar señal en la base de datos
+                                            signal_manager.db_manager.save_signal(
+                                                signal
+                                            )
+                                            signals_saved += 1
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Error guardando señal en la base de datos: {str(e)}"
+                                        )
+
+                                if signals_saved > 0:
+                                    st.success(
+                                        f"Se guardaron {signals_saved} señales en la base de datos"
+                                    )
 
                 # Mostrar última actualización
                 if hasattr(st.session_state, "last_scan_time"):
@@ -6519,6 +8261,857 @@ def main():
                 El ratio R/R (Riesgo/Recompensa) se calcula automáticamente basado en niveles técnicos y volatilidad del activo.
                 """
                 )
+
+        # Pestaña de señales activas
+        with main_tab3:
+            st.header("📋 Señales Activas")
+
+            # Inicializar gestor de señales
+            signal_manager = SignalManager()
+
+            # Filtros para las señales
+            col1, col2, col3 = st.columns([1, 1, 1])
+
+            with col1:
+                categorias = st.selectbox(
+                    "Categoría",
+                    [
+                        "Todas",
+                        "Tecnología",
+                        "Finanzas",
+                        "Salud",
+                        "Energía",
+                        "Consumo",
+                        "Índices",
+                        "Materias Primas",
+                    ],
+                    help="Filtrar por categoría de activo",
+                )
+
+            with col2:
+                confianza = st.multiselect(
+                    "Nivel de Confianza",
+                    ["Alta", "Media", "Baja"],
+                    default=["Alta", "Media"],
+                    help="Filtrar por nivel de confianza de la señal",
+                )
+
+            with col3:
+                st.write("")
+                st.info(
+                    "💡 Las señales mostradas provienen de la tabla 'Oportunidades Detectadas' del Scanner de Mercado"
+                )
+
+            # Añadir botón para actualizar desde el scanner
+            if st.button(
+                "🔄 Actualizar desde Scanner",
+                help="Actualizar señales desde el Scanner de Mercado",
+            ):
+                # Verificar si hay resultados del scanner en session_state
+                if (
+                    hasattr(st.session_state, "scan_results")
+                    and not st.session_state.scan_results.empty
+                ):
+                    # Guardar señales en la base de datos
+                    with st.spinner("Guardando señales en la base de datos..."):
+                        signals_saved = 0
+                        for _, row in st.session_state.scan_results.iterrows():
+                            try:
+                                # Mapear dirección
+                                direction = (
+                                    "CALL"
+                                    if row["Estrategia"] == "CALL"
+                                    else (
+                                        "PUT"
+                                        if row["Estrategia"] == "PUT"
+                                        else "NEUTRAL"
+                                    )
+                                )
+
+                                # Mapear confianza
+                                confidence = (
+                                    row["Confianza"].capitalize()
+                                    if isinstance(row["Confianza"], str)
+                                    else "Media"
+                                )
+                                if confidence == "Alta" or confidence == "ALTA":
+                                    confidence = "Alta"
+                                elif confidence == "Media" or confidence == "MEDIA":
+                                    confidence = "Media"
+                                else:
+                                    confidence = "Baja"
+
+                                # Crear señal
+                                signal = {
+                                    "symbol": row["Symbol"],
+                                    "price": (
+                                        row["Precio"]
+                                        if isinstance(row["Precio"], (int, float))
+                                        else 0.0
+                                    ),
+                                    "direction": direction,
+                                    "confidence_level": confidence,
+                                    "timeframe": "Medio Plazo",
+                                    "strategy": (
+                                        row["Setup"]
+                                        if "Setup" in row
+                                        else "Análisis Técnico"
+                                    ),
+                                    "category": row["Sector"],
+                                    "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
+                                    "created_at": datetime.now(),
+                                }
+
+                                # Verificar si la señal ya existe en la base de datos
+                                existing_signals = signal_manager.db_manager.execute_query(
+                                    "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
+                                    [signal["symbol"]],
+                                )
+
+                                if not existing_signals:
+                                    # Guardar señal en la base de datos
+                                    signal_manager.db_manager.save_signal(signal)
+                                    signals_saved += 1
+                            except Exception as e:
+                                logger.error(
+                                    f"Error guardando señal en la base de datos: {str(e)}"
+                                )
+
+                        if signals_saved > 0:
+                            st.success(
+                                f"Se guardaron {signals_saved} señales en la base de datos"
+                            )
+                        else:
+                            st.info(
+                                "No se guardaron nuevas señales en la base de datos"
+                            )
+                else:
+                    st.warning(
+                        "No hay señales disponibles para guardar. Utilice el Scanner de Mercado primero."
+                    )
+
+                st.success("Señales actualizadas desde el Scanner de Mercado")
+
+            # Obtener señales activas directamente de la base de datos
+            # Construir la consulta SQL con filtros
+            query = "SELECT id, symbol, price, direction, confidence_level, timeframe, strategy, category, analysis, created_at FROM trading_signals WHERE 1=1"
+            params = []
+
+            # Filtrar por categoría si es necesario
+            if categorias and categorias != "Todas":
+                query += " AND category = %s"
+                params.append(categorias)
+
+            # Filtrar por confianza si es necesario
+            if confianza and len(confianza) > 0:
+                placeholders = ", ".join(["%s"] * len(confianza))
+                query += f" AND confidence_level IN ({placeholders})"
+                params.extend(confianza)
+
+            # Ordenar por fecha de creación (más recientes primero)
+            query += " ORDER BY created_at DESC LIMIT 50"
+
+            # Ejecutar la consulta
+            db_signals = signal_manager.db_manager.execute_query(query, params)
+
+            # Convertir resultados de la base de datos a formato de señal
+            active_signals = []
+            for signal_data in db_signals:
+                try:
+                    # Verificar si signal_data es un diccionario (como debería ser con cursor(dictionary=True))
+                    if isinstance(signal_data, dict):
+                        signal = {
+                            "id": signal_data.get("id"),
+                            "symbol": signal_data.get("symbol"),
+                            "price": signal_data.get("price"),
+                            "direction": signal_data.get("direction"),
+                            "confidence_level": signal_data.get("confidence_level"),
+                            "timeframe": signal_data.get("timeframe"),
+                            "strategy": signal_data.get("strategy"),
+                            "category": signal_data.get("category"),
+                            "analysis": signal_data.get("analysis"),
+                            "created_at": signal_data.get("created_at"),
+                        }
+                    else:
+                        # Si es una tupla o lista, acceder por índices con manejo de errores
+                        signal = {
+                            "id": signal_data[0] if len(signal_data) > 0 else None,
+                            "symbol": signal_data[1] if len(signal_data) > 1 else None,
+                            "price": signal_data[2] if len(signal_data) > 2 else None,
+                            "direction": (
+                                signal_data[3] if len(signal_data) > 3 else None
+                            ),
+                            "confidence_level": (
+                                signal_data[4] if len(signal_data) > 4 else None
+                            ),
+                            "timeframe": (
+                                signal_data[5] if len(signal_data) > 5 else None
+                            ),
+                            "strategy": (
+                                signal_data[6] if len(signal_data) > 6 else None
+                            ),
+                            "category": (
+                                signal_data[7] if len(signal_data) > 7 else None
+                            ),
+                            "analysis": (
+                                signal_data[8] if len(signal_data) > 8 else None
+                            ),
+                            "created_at": (
+                                signal_data[9] if len(signal_data) > 9 else None
+                            ),
+                        }
+
+                    # Verificar que los campos esenciales no sean None
+                    if signal["symbol"] is not None:
+                        active_signals.append(signal)
+                    else:
+                        logger.warning(
+                            f"Se ignoró una señal sin símbolo: {signal_data}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Error procesando señal de la base de datos: {str(e)}"
+                    )
+                    continue
+
+            # Actualizar mensaje informativo
+            with col3:
+                st.info(
+                    "💾 Las señales mostradas provienen de la base de datos y fueron generadas por el Scanner de Mercado"
+                )
+
+            # Botón para actualizar desde la base de datos
+            if st.button(
+                "🔄 Actualizar desde Base de Datos",
+                help="Actualizar señales desde la base de datos",
+                key="update_active_signals",
+            ):
+                st.success("Señales actualizadas desde la base de datos")
+                st.rerun()
+
+            # Si no hay señales en la base de datos, mostrar mensaje
+            if not active_signals:
+                st.warning(
+                    "No hay señales disponibles en la base de datos. Utilice el Scanner de Mercado para detectar y guardar oportunidades."
+                )
+
+            # Mostrar señales activas
+            if active_signals and len(active_signals) > 0:
+                st.success(f"Se encontraron {len(active_signals)} señales activas")
+
+                # Mostrar tarjetas de señales
+                for i, signal in enumerate(active_signals):
+                    # Determinar color de tarjeta según dirección (compatible con modo oscuro)
+                    if signal.get("direction") == "CALL":
+                        card_color = "rgba(40, 167, 69, 0.2)"  # Verde con transparencia
+                        border_color = "#28a745"  # Verde sólido para el borde
+                    elif signal.get("direction") == "PUT":
+                        card_color = "rgba(220, 53, 69, 0.2)"  # Rojo con transparencia
+                        border_color = "#dc3545"  # Rojo sólido para el borde
+                    else:
+                        card_color = (
+                            "rgba(108, 117, 125, 0.2)"  # Gris con transparencia
+                        )
+                        border_color = "#6c757d"  # Gris sólido para el borde
+                    direction_text = (
+                        "COMPRA"
+                        if signal.get("direction") == "CALL"
+                        else "VENTA" if signal.get("direction") == "PUT" else "NEUTRAL"
+                    )
+
+                    # Formatear precio
+                    price = signal.get("price", 0)
+                    if isinstance(price, (int, float)):
+                        price_formatted = f"${price:.2f}"
+                    else:
+                        price_formatted = str(price)
+
+                    # Formatear fecha
+                    created_at = signal.get("created_at")
+                    if isinstance(created_at, datetime):
+                        date_formatted = created_at.strftime("%d/%m/%Y %H:%M")
+                    else:
+                        date_formatted = (
+                            str(created_at) if created_at else "Fecha no disponible"
+                        )
+
+                    # Crear tarjeta de señal con diseño compatible con modo oscuro
+                    st.markdown(
+                        f"""
+                    <div style="padding: 15px; border-radius: 5px; margin-bottom: 20px; background-color: {card_color}; border-left: 5px solid {border_color}; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        <h3 style="margin-top: 0; color: inherit;">{signal.get('symbol', '')} - {direction_text}</h3>
+                        <div style="display: flex; flex-wrap: wrap; margin-bottom: 10px;">
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Precio:</strong> {price_formatted}</div>
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Confianza:</strong> {signal.get('confidence_level', 'Baja')}</div>
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Estrategia:</strong> {signal.get('strategy', 'N/A')}</div>
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Timeframe:</strong> {signal.get('timeframe', 'Corto Plazo')}</div>
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Categoría:</strong> {signal.get('category', 'N/A')}</div>
+                            <div style="flex: 1 0 25%; margin-bottom: 5px;"><strong>Fecha:</strong> {date_formatted}</div>
+                        </div>
+                        <p><strong>Análisis:</strong> {signal.get('analysis', 'No hay análisis disponible.')}</p>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.info(
+                    "No se encontraron señales activas con los filtros seleccionados"
+                )
+
+            # Mostrar sentimiento de mercado
+            st.subheader("📈 Sentimiento de Mercado")
+            market_sentiment = signal_manager.get_market_sentiment()
+
+            if market_sentiment and len(market_sentiment) > 0:
+                # Crear columnas para mostrar el sentimiento
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    # Determinar color según sentimiento
+                    sentiment_color = (
+                        "#28a745"
+                        if market_sentiment.get("overall") == "Alcista"
+                        else (
+                            "#dc3545"
+                            if market_sentiment.get("overall") == "Bajista"
+                            else "#6c757d"
+                        )
+                    )
+                    st.markdown(
+                        f"""
+                    <div style="padding: 15px; border-radius: 5px; background-color: rgba({','.join(str(int(c[1:3], 16)) for c in [sentiment_color[:3], sentiment_color[3:5], sentiment_color[5:7]])}, 0.1); border-left: 5px solid {sentiment_color}">
+                        <h3 style="margin-top: 0;">Sentimiento General: {market_sentiment.get('overall', 'Neutral')}</h3>
+                    </div>
+                    """,
+                        unsafe_allow_html=True,
+                    )
+
+                with col2:
+                    st.metric("VIX", market_sentiment.get("vix", "N/A"))
+                    st.metric("S&P 500", market_sentiment.get("sp500_trend", "N/A"))
+
+                with col3:
+                    st.metric(
+                        "Indicadores Técnicos",
+                        market_sentiment.get("technical_indicators", "N/A"),
+                    )
+                    st.metric("Volumen", market_sentiment.get("volume", "N/A"))
+            else:
+                st.warning("No se pudo obtener el sentimiento de mercado")
+
+        # Pestaña de envío de boletines
+        with main_tab4:
+            st.header("📬 Envío de Boletines")
+
+            # Inicializar gestor de señales si no existe
+            if "signal_manager" not in locals():
+                signal_manager = SignalManager()
+
+            # Crear contenedor para el formulario de envío
+            with st.container():
+                st.subheader("Paso 1: Seleccionar Señales para el Boletín")
+
+                # Filtros para las señales
+                col1, col2, col3 = st.columns([1, 1, 1])
+
+                with col1:
+                    categorias_boletin = st.selectbox(
+                        "Categoría",
+                        [
+                            "Todas",
+                            "Tecnología",
+                            "Finanzas",
+                            "Salud",
+                            "Energía",
+                            "Consumo",
+                            "Índices",
+                            "Materias Primas",
+                        ],
+                        help="Filtrar por categoría de activo",
+                        key="categorias_boletin",
+                    )
+
+                with col2:
+                    confianza_boletin = st.multiselect(
+                        "Nivel de Confianza",
+                        ["Alta", "Media", "Baja"],
+                        default=["Alta"],
+                        help="Filtrar por nivel de confianza de la señal",
+                        key="confianza_boletin",
+                    )
+
+                with col3:
+                    st.write("")
+                    st.info(
+                        "💾 Las señales mostradas provienen de la base de datos y fueron generadas por el Scanner de Mercado"
+                    )
+
+                # Botón para actualizar desde la base de datos
+                if st.button(
+                    "🔄 Actualizar desde Base de Datos",
+                    help="Actualizar señales desde la base de datos",
+                    key="update_bulletin_signals",
+                ):
+                    st.success("Señales actualizadas desde la base de datos")
+                    st.rerun()
+
+                # Obtener señales activas directamente de la base de datos
+                # Construir la consulta SQL con filtros
+                query = "SELECT id, symbol, price, direction, confidence_level, timeframe, strategy, category, analysis, created_at FROM trading_signals WHERE DATE(created_at) = CURDATE()"
+                params = []
+
+                # Filtrar por categoría si es necesario
+                if categorias_boletin and categorias_boletin != "Todas":
+                    query += " AND category = %s"
+                    params.append(categorias_boletin)
+
+                # Filtrar por confianza si es necesario
+                if confianza_boletin and len(confianza_boletin) > 0:
+                    placeholders = ", ".join(["%s"] * len(confianza_boletin))
+                    query += f" AND confidence_level IN ({placeholders})"
+                    params.extend(confianza_boletin)
+
+                # Ordenar por fecha de creación (más recientes primero)
+                query += " ORDER BY created_at DESC LIMIT 50"
+
+                # Ejecutar la consulta
+                db_signals = signal_manager.db_manager.execute_query(query, params)
+
+                # Convertir resultados de la base de datos a formato de señal
+                all_signals = []
+                for signal_data in db_signals:
+                    try:
+                        # Verificar si signal_data es un diccionario (como debería ser con cursor(dictionary=True))
+                        if isinstance(signal_data, dict):
+                            signal = {
+                                "id": signal_data.get("id"),
+                                "symbol": signal_data.get("symbol"),
+                                "price": signal_data.get("price"),
+                                "direction": signal_data.get("direction"),
+                                "confidence_level": signal_data.get("confidence_level"),
+                                "timeframe": signal_data.get("timeframe"),
+                                "strategy": signal_data.get("strategy"),
+                                "category": signal_data.get("category"),
+                                "analysis": signal_data.get("analysis"),
+                                "created_at": signal_data.get("created_at"),
+                            }
+                        else:
+                            # Si es una tupla o lista, acceder por índices con manejo de errores
+                            signal = {
+                                "id": signal_data[0] if len(signal_data) > 0 else None,
+                                "symbol": (
+                                    signal_data[1] if len(signal_data) > 1 else None
+                                ),
+                                "price": (
+                                    signal_data[2] if len(signal_data) > 2 else None
+                                ),
+                                "direction": (
+                                    signal_data[3] if len(signal_data) > 3 else None
+                                ),
+                                "confidence_level": (
+                                    signal_data[4] if len(signal_data) > 4 else None
+                                ),
+                                "timeframe": (
+                                    signal_data[5] if len(signal_data) > 5 else None
+                                ),
+                                "strategy": (
+                                    signal_data[6] if len(signal_data) > 6 else None
+                                ),
+                                "category": (
+                                    signal_data[7] if len(signal_data) > 7 else None
+                                ),
+                                "analysis": (
+                                    signal_data[8] if len(signal_data) > 8 else None
+                                ),
+                                "created_at": (
+                                    signal_data[9] if len(signal_data) > 9 else None
+                                ),
+                            }
+
+                        # Verificar que los campos esenciales no sean None
+                        if signal["symbol"] is not None:
+                            all_signals.append(signal)
+                        else:
+                            logger.warning(
+                                f"Se ignoró una señal sin símbolo: {signal_data}"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Error procesando señal de la base de datos: {str(e)}"
+                        )
+                        continue
+
+                # No necesitamos otro mensaje informativo aquí, ya lo tenemos arriba
+
+                # Si no hay señales en la base de datos, mostrar mensaje
+                if not all_signals:
+                    st.warning(
+                        "No hay señales disponibles en la base de datos. Utilice el Scanner de Mercado para detectar y guardar oportunidades."
+                    )
+                    all_signals = []
+
+                # Seleccionar señales para incluir
+                st.subheader("Seleccionar señales para incluir")
+
+                if all_signals and len(all_signals) > 0:
+                    # Crear lista de opciones para el multiselect
+                    signal_options = []
+                    for signal in all_signals:
+                        direction_text = (
+                            "COMPRA"
+                            if signal.get("direction") == "CALL"
+                            else (
+                                "VENTA"
+                                if signal.get("direction") == "PUT"
+                                else "NEUTRAL"
+                            )
+                        )
+                        signal_options.append(
+                            {
+                                "label": f"{signal.get('symbol')} - {direction_text} ({signal.get('confidence_level')})",
+                                "value": signal.get("symbol"),
+                            }
+                        )
+
+                    # Convertir a formato para st.multiselect
+                    labels = [opt["label"] for opt in signal_options]
+                    values = [opt["value"] for opt in signal_options]
+
+                    # Multiselect para elegir señales
+                    selected_signals_indices = st.multiselect(
+                        "Seleccionar señales",
+                        options=labels,
+                        default=labels[
+                            : min(5, len(labels))
+                        ],  # Seleccionar las primeras 5 por defecto
+                        help="Seleccione las señales que desea incluir en el boletín",
+                    )
+
+                    # Filtrar señales seleccionadas
+                    selected_signals = []
+                    for label in selected_signals_indices:
+                        idx = labels.index(label)
+                        symbol = values[idx]
+                        # Encontrar la señal completa
+                        for signal in all_signals:
+                            if signal.get("symbol") == symbol:
+                                selected_signals.append(signal)
+                                break
+                else:
+                    st.warning("No se encontraron señales disponibles")
+                    selected_signals = []
+
+                # Paso 2: Configurar destinatarios
+                st.subheader("Paso 2: Configurar Destinatarios")
+
+                # Campo para ingresar destinatarios
+                recipients = st.text_input(
+                    "Destinatarios",
+                    help="Ingrese las direcciones de correo separadas por comas",
+                    value="ejemplo@correo.com",
+                )
+
+                # Paso 3: Previsualizar y enviar
+                st.subheader("Paso 3: Previsualizar y Enviar")
+
+                # Obtener sentimiento de mercado y noticias
+                market_sentiment = signal_manager.get_market_sentiment()
+                news_summary = signal_manager.get_market_news()
+
+                # Mostrar resumen del boletín
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write(f"**Señales seleccionadas:** {len(selected_signals)}")
+                    st.write(f"**Destinatarios:** {recipients}")
+
+                with col2:
+                    st.write(
+                        f"**Sentimiento de mercado:** {market_sentiment.get('overall', 'Neutral')}"
+                    )
+                    st.write(
+                        f"**Noticias incluidas:** {len(news_summary) if news_summary else 0}"
+                    )
+
+                # Generar vista previa del boletín
+                if st.checkbox("Mostrar vista previa del boletín", value=True):
+                    with st.expander("Vista previa del boletín", expanded=True):
+                        # Crear contenido HTML del boletín
+                        html_content = (
+                            signal_manager.email_manager.create_newsletter_html(
+                                selected_signals, market_sentiment, news_summary
+                            )
+                        )
+
+                        # Mostrar HTML en un iframe
+                        st.components.v1.html(html_content, height=600, scrolling=True)
+
+                # Botón para enviar boletín
+                if st.button("📩 Enviar Boletín", use_container_width=True):
+                    if not selected_signals:
+                        st.error(
+                            "Debe seleccionar al menos una señal para enviar el boletín"
+                        )
+                    elif not recipients or "@" not in recipients:
+                        st.error("Debe ingresar al menos un destinatario válido")
+                    else:
+                        # Mostrar mensaje de envío
+                        with st.spinner("Enviando boletín..."):
+                            # Enviar boletín
+                            success = signal_manager.send_newsletter(
+                                recipients=recipients,
+                                signals=selected_signals,
+                                market_sentiment=market_sentiment,
+                                news_summary=news_summary,
+                            )
+
+                            if success:
+                                st.success("Boletín enviado correctamente")
+
+                                # Guardar en historial de boletines enviados
+                                bulletin_data = {
+                                    "recipients": recipients,
+                                    "signals_count": len(selected_signals),
+                                    "signals": [
+                                        s.get("symbol") for s in selected_signals
+                                    ],
+                                    "sent_at": datetime.now(),
+                                }
+
+                                if "sent_bulletins" in st.session_state:
+                                    st.session_state.sent_bulletins.append(
+                                        bulletin_data
+                                    )
+                                else:
+                                    st.session_state.sent_bulletins = [bulletin_data]
+                            else:
+                                st.error("Error al enviar el boletín")
+
+        # Pestaña de historial de señales
+        with main_tab5:
+            st.header("📊 Historial de Señales")
+
+            # Crear pestañas para historial de señales y boletines
+            hist_tab1, hist_tab2 = st.tabs(
+                ["Historial de Señales", "Registro de Boletines Enviados"]
+            )
+
+            # Pestaña de historial de señales
+            with hist_tab1:
+                # Inicializar gestor de señales si no existe
+                if "signal_manager" not in locals():
+                    signal_manager = SignalManager()
+
+                # Obtener señales de la base de datos (30 días por defecto)
+                # Aquí usamos directamente la base de datos, no las señales del scanner
+                db_signals = signal_manager.db_manager.get_signals(days_back=30)
+
+                # Mostrar mensaje informativo
+                st.info(
+                    "💾 Esta pestaña muestra las señales guardadas en la base de datos."
+                )
+
+                if db_signals and len(db_signals) > 0:
+                    # Crear dataframe para mostrar en tabla
+                    signals_data = []
+                    for signal in db_signals:
+                        direction_text = (
+                            "COMPRA"
+                            if signal.get("direction") == "CALL"
+                            else (
+                                "VENTA"
+                                if signal.get("direction") == "PUT"
+                                else "NEUTRAL"
+                            )
+                        )
+
+                        # Formatear fecha
+                        created_at = signal.get("created_at")
+                        if isinstance(created_at, datetime):
+                            date_formatted = created_at.strftime("%d/%m/%Y %H:%M")
+                        else:
+                            date_formatted = str(created_at) if created_at else "N/A"
+
+                        signals_data.append(
+                            {
+                                "Símbolo": signal.get("symbol", ""),
+                                "Dirección": direction_text,
+                                "Precio": (
+                                    f"${signal.get('price', 0):.2f}"
+                                    if isinstance(signal.get("price"), (int, float))
+                                    else signal.get("price", "N/A")
+                                ),
+                                "Confianza": signal.get("confidence_level", "N/A"),
+                                "Estrategia": signal.get("strategy", "N/A"),
+                                "Categoría": signal.get("category", "N/A"),
+                                "Fecha": date_formatted,
+                            }
+                        )
+
+                    # Convertir a dataframe
+                    signals_df = pd.DataFrame(signals_data)
+
+                    # Mostrar tabla con filtros
+                    st.dataframe(signals_df, use_container_width=True)
+
+                    # Mostrar estadísticas
+                    st.subheader("Estadísticas de Señales")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        # Contar por dirección
+                        direction_counts = signals_df["Dirección"].value_counts()
+                        st.write("**Por Dirección:**")
+                        for direction, count in direction_counts.items():
+                            st.write(f"{direction}: {count}")
+
+                    with col2:
+                        # Contar por confianza
+                        confidence_counts = signals_df["Confianza"].value_counts()
+                        st.write("**Por Confianza:**")
+                        for confidence, count in confidence_counts.items():
+                            st.write(f"{confidence}: {count}")
+
+                    with col3:
+                        # Contar por categoría
+                        category_counts = signals_df["Categoría"].value_counts()
+                        st.write("**Por Categoría:**")
+                        for category, count in category_counts.items():
+                            st.write(f"{category}: {count}")
+                else:
+                    st.info("No hay señales en el historial")
+
+            # Pestaña de registro de boletines enviados
+            with hist_tab2:
+                # Inicializar gestor de señales si no existe
+                if "signal_manager" not in locals():
+                    signal_manager = SignalManager()
+
+                # Obtener boletines de la base de datos
+                db_bulletins = signal_manager.db_manager.execute_query(
+                    "SELECT id, recipients, subject, content_summary, signals_included, sent_at, status FROM email_logs ORDER BY sent_at DESC LIMIT 100"
+                )
+
+                # Mostrar mensaje informativo
+                st.info(
+                    "💾 Esta pestaña muestra los boletines enviados y guardados en la base de datos."
+                )
+
+                if db_bulletins and len(db_bulletins) > 0:
+                    # Crear dataframe para mostrar en tabla
+                    bulletins_data = []
+                    for bulletin in db_bulletins:
+                        try:
+                            # Extraer datos del boletín (usando get para diccionarios)
+                            if isinstance(bulletin, dict):
+                                bulletin_id = bulletin.get("id", "N/A")
+                                recipients = bulletin.get("recipients", "")
+                                subject = bulletin.get("subject", "N/A")
+                                content_summary = bulletin.get("content_summary", "N/A")
+                                signals_included = bulletin.get("signals_included", "")
+                                sent_at = bulletin.get("sent_at")
+                                status = bulletin.get("status", "error")
+                            else:
+                                # Fallback para formato de lista/tupla
+                                bulletin_id = (
+                                    bulletin[0] if len(bulletin) > 0 else "N/A"
+                                )
+                                recipients = bulletin[1] if len(bulletin) > 1 else ""
+                                subject = bulletin[2] if len(bulletin) > 2 else "N/A"
+                                content_summary = (
+                                    bulletin[3] if len(bulletin) > 3 else "N/A"
+                                )
+                                signals_included = (
+                                    bulletin[4] if len(bulletin) > 4 else ""
+                                )
+                                sent_at = bulletin[5] if len(bulletin) > 5 else None
+                                status = bulletin[6] if len(bulletin) > 6 else "error"
+
+                            # Formatear fecha
+                            if isinstance(sent_at, datetime):
+                                date_formatted = sent_at.strftime("%d/%m/%Y %H:%M")
+                            else:
+                                date_formatted = str(sent_at) if sent_at else "N/A"
+
+                            # Formatear destinatarios
+                            if recipients and len(recipients) > 30:
+                                recipients_display = recipients[:30] + "..."
+                            else:
+                                recipients_display = recipients or "N/A"
+
+                            # Formatear señales incluidas
+                            if signals_included:
+                                signals_str = signals_included
+                                if len(signals_str) > 50:
+                                    signals_str = signals_str[:50] + "..."
+                            else:
+                                signals_str = "Ninguna"
+
+                            # Contar señales incluidas
+                            signals_count = (
+                                len(signals_included.split(","))
+                                if signals_included
+                                else 0
+                            )
+
+                            # Estado del envío
+                            status_display = (
+                                "✅ Enviado" if status == "success" else "❌ Error"
+                            )
+
+                            bulletins_data.append(
+                                {
+                                    "ID": bulletin_id,
+                                    "Fecha": date_formatted,
+                                    "Destinatarios": recipients_display,
+                                    "Asunto": subject,
+                                    "Señales Incluidas": signals_str,
+                                    "Cantidad": signals_count,
+                                    "Estado": status_display,
+                                }
+                            )
+                        except Exception as e:
+                            logger.error(f"Error procesando boletín: {str(e)}")
+
+                    # Convertir a dataframe
+                    bulletins_df = pd.DataFrame(bulletins_data)
+
+                    # Mostrar tabla
+                    st.dataframe(bulletins_df, use_container_width=True)
+
+                    # Explicación del campo "Señales Incluidas"
+                    st.info(
+                        "💡 El campo 'Señales Incluidas' muestra los IDs de las señales incluidas en el boletín, separados por comas. Estos IDs corresponden a las señales guardadas en la tabla 'trading_signals'."
+                    )
+
+                    # Estadísticas de envíos
+                    st.subheader("Estadísticas de Envíos")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        # Total de boletines enviados
+                        st.metric("Total Boletines", len(bulletins_data))
+
+                    with col2:
+                        # Boletines exitosos
+                        success_count = sum(
+                            1 for b in bulletins_data if b["Estado"] == "✅ Enviado"
+                        )
+                        st.metric("Envíos Exitosos", success_count)
+
+                    with col3:
+                        # Promedio de señales por boletín
+                        avg_signals = (
+                            sum(b["Cantidad"] for b in bulletins_data)
+                            / len(bulletins_data)
+                            if bulletins_data
+                            else 0
+                        )
+                        st.metric("Promedio Señales", f"{avg_signals:.1f}")
+                else:
+                    st.info("No hay boletines en el historial")
 
     except Exception as e:
         st.error(f"Error en la aplicación: {str(e)}")

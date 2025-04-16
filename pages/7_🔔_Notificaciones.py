@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import logging
 import socket
 import time
@@ -12,11 +11,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional
 
 # Configuración de logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Cambiar a DEBUG para ver más información
+    level=logging.INFO,  # Usar INFO para reducir mensajes de depuración
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -181,18 +180,29 @@ class RealTimeSignalAnalyzer:
             else:
                 sectors_to_scan = [sector]
 
-            # Intentar obtener el market_scanner desde el contexto de Streamlit
+            # Obtener el market_scanner
             market_scanner = None
-            try:
-                if "market_scanner" in st.session_state:
-                    market_scanner = st.session_state.market_scanner
-                    logger.info("Usando market_scanner desde session_state")
-                else:
-                    # Intentar importar desde el archivo principal
-                    try:
-                        import sys
-                        import os
 
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Inicializando escaner de mercado...")
+
+            # 1. Primero intentar obtenerlo desde session_state si ya existe
+            if (
+                "market_scanner" in st.session_state
+                and st.session_state.market_scanner is not None
+            ):
+                market_scanner = st.session_state.market_scanner
+                logger.info("Usando market_scanner existente desde session_state")
+            else:
+                # 2. Si no existe, intentar importarlo desde market_scanner.py
+                try:
+                    # Importar directamente (asumiendo que está en el path)
+                    try:
+                        # Intentar importar desde el archivo principal
+                        logger.info(
+                            "Intentando importar MarketScanner desde el archivo principal..."
+                        )
                         # Asegurar que el directorio raíz está en el path
                         root_dir = os.path.dirname(
                             os.path.dirname(os.path.abspath(__file__))
@@ -200,36 +210,96 @@ class RealTimeSignalAnalyzer:
                         if root_dir not in sys.path:
                             sys.path.append(root_dir)
 
-                        # Importar MarketScanner del archivo principal
+                        # Intentar importar desde 📊_InversorIA_Pro.py
                         main_file = os.path.join(root_dir, "📊_InversorIA_Pro.py")
-                        import importlib.util
+                        if os.path.exists(main_file):
+                            status_placeholder.info(
+                                "Importando MarketScanner desde InversorIA Pro..."
+                            )
+                            # Usar importlib para cargar el módulo
+                            import importlib.util
 
-                        spec = importlib.util.spec_from_file_location(
-                            "main_module", main_file
+                            spec = importlib.util.spec_from_file_location(
+                                "main_module", main_file
+                            )
+                            main_module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(main_module)
+
+                            # Verificar si existe la clase MarketScanner
+                            if hasattr(main_module, "MarketScanner"):
+                                MarketScanner = main_module.MarketScanner
+                                logger.info(
+                                    "MarketScanner importado correctamente desde el archivo principal"
+                                )
+
+                                # Crear instancia con el diccionario de símbolos
+                                symbols_dict = {
+                                    sector: [
+                                        symbol
+                                        for symbol, info in self.company_info.items()
+                                        if info.get("sector") == sector
+                                    ]
+                                    for sector in self.sectors
+                                }
+
+                                market_scanner = MarketScanner()
+                                st.session_state.market_scanner = market_scanner
+                                logger.info(
+                                    "Creado nuevo market_scanner desde archivo principal"
+                                )
+                            else:
+                                logger.warning(
+                                    "No se encontró la clase MarketScanner en el archivo principal"
+                                )
+                        else:
+                            logger.warning(
+                                f"No se encontró el archivo principal en {main_file}"
+                            )
+                    except Exception as main_error:
+                        logger.warning(
+                            f"Error importando desde archivo principal: {str(main_error)}"
                         )
-                        main_module = importlib.util.module_from_spec(spec)
-                        spec.loader.exec_module(main_module)
-                        MarketScanner = main_module.MarketScanner
-                        market_scanner = MarketScanner()
-                        st.session_state.market_scanner = market_scanner
-                        logger.info(
-                            "Creado nuevo market_scanner desde archivo principal"
-                        )
-                    except ImportError:
+
                         # Si falla, intentar importar desde market_scanner.py
                         try:
+                            status_placeholder.info(
+                                "Importando MarketScanner desde market_scanner.py..."
+                            )
                             from market_scanner import MarketScanner
 
-                            market_scanner = MarketScanner()
+                            # Crear instancia con el diccionario de símbolos
+                            symbols_dict = {
+                                sector: [
+                                    symbol
+                                    for symbol, info in self.company_info.items()
+                                    if info.get("sector") == sector
+                                ]
+                                for sector in self.sectors
+                            }
+
+                            market_scanner = MarketScanner(symbols_dict)
                             st.session_state.market_scanner = market_scanner
                             logger.info(
                                 "Creado nuevo market_scanner desde market_scanner.py"
                             )
-                        except ImportError:
-                            logger.warning("No se pudo importar MarketScanner")
-                            market_scanner = None
-            except Exception as scanner_error:
-                logger.warning(f"Error obteniendo market_scanner: {str(scanner_error)}")
+                        except Exception as scanner_error:
+                            logger.error(
+                                f"Error importando MarketScanner desde market_scanner.py: {str(scanner_error)}"
+                            )
+                            status_placeholder.error(
+                                "No se pudo inicializar el escaner de mercado. Verifique los logs para más detalles."
+                            )
+                except Exception as import_error:
+                    logger.error(
+                        f"Error general importando MarketScanner: {str(import_error)}"
+                    )
+                    status_placeholder.error(
+                        "Error inicializando el escaner de mercado. Verifique los logs para más detalles."
+                    )
+                    market_scanner = None
+
+            # Limpiar mensaje de estado
+            status_placeholder.empty()
 
             all_signals = []
             total_symbols = 0
@@ -325,7 +395,7 @@ class RealTimeSignalAnalyzer:
                                 # Continuar con el método alternativo
 
                         # Obtener datos de mercado en tiempo real
-                        df = self.fetch_market_data(symbol, days=days)
+                        df = self.fetch_market_data(symbol, period=f"{days}d")
 
                         if df is None or df.empty:
                             logger.warning(
@@ -523,7 +593,7 @@ class RealTimeSignalAnalyzer:
             logger.info(f"Generando análisis detallado en tiempo real para {symbol}")
 
             # Obtener datos de mercado para análisis detallado (90 días)
-            df = self.fetch_market_data(symbol, days=90)
+            df = self.fetch_market_data(symbol, period="90d")
 
             if df is None or df.empty:
                 logger.warning(f"No se pudieron obtener datos para {symbol}")
@@ -718,31 +788,80 @@ class RealTimeSignalAnalyzer:
 
                                 # Intentar importar el Trading Specialist
                                 try:
-                                    # Intentar importar usando importlib
-                                    specialist_file = os.path.join(
-                                        root_dir, "trading_specialist.py"
-                                    )
-                                    if os.path.exists(specialist_file):
-                                        import importlib.util
-
-                                        spec = importlib.util.spec_from_file_location(
-                                            "trading_specialist_module", specialist_file
+                                    # Verificar si ya existe en session_state
+                                    if (
+                                        "trading_specialist" in st.session_state
+                                        and st.session_state.trading_specialist
+                                        is not None
+                                    ):
+                                        trading_specialist = (
+                                            st.session_state.trading_specialist
                                         )
-                                        specialist_module = (
-                                            importlib.util.module_from_spec(spec)
-                                        )
-                                        spec.loader.exec_module(specialist_module)
-                                        TradingSpecialist = (
-                                            specialist_module.TradingSpecialist
-                                        )
-                                        trading_specialist = TradingSpecialist()
-                                        st.session_state.trading_specialist = (
-                                            trading_specialist
+                                        logger.info(
+                                            "Usando Trading Specialist existente desde session_state"
                                         )
                                     else:
-                                        logger.warning(
-                                            f"No se encontró el archivo trading_specialist.py en {root_dir}"
-                                        )
+                                        # Intentar importar desde el archivo principal
+                                        try:
+                                            # Asegurar que el directorio raíz está en el path
+                                            root_dir = os.path.dirname(
+                                                os.path.dirname(
+                                                    os.path.abspath(__file__)
+                                                )
+                                            )
+                                            if root_dir not in sys.path:
+                                                sys.path.append(root_dir)
+
+                                            # Buscar el archivo trading_specialist.py
+                                            specialist_file = os.path.join(
+                                                root_dir, "trading_specialist.py"
+                                            )
+                                            if os.path.exists(specialist_file):
+                                                # Usar importlib para cargar el módulo
+                                                import importlib.util
+
+                                                spec = importlib.util.spec_from_file_location(
+                                                    "trading_specialist_module",
+                                                    specialist_file,
+                                                )
+                                                specialist_module = (
+                                                    importlib.util.module_from_spec(
+                                                        spec
+                                                    )
+                                                )
+                                                spec.loader.exec_module(
+                                                    specialist_module
+                                                )
+
+                                                # Verificar si existe la clase TradingSpecialist
+                                                if hasattr(
+                                                    specialist_module,
+                                                    "TradingSpecialist",
+                                                ):
+                                                    TradingSpecialist = (
+                                                        specialist_module.TradingSpecialist
+                                                    )
+                                                    trading_specialist = (
+                                                        TradingSpecialist()
+                                                    )
+                                                    st.session_state.trading_specialist = (
+                                                        trading_specialist
+                                                    )
+                                                    logger.info(
+                                                        "Trading Specialist importado correctamente"
+                                                    )
+                                                else:
+                                                    logger.warning(
+                                                        "No se encontró la clase TradingSpecialist en el módulo"
+                                                    )
+                                            else:
+                                                logger.warning(
+                                                    f"No se encontró el archivo trading_specialist.py en {root_dir}"
+                                                )
+                                        except Exception as import_error:
+                                            logger.warning(
+                                                f"Error importando Trading Specialist: {str(import_error)}"
+                                            )
 
                                     # Obtener análisis si se pudo cargar el Trading Specialist
                                     if (
@@ -842,9 +961,32 @@ class RealTimeSignalAnalyzer:
         try:
             logger.info("Obteniendo sentimiento de mercado en tiempo real")
 
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Analizando sentimiento de mercado...")
+
             # Intentar obtener datos del contexto de mercado global
             market_context = None
             try:
+                # Intentar obtener datos desde el archivo principal
+                if (
+                    "market_scanner" in st.session_state
+                    and st.session_state.market_scanner is not None
+                ):
+                    market_scanner = st.session_state.market_scanner
+                    # Verificar si el market_scanner tiene método get_market_sentiment
+                    if hasattr(market_scanner, "get_market_sentiment"):
+                        try:
+                            sentiment = market_scanner.get_market_sentiment()
+                            if sentiment and isinstance(sentiment, dict):
+                                status_placeholder.empty()
+                                return sentiment
+                        except Exception as scanner_error:
+                            logger.warning(
+                                f"Error usando market_scanner.get_market_sentiment: {str(scanner_error)}"
+                            )
+
+                # Si no se pudo obtener desde market_scanner, intentar con get_market_context
                 # Obtener contexto de mercado del S&P 500 como referencia
                 market_context = (
                     self.get_market_context("^GSPC")
@@ -862,6 +1004,7 @@ class RealTimeSignalAnalyzer:
                 market_sentiment = market_context.get("market_sentiment", {})
                 if market_sentiment:
                     # Usar datos de sentimiento del contexto
+                    status_placeholder.empty()
                     return {
                         "overall": market_sentiment.get("overall", "Neutral"),
                         "vix": market_sentiment.get("vix", "N/A"),
@@ -878,13 +1021,31 @@ class RealTimeSignalAnalyzer:
             vix_value = "N/A"
             vix_status = "N/A"
             try:
-                if hasattr(self, "get_vix_level"):
-                    vix_value, vix_status = self.get_vix_level()
-                else:
+                # Intentar importar get_vix_level desde market_utils
+                try:
+                    from market_utils import get_vix_level
+
+                    vix_value = get_vix_level()
+
+                    # Interpretar el valor
+                    if vix_value < 15:
+                        vix_status = "Volatilidad Muy Baja"
+                    elif vix_value < 20:
+                        vix_status = "Volatilidad Baja"
+                    elif vix_value < 30:
+                        vix_status = "Volatilidad Moderada"
+                    elif vix_value < 40:
+                        vix_status = "Volatilidad Alta"
+                    else:
+                        vix_status = "Volatilidad Extrema"
+                except Exception as import_error:
+                    logger.warning(
+                        f"Error importando get_vix_level: {str(import_error)}"
+                    )
                     # Intentar obtener datos del VIX directamente
-                    vix_df = self.fetch_market_data("^VIX", days=30)
+                    vix_df = self.fetch_market_data("^VIX", period="30d")
                     if vix_df is not None and not vix_df.empty:
-                        vix_value = round(vix_df["Close"].iloc[-1], 2)
+                        vix_value = round(float(vix_df["Close"].iloc[-1]), 2)
                         if vix_value < 20:
                             vix_status = "Volatilidad Baja"
                         elif vix_value < 30:
@@ -896,7 +1057,7 @@ class RealTimeSignalAnalyzer:
 
             # Obtener datos del S&P 500
             try:
-                sp500_df = self.fetch_market_data("^GSPC", days=200)
+                sp500_df = self.fetch_market_data("^GSPC", period="200d")
 
                 if sp500_df is None or sp500_df.empty:
                     raise ValueError("No se pudieron obtener datos del S&P 500")
@@ -961,7 +1122,7 @@ class RealTimeSignalAnalyzer:
                     "overall": overall,
                     "vix": f"{vix_value} - {vix_status}",
                     "sp500_trend": sp500_trend,
-                    "technical_indicators": f"{int(bullish_count/(bullish_count+bearish_count)*100)}% Alcistas, {int(bearish_count/(bullish_count+bearish_count)*100)}% Bajistas",
+                    "technical_indicators": f"{int(bullish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Alcistas, {int(bearish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Bajistas",
                     "volume": volume_status,
                     "notes": f"Datos en tiempo real - {datetime.now().strftime('%d/%m/%Y %H:%M')}",
                 }
@@ -996,6 +1157,28 @@ class RealTimeSignalAnalyzer:
         """Obtiene noticias relevantes del mercado en tiempo real"""
         try:
             logger.info("Obteniendo noticias de mercado en tiempo real")
+
+            # Mostrar mensaje de estado
+            status_placeholder = st.empty()
+            status_placeholder.info("Buscando noticias de mercado...")
+
+            # Intentar obtener noticias desde el market_scanner
+            if (
+                "market_scanner" in st.session_state
+                and st.session_state.market_scanner is not None
+            ):
+                market_scanner = st.session_state.market_scanner
+                # Verificar si el market_scanner tiene método get_market_news
+                if hasattr(market_scanner, "get_market_news"):
+                    try:
+                        news = market_scanner.get_market_news()
+                        if news and isinstance(news, list) and len(news) > 0:
+                            status_placeholder.empty()
+                            return news
+                    except Exception as scanner_error:
+                        logger.warning(
+                            f"Error usando market_scanner.get_market_news: {str(scanner_error)}"
+                        )
 
             # Intentar obtener noticias del contexto de mercado global
             market_context = None
@@ -1038,6 +1221,7 @@ class RealTimeSignalAnalyzer:
                     logger.info(
                         f"Se encontraron {len(formatted_news)} noticias en tiempo real"
                     )
+                    status_placeholder.empty()
                     return formatted_news
 
             # Si no hay noticias en el contexto, intentar obtenerlas de otras fuentes
@@ -1105,7 +1289,7 @@ class RealTimeSignalAnalyzer:
 
             # Obtener datos del S&P 500 para generar noticias básicas
             try:
-                sp500_df = self.fetch_market_data("^GSPC", days=5)
+                sp500_df = self.fetch_market_data("^GSPC", period="5d")
                 if sp500_df is not None and not sp500_df.empty:
                     # Calcular cambio porcentual
                     current_price = sp500_df["Close"].iloc[-1]
@@ -1126,7 +1310,7 @@ class RealTimeSignalAnalyzer:
 
                     # Añadir noticia sobre el VIX si está disponible
                     try:
-                        vix_df = self.fetch_market_data("^VIX", days=5)
+                        vix_df = self.fetch_market_data("^VIX", period="5d")
                         if vix_df is not None and not vix_df.empty:
                             vix_value = vix_df["Close"].iloc[-1]
                             vix_prev = vix_df["Close"].iloc[-2]
@@ -1976,14 +2160,12 @@ class EmailManager:
                         detailed_analysis.get("indicators", {}).get("sma50", "N/A"),
                     )
 
-                    # Obtener datos de tendencia si están disponibles
-                    trend = detailed_analysis.get("trend", "")
-                    trend_lines = detailed_analysis.get("trend_lines", {})
-
-                    # Obtener datos de mercado si están disponibles
-                    market_context = detailed_analysis.get("market_context", {})
-                    multi_timeframe = detailed_analysis.get("multi_timeframe", {})
-                    web_insights = detailed_analysis.get("web_insights", {})
+                    # Obtener datos adicionales si están disponibles (no se usan directamente pero podrían ser útiles en el futuro)
+                    _ = detailed_analysis.get("trend", "")
+                    _ = detailed_analysis.get("trend_lines", {})
+                    _ = detailed_analysis.get("market_context", {})
+                    _ = detailed_analysis.get("multi_timeframe", {})
+                    _ = detailed_analysis.get("web_insights", {})
 
                     # Obtener precio y cambio porcentual
                     price = signal.get("price", "0.00")
@@ -2258,25 +2440,84 @@ class SignalManager:
         self.email_manager = EmailManager()
         self.real_time_analyzer = RealTimeSignalAnalyzer()
 
-    @st.cache_data(ttl=1800)  # Cache por 30 minutos
-    def get_active_signals(_self, days_back=7, categories=None, confidence_levels=None):
+    def get_active_signals(
+        self, days_back=7, categories=None, confidence_levels=None, force_realtime=False
+    ):
         """Obtiene las señales activas filtradas"""
-        # Primero intentar obtener señales de la base de datos
-        signals_from_db = _self.db_manager.get_signals(
-            days_back, categories, confidence_levels
-        )
-
-        # Si hay señales en la base de datos, usarlas
-        if signals_from_db and len(signals_from_db) > 0:
+        # Verificar si hay señales en caché de sesión
+        if (
+            "cached_signals" in st.session_state
+            and st.session_state.cached_signals
+            and not force_realtime
+        ):
             logger.info(
-                f"Se encontraron {len(signals_from_db)} señales en la base de datos"
+                f"Usando {len(st.session_state.cached_signals)} señales desde la caché de sesión"
             )
-            return signals_from_db
+            cached_signals = st.session_state.cached_signals
 
-        # Si no hay señales en la base de datos, generar en tiempo real
-        logger.info(
-            "No se encontraron señales en la base de datos, generando en tiempo real"
-        )
+            # Aplicar filtros a las señales en caché
+            filtered_signals = []
+            for signal in cached_signals:
+                # Filtrar por categoría
+                if (
+                    categories
+                    and categories != "Todas"
+                    and signal.get("category") not in categories
+                ):
+                    continue
+
+                # Filtrar por nivel de confianza
+                if (
+                    confidence_levels
+                    and signal.get("confidence_level") not in confidence_levels
+                ):
+                    continue
+
+                # Filtrar por fecha
+                created_at = signal.get("created_at")
+                if isinstance(created_at, datetime):
+                    if (datetime.now() - created_at).days > days_back:
+                        continue
+
+                filtered_signals.append(signal)
+
+            if filtered_signals:
+                logger.info(
+                    f"Se encontraron {len(filtered_signals)} señales en caché que cumplen los filtros"
+                )
+                return filtered_signals
+
+        # Si no hay señales en caché o se fuerza el escaneo en tiempo real, intentar obtener de la base de datos
+        if not force_realtime:
+            # Intentar obtener señales de la base de datos
+            signals_from_db = self.db_manager.get_signals(
+                days_back, categories, confidence_levels
+            )
+
+            # Si hay señales en la base de datos, usarlas y actualizar la caché
+            if signals_from_db and len(signals_from_db) > 0:
+                logger.info(
+                    f"Se encontraron {len(signals_from_db)} señales en la base de datos"
+                )
+
+                # Verificar que las fechas no sean futuras
+                for signal in signals_from_db:
+                    if "created_at" in signal and isinstance(
+                        signal["created_at"], datetime
+                    ):
+                        # Si la fecha es futura, corregirla a la fecha actual
+                        if signal["created_at"] > datetime.now():
+                            signal["created_at"] = datetime.now()
+                            logger.warning(
+                                f"Se corrigió una fecha futura para la señal {signal.get('symbol')}"
+                            )
+
+                # Actualizar la caché de sesión
+                st.session_state.cached_signals = signals_from_db
+                return signals_from_db
+
+        # Generar señales en tiempo real
+        logger.info("Generando señales en tiempo real...")
 
         # Determinar sector a escanear
         sector = "Todas" if not categories or "Todas" in categories else categories[0]
@@ -2289,7 +2530,7 @@ class SignalManager:
         )
 
         # Escanear mercado en tiempo real
-        real_time_signals = _self.real_time_analyzer.scan_market_by_sector(
+        real_time_signals = self.real_time_analyzer.scan_market_by_sector(
             sector=sector, days=days_back, confidence_threshold=confidence
         )
 
@@ -2297,23 +2538,40 @@ class SignalManager:
         if real_time_signals and len(real_time_signals) > 0:
             for i, signal in enumerate(real_time_signals):
                 signal["id"] = i + 1
+                # Asegurar que la fecha sea la actual
+                signal["created_at"] = datetime.now()
 
             logger.info(f"Se generaron {len(real_time_signals)} señales en tiempo real")
+
+            # Actualizar la caché de sesión con las nuevas señales
+            # Combinar señales sin duplicados
+            if "cached_signals" in st.session_state:
+                existing_symbols = {
+                    signal.get("symbol") for signal in st.session_state.cached_signals
+                }
+                for signal in real_time_signals:
+                    if signal.get("symbol") not in existing_symbols:
+                        st.session_state.cached_signals.append(signal)
+                        existing_symbols.add(signal.get("symbol"))
+            else:
+                st.session_state.cached_signals = real_time_signals
+
+            # Compartir señales con otras páginas
+            st.session_state.market_signals = real_time_signals
+
             return real_time_signals
 
         # Si no se encontraron señales en tiempo real, devolver lista vacía
         logger.info("No se encontraron señales en tiempo real, devolviendo lista vacía")
         return []
 
-    @st.cache_data(ttl=1800)  # Cache por 30 minutos
-    def get_market_sentiment(_self):
+    def get_market_sentiment(self):
         """Obtiene el sentimiento actual del mercado en tiempo real"""
-        return _self.real_time_analyzer.get_real_time_market_sentiment()
+        return self.real_time_analyzer.get_real_time_market_sentiment()
 
-    @st.cache_data(ttl=1800)  # Cache por 30 minutos
-    def get_market_news(_self):
+    def get_market_news(self):
         """Obtiene noticias relevantes del mercado en tiempo real"""
-        return _self.real_time_analyzer.get_real_time_market_news()
+        return self.real_time_analyzer.get_real_time_market_news()
 
     def get_detailed_analysis(self, symbol):
         """Obtiene análisis detallado para un símbolo específico"""
@@ -2460,6 +2718,25 @@ tab1, tab2, tab3 = st.tabs(
     ["📋 Señales Activas", "📬 Envío de Boletines", "📊 Historial de Señales"]
 )
 
+# Inicializar estado de sesión para señales
+if "cached_signals" not in st.session_state:
+    st.session_state.cached_signals = []
+
+# Verificar si hay señales en otras páginas
+if "market_signals" in st.session_state and st.session_state.market_signals:
+    # Combinar señales sin duplicados
+    existing_symbols = {
+        signal.get("symbol") for signal in st.session_state.cached_signals
+    }
+    for signal in st.session_state.market_signals:
+        if signal.get("symbol") not in existing_symbols:
+            st.session_state.cached_signals.append(signal)
+            existing_symbols.add(signal.get("symbol"))
+
+    logger.info(
+        f"Se importaron {len(st.session_state.market_signals)} señales desde otras páginas"
+    )
+
 # Inicializar el gestor de señales
 signal_manager = SignalManager()
 
@@ -2467,11 +2744,30 @@ signal_manager = SignalManager()
 with tab1:
     st.header("📋 Señales de Trading Activas")
 
-    # Obtener señales filtradas
+    # Añadir botón de actualización
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.write(
+            "Utilice los filtros de la barra lateral para personalizar los resultados."
+        )
+    with col2:
+        refresh = st.button(
+            "🔄 Actualizar Datos",
+            help="Fuerza un nuevo escaneo del mercado en tiempo real",
+        )
+
+    # Obtener señales filtradas (forzar tiempo real si se presiona el botón de actualización)
     categoria_filtro = "Todas" if categoria == "Todas" else [categoria]
     signals = signal_manager.get_active_signals(
-        days_back=dias_atras, categories=categoria_filtro, confidence_levels=confianza
+        days_back=dias_atras,
+        categories=categoria_filtro,
+        confidence_levels=confianza,
+        force_realtime=refresh,  # Forzar escaneo en tiempo real si se presiona el botón
     )
+
+    # Mostrar mensaje de actualización si se presionó el botón
+    if refresh:
+        st.success("Datos actualizados con éxito mediante escaneo en tiempo real.")
 
     # Mostrar señales en tarjetas
     if signals and len(signals) > 0:
@@ -2495,12 +2791,22 @@ with tab1:
                     text_color = "#6c757d"  # Gris
                     direction_text = "↔️ NEUTRAL"
 
-                # Formatear fecha
+                # Formatear fecha (asegurarse de que no sea futura)
                 created_at = signal.get("created_at")
                 if isinstance(created_at, datetime):
+                    # Corregir fechas futuras
+                    if created_at > datetime.now():
+                        created_at = datetime.now()
+                        signal["created_at"] = (
+                            created_at  # Actualizar la fecha en el objeto original
+                        )
                     fecha = created_at.strftime("%d/%m/%Y %H:%M")
                 else:
-                    fecha = str(created_at)
+                    # Si no es un objeto datetime, usar la fecha actual
+                    fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    signal["created_at"] = (
+                        datetime.now()
+                    )  # Actualizar la fecha en el objeto original
 
                 # Crear tarjeta con CSS personalizado (compatible con modo oscuro)
                 st.markdown(
@@ -2522,43 +2828,107 @@ with tab1:
                     unsafe_allow_html=True,
                 )
     else:
-        st.info("No se encontraron señales activas con los filtros seleccionados.")
+        # Mostrar mensaje más detallado cuando no hay señales
+        st.warning("No se encontraron señales activas con los filtros seleccionados.")
+
+        # Sugerir acciones al usuario
+        st.markdown(
+            """
+        ### Sugerencias:
+        1. **Prueba a cambiar los filtros** - Selecciona "Todas" en la categoría o "Baja" en el nivel de confianza para ver más resultados.
+        2. **Actualiza los datos** - Usa el botón "Actualizar Datos" para forzar un nuevo escaneo del mercado.
+        3. **Verifica la conexión** - Asegúrate de tener una conexión a Internet estable para obtener datos en tiempo real.
+        4. **Horario de mercado** - Recuerda que algunas señales solo están disponibles durante el horario de mercado.
+        """
+        )
 
     # Mostrar sentimiento de mercado
     st.subheader("📈 Sentimiento de Mercado")
-    sentiment = signal_manager.get_market_sentiment()
 
-    # Determinar color según sentimiento
-    if sentiment.get("overall") == "Alcista":
-        sentiment_color = "#28a745"  # Verde
-    elif sentiment.get("overall") == "Bajista":
-        sentiment_color = "#dc3545"  # Rojo
+    # Crear un contenedor para mostrar un mensaje de carga
+    sentiment_container = st.container()
+    with sentiment_container:
+        with st.spinner("Analizando sentimiento de mercado..."):
+            sentiment = signal_manager.get_market_sentiment()
+
+    # Verificar si hay datos de sentimiento válidos
+    has_valid_sentiment = (
+        sentiment
+        and sentiment.get("overall", "Neutral") != "Neutral"
+        or sentiment.get("vix", "N/A") != "N/A"
+        or sentiment.get("sp500_trend", "N/A") != "No disponible"
+        or sentiment.get("volume", "N/A") != "No disponible"
+    )
+
+    if has_valid_sentiment:
+        # Determinar color según sentimiento
+        if sentiment.get("overall") == "Alcista":
+            sentiment_color = "#28a745"  # Verde
+        elif sentiment.get("overall") == "Bajista":
+            sentiment_color = "#dc3545"  # Rojo
+        else:
+            sentiment_color = "#6c757d"  # Gris
+
+        # Mostrar indicadores de sentimiento
+        cols = st.columns(4)
+        with cols[0]:
+            st.metric("Sentimiento", sentiment.get("overall", "Neutral"))
+        with cols[1]:
+            st.metric("VIX", sentiment.get("vix", "N/A"))
+        with cols[2]:
+            st.metric("S&P 500", sentiment.get("sp500_trend", "N/A"))
+        with cols[3]:
+            st.metric("Volumen", sentiment.get("volume", "N/A"))
+
+        # Mostrar notas adicionales si están disponibles
+        if sentiment.get("notes"):
+            st.caption(sentiment.get("notes"))
     else:
-        sentiment_color = "#6c757d"  # Gris
+        # Mostrar mensaje cuando no hay datos válidos
+        st.warning(
+            "No se pudieron obtener datos de sentimiento de mercado en tiempo real."
+        )
 
-    # Mostrar indicadores de sentimiento
-    cols = st.columns(4)
-    with cols[0]:
-        st.metric("Sentimiento", sentiment.get("overall", "Neutral"))
-    with cols[1]:
-        st.metric("VIX", sentiment.get("vix", "N/A"))
-    with cols[2]:
-        st.metric("S&P 500", sentiment.get("sp500_trend", "N/A"))
-    with cols[3]:
-        st.metric("Volumen", sentiment.get("volume", "N/A"))
+        # Sugerir acciones al usuario
+        st.markdown(
+            """
+        **Sugerencias:**
+        - Verifica tu conexión a Internet
+        - Intenta actualizar la página
+        - Los datos de sentimiento pueden no estar disponibles fuera del horario de mercado
+        """
+        )
 
     # Mostrar noticias relevantes
     st.subheader("📰 Noticias Relevantes")
-    news = signal_manager.get_market_news()
+
+    # Crear un contenedor para mostrar un mensaje de carga
+    news_container = st.container()
+    with news_container:
+        with st.spinner("Buscando noticias relevantes..."):
+            news = signal_manager.get_market_news()
 
     if news and len(news) > 0:
+        # Mostrar contador de noticias
+        st.write(f"Se encontraron {len(news)} noticias relevantes.")
+
         for item in news:
-            # Formatear fecha
+            # Formatear fecha (asegurarse de que no sea futura)
             news_date = item.get("date")
             if isinstance(news_date, datetime):
+                # Corregir fechas futuras
+                if news_date > datetime.now():
+                    news_date = datetime.now()
+                    item["date"] = (
+                        news_date  # Actualizar la fecha en el objeto original
+                    )
                 fecha = news_date.strftime("%d/%m/%Y")
             else:
-                fecha = str(news_date)
+                # Si no es un objeto datetime, usar la fecha actual
+                fecha = datetime.now().strftime("%d/%m/%Y")
+                item["date"] = (
+                    datetime.now()
+                )  # Actualizar la fecha en el objeto original
 
             # Mostrar noticia (compatible con modo oscuro)
             st.markdown(
@@ -2572,7 +2942,19 @@ with tab1:
                 unsafe_allow_html=True,
             )
     else:
-        st.info("No hay noticias relevantes disponibles.")
+        # Mostrar mensaje cuando no hay noticias disponibles
+        st.warning("No se pudieron obtener noticias relevantes en tiempo real.")
+
+        # Sugerir acciones al usuario
+        st.markdown(
+            """
+        **Sugerencias:**
+        - Verifica tu conexión a Internet
+        - Intenta actualizar la página
+        - Las noticias pueden no estar disponibles temporalmente
+        - Prueba a cambiar los filtros o actualizar los datos
+        """
+        )
 
 # Contenido de la pestaña "Envío de Boletines"
 with tab2:
@@ -2581,8 +2963,35 @@ with tab2:
     # Selección de señales para incluir en el boletín
     st.subheader("Paso 1: Seleccionar Señales para el Boletín")
 
-    # Obtener todas las señales disponibles
-    all_signals = signal_manager.get_active_signals(days_back=dias_atras)
+    # Añadir botón de actualización
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.write("Seleccione las señales que desea incluir en el boletín.")
+    with col2:
+        refresh_bulletin = st.button(
+            "🔄 Actualizar Señales",
+            help="Fuerza un nuevo escaneo del mercado en tiempo real",
+            key="refresh_bulletin",
+        )
+
+    # Obtener todas las señales disponibles (forzar tiempo real si se presiona el botón)
+    # Primero verificar si hay señales en caché
+    if (
+        "cached_signals" in st.session_state
+        and st.session_state.cached_signals
+        and not refresh_bulletin
+    ):
+        all_signals = st.session_state.cached_signals
+        logger.info(f"Usando {len(all_signals)} señales desde la caché para el boletín")
+    else:
+        all_signals = signal_manager.get_active_signals(
+            days_back=dias_atras,
+            force_realtime=refresh_bulletin,  # Forzar escaneo en tiempo real si se presiona el botón
+        )
+
+    # Mostrar mensaje de actualización si se presionó el botón
+    if refresh_bulletin:
+        st.success("Señales actualizadas con éxito mediante escaneo en tiempo real.")
 
     if all_signals and len(all_signals) > 0:
         # Crear opciones para multiselect
