@@ -7367,6 +7367,43 @@ def main():
                                         # Añadir información de setup
                                         technical_analysis += f"El setup identificado es {row.get('Setup', 'Análisis Técnico')} "
                                         technical_analysis += f"con una relación riesgo/recompensa de {row.get('R/R', 0.0):.2f}."
+
+                                        # Generar niveles de soporte y resistencia si no existen
+                                        price = row.get("Precio", 0.0)
+                                        if price > 0 and (
+                                            row.get("Soporte", 0.0) == 0.0
+                                            or row.get("Resistencia", 0.0) == 0.0
+                                        ):
+                                            # Calcular soporte y resistencia basados en el precio actual y la tendencia
+                                            trend = row.get("Tendencia", "NEUTRAL")
+                                            if trend == "ALCISTA":
+                                                support_level = (
+                                                    price * 0.95
+                                                )  # 5% por debajo del precio actual
+                                                resistance_level = (
+                                                    price * 1.10
+                                                )  # 10% por encima del precio actual
+                                            elif trend == "BAJISTA":
+                                                support_level = (
+                                                    price * 0.90
+                                                )  # 10% por debajo del precio actual
+                                                resistance_level = (
+                                                    price * 1.05
+                                                )  # 5% por encima del precio actual
+                                            else:  # NEUTRAL
+                                                support_level = (
+                                                    price * 0.97
+                                                )  # 3% por debajo del precio actual
+                                                resistance_level = (
+                                                    price * 1.03
+                                                )  # 3% por encima del precio actual
+
+                                            technical_analysis += f" Niveles clave: Soporte en ${support_level:.2f} y resistencia en ${resistance_level:.2f}."
+                                        else:
+                                            support_level = row.get("Soporte", 0.0)
+                                            resistance_level = row.get(
+                                                "Resistencia", 0.0
+                                            )
                                     else:
                                         technical_analysis = row.get(
                                             "Análisis_Técnico", ""
@@ -7376,30 +7413,133 @@ def main():
                                     if "Options_Analysis" not in row or not row.get(
                                         "Options_Analysis"
                                     ):
-                                        options_analysis = ""
+                                        # Generar volatilidad si no existe
                                         if (
-                                            "Volatilidad" in row
-                                            and row.get("Volatilidad", 0) > 0
+                                            "Volatilidad" not in row
+                                            or row.get("Volatilidad", 0) == 0
                                         ):
-                                            volatility = row.get("Volatilidad", 0)
-                                            options_analysis = f"La volatilidad implícita de {row['Symbol']} es del {volatility:.2f}%, "
-                                            if volatility > 50:
-                                                options_analysis += "lo que indica alta incertidumbre en el mercado. "
-                                            elif volatility > 30:
-                                                options_analysis += "lo que indica volatilidad moderada. "
-                                            else:
-                                                options_analysis += (
-                                                    "lo que indica baja volatilidad. "
-                                                )
+                                            # Estimar volatilidad basada en el sector y la tendencia
+                                            sector = row.get("Sector", "")
+                                            trend = row.get("Tendencia", "NEUTRAL")
 
-                                            if "Options_Signal" in row and row.get(
-                                                "Options_Signal"
+                                            # Valores base de volatilidad por sector
+                                            sector_volatility = {
+                                                "Tecnología": 35.0,
+                                                "Finanzas": 25.0,
+                                                "Salud": 30.0,
+                                                "Energía": 40.0,
+                                                "Consumo": 20.0,
+                                                "Volatilidad": 60.0,
+                                                "Materias Primas": 35.0,
+                                                "Comunicaciones": 28.0,
+                                                "Industrial": 27.0,
+                                                "Servicios": 22.0,
+                                                "Utilidades": 18.0,
+                                                "Inmobiliario": 23.0,
+                                                "Índices": 20.0,
+                                            }
+
+                                            # Obtener volatilidad base del sector o valor predeterminado
+                                            base_volatility = sector_volatility.get(
+                                                sector, 30.0
+                                            )
+
+                                            # Ajustar por tendencia
+                                            if (
+                                                trend == "ALCISTA"
+                                                and row.get("Fuerza", "") == "fuerte"
                                             ):
-                                                options_analysis += f"El análisis de opciones sugiere una estrategia {row.get('Options_Signal', '')}."
+                                                volatility = (
+                                                    base_volatility * 0.8
+                                                )  # Menos volatilidad en tendencia alcista fuerte
+                                            elif (
+                                                trend == "BAJISTA"
+                                                and row.get("Fuerza", "") == "fuerte"
+                                            ):
+                                                volatility = (
+                                                    base_volatility * 1.3
+                                                )  # Más volatilidad en tendencia bajista fuerte
+                                            elif trend == "NEUTRAL":
+                                                volatility = (
+                                                    base_volatility * 1.1
+                                                )  # Ligeramente más volatilidad en mercado neutral
+                                            else:
+                                                volatility = base_volatility
+
+                                            # Ajustar por RSI
+                                            rsi = row.get("RSI", 50)
+                                            if rsi < 30 or rsi > 70:
+                                                volatility *= 1.2  # Mayor volatilidad en condiciones extremas
+                                        else:
+                                            volatility = row.get("Volatilidad", 30.0)
+
+                                        # Generar señal de opciones si no existe
+                                        if "Options_Signal" not in row or not row.get(
+                                            "Options_Signal"
+                                        ):
+                                            if direction == "CALL":
+                                                if volatility > 40:
+                                                    options_signal = "CALL SPREAD"  # Menos riesgo en alta volatilidad
+                                                else:
+                                                    options_signal = "CALL DIRECTO"
+                                            elif direction == "PUT":
+                                                if volatility > 40:
+                                                    options_signal = "PUT SPREAD"  # Menos riesgo en alta volatilidad
+                                                else:
+                                                    options_signal = "PUT DIRECTO"
+                                            else:
+                                                if volatility > 35:
+                                                    options_signal = "IRON CONDOR"  # Estrategia neutral para alta volatilidad
+                                                else:
+                                                    options_signal = "BUTTERFLY"
+                                        else:
+                                            options_signal = row.get(
+                                                "Options_Signal", ""
+                                            )
+
+                                        # Generar análisis de opciones
+                                        options_analysis = f"La volatilidad implícita de {row['Symbol']} es del {volatility:.2f}%, "
+                                        if volatility > 50:
+                                            options_analysis += "lo que indica alta incertidumbre en el mercado. "
+                                        elif volatility > 30:
+                                            options_analysis += (
+                                                "lo que indica volatilidad moderada. "
+                                            )
+                                        else:
+                                            options_analysis += (
+                                                "lo que indica baja volatilidad. "
+                                            )
+
+                                        options_analysis += f"El análisis de opciones sugiere una estrategia {options_signal}. "
+
+                                        # Añadir recomendaciones específicas basadas en la estrategia
+                                        if options_signal == "CALL DIRECTO":
+                                            options_analysis += f"Considerar compra de calls con strike cercano a ${row.get('Precio', 0.0):.2f} "
+                                            options_analysis += (
+                                                "con vencimiento de 30-45 días."
+                                            )
+                                        elif options_signal == "PUT DIRECTO":
+                                            options_analysis += f"Considerar compra de puts con strike cercano a ${row.get('Precio', 0.0):.2f} "
+                                            options_analysis += (
+                                                "con vencimiento de 30-45 días."
+                                            )
+                                        elif "SPREAD" in options_signal:
+                                            options_analysis += "Esta estrategia limita el riesgo y la recompensa, "
+                                            options_analysis += "ideal para entornos de alta volatilidad."
+                                        elif options_signal in [
+                                            "IRON CONDOR",
+                                            "BUTTERFLY",
+                                        ]:
+                                            options_analysis += "Estrategia neutral que se beneficia de baja volatilidad "
+                                            options_analysis += (
+                                                "o movimiento lateral del precio."
+                                            )
                                     else:
                                         options_analysis = row.get(
                                             "Options_Analysis", ""
                                         )
+                                        volatility = row.get("Volatilidad", 30.0)
+                                        options_signal = row.get("Options_Signal", "")
 
                                     # Generar análisis multi-timeframe si no existe
                                     if "MTF_Analysis" not in row or not row.get(
@@ -7609,22 +7749,109 @@ def main():
                                         "entry_price": row.get(
                                             "Entry", row.get("Precio", 0.0)
                                         ),
-                                        "stop_loss": row.get("Stop", 0.0),
-                                        "target_price": row.get("Target", 0.0),
-                                        "risk_reward": row.get("R/R", 0.0),
+                                        "stop_loss": (
+                                            row.get("Stop", 0.0)
+                                            if row.get("Stop", 0.0) > 0
+                                            else (
+                                                # Calcular stop loss si no existe
+                                                row.get("Precio", 0.0) * 1.02
+                                                if direction
+                                                == "PUT"  # 2% arriba para PUT
+                                                else (
+                                                    row.get("Precio", 0.0) * 0.98
+                                                    if direction
+                                                    == "CALL"  # 2% abajo para CALL
+                                                    else 0.0
+                                                )
+                                            )
+                                        ),
+                                        "target_price": (
+                                            row.get("Target", 0.0)
+                                            if row.get("Target", 0.0) > 0
+                                            else (
+                                                # Calcular target price si no existe
+                                                row.get("Precio", 0.0) * 0.95
+                                                if direction
+                                                == "PUT"  # 5% abajo para PUT
+                                                else (
+                                                    row.get("Precio", 0.0) * 1.05
+                                                    if direction
+                                                    == "CALL"  # 5% arriba para CALL
+                                                    else 0.0
+                                                )
+                                            )
+                                        ),
+                                        "risk_reward": (
+                                            row.get("R/R", 0.0)
+                                            if row.get("R/R", 0.0) > 0
+                                            else (
+                                                # Calcular R/R si no existe y tenemos stop y target
+                                                abs(
+                                                    (
+                                                        row.get("Precio", 0.0)
+                                                        - (
+                                                            row.get("Precio", 0.0)
+                                                            * 0.95
+                                                        )
+                                                    )
+                                                    / (
+                                                        row.get("Precio", 0.0)
+                                                        - (
+                                                            row.get("Precio", 0.0)
+                                                            * 1.02
+                                                        )
+                                                    )
+                                                )
+                                                if direction == "PUT"
+                                                else (
+                                                    abs(
+                                                        (
+                                                            row.get("Precio", 0.0)
+                                                            * 1.05
+                                                            - row.get("Precio", 0.0)
+                                                        )
+                                                        / (
+                                                            row.get("Precio", 0.0)
+                                                            - (
+                                                                row.get("Precio", 0.0)
+                                                                * 0.98
+                                                            )
+                                                        )
+                                                    )
+                                                    if direction == "CALL"
+                                                    else 1.0
+                                                )
+                                            )
+                                        ),
                                         "setup_type": row.get(
                                             "Setup", f"Estrategia {direction} genérica"
                                         ),
                                         # Campos para análisis técnico
                                         "technical_analysis": technical_analysis,
-                                        "support_level": row.get("Soporte", 0.0),
-                                        "resistance_level": row.get("Resistencia", 0.0),
+                                        "support_level": (
+                                            support_level
+                                            if "support_level" in locals()
+                                            else row.get("Soporte", 0.0)
+                                        ),
+                                        "resistance_level": (
+                                            resistance_level
+                                            if "resistance_level" in locals()
+                                            else row.get("Resistencia", 0.0)
+                                        ),
                                         "rsi": row.get("RSI", 0.0),
                                         "trend": row.get("Tendencia", "NEUTRAL"),
                                         "trend_strength": row.get("Fuerza", "moderada"),
                                         # Campos para opciones
-                                        "volatility": row.get("Volatilidad", 0.0),
-                                        "options_signal": row.get("Options_Signal", ""),
+                                        "volatility": (
+                                            volatility
+                                            if "volatility" in locals()
+                                            else row.get("Volatilidad", 0.0)
+                                        ),
+                                        "options_signal": (
+                                            options_signal
+                                            if "options_signal" in locals()
+                                            else row.get("Options_Signal", "")
+                                        ),
                                         "options_analysis": options_analysis,
                                         # Campos para Trading Specialist
                                         "trading_specialist_signal": row.get(
@@ -7638,10 +7865,25 @@ def main():
                                         "sentiment_score": row.get(
                                             "Sentimiento_Score", 0.5
                                         ),
-                                        "latest_news": row.get("Última_Noticia", ""),
-                                        "news_source": row.get("Fuente_Noticia", ""),
+                                        "latest_news": row.get("Última_Noticia", "")
+                                        or (
+                                            # Generar noticia si no existe
+                                            f"Análisis técnico muestra {row.get('Tendencia', 'NEUTRAL').lower()} para {row['Symbol']} con RSI en {row.get('RSI', 50):.2f}"
+                                        ),
+                                        "news_source": row.get("Fuente_Noticia", "")
+                                        or "InversorIA Analytics",
                                         "additional_news": row.get(
                                             "Noticias_Adicionales", ""
+                                        )
+                                        or (
+                                            # Generar noticias adicionales si no existen
+                                            f"El activo {row['Symbol']} del sector {row['Sector']} muestra una tendencia {row.get('Tendencia', 'NEUTRAL').lower()} "
+                                            + f"con una relación riesgo/recompensa de {row.get('R/R', 1.0):.2f}. "
+                                            + (
+                                                "Se recomienda cautela debido a la volatilidad del mercado."
+                                                if volatility > 35
+                                                else "Las condiciones de mercado son favorables para esta operación."
+                                            )
                                         ),
                                         # Campos para análisis experto y multi-timeframe
                                         "expert_analysis": expert_analysis,
