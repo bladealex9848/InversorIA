@@ -111,7 +111,7 @@ PASSWORD = "tu-contraseña-muy-segura"
 
 1. **Iniciar la Aplicación:**
    ```bash
-   streamlit run app.py
+   streamlit run 📊_InversorIA_Pro.py
    ```
 
 2. **Acceder:**

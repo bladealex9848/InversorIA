@@ -29,6 +29,7 @@ logging
 tenacity
 seaborn
 statsmodels
-duckduckgo-search>=2.8.0
-tavily-python
-tqdm>=4.64.0
+
+# Base de datos y correo
+mysql-connector-python>=8.0.0
+watchdog>=2.1.0
