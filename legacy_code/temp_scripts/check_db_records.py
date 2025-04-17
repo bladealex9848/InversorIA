@@ -10,54 +10,15 @@ from datetime import datetime
 
 # Función para conectar a la base de datos
 def connect_to_db():
-    # Intentar cargar credenciales desde secrets.toml
-    db_config = {}
-    try:
-        # Buscar el archivo secrets.toml en la carpeta .streamlit
-        secrets_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml"
-        )
-
-        if os.path.exists(secrets_path):
-            with open(secrets_path, "r") as f:
-                content = f.read()
-
-                # Extraer credenciales de la base de datos
-                db_host = None
-                db_user = None
-                db_pass = None
-                db_name = None
-
-                for line in content.split("\n"):
-                    if line.startswith("db_host"):
-                        db_host = line.split("=")[1].strip().strip("\"'")
-                    elif line.startswith("db_user"):
-                        db_user = line.split("=")[1].strip().strip("\"'")
-                    elif line.startswith("db_pass"):
-                        db_pass = line.split("=")[1].strip().strip("\"'")
-                    elif line.startswith("db_name"):
-                        db_name = line.split("=")[1].strip().strip("\"'")
-
-                if db_host and db_user and db_pass and db_name:
-                    db_config = {
-                        "host": db_host,
-                        "user": db_user,
-                        "password": db_pass,
-                        "database": db_name,
-                    }
-                    print("Usando configuración de base de datos desde secrets.toml")
-    except Exception as e:
-        print(f"Error cargando secrets.toml: {str(e)}")
-
-    # Si no se pudieron cargar las credenciales, usar valores predeterminados
-    if not db_config:
-        print("Usando configuración de base de datos predeterminada")
-        db_config = {
-            "host": "localhost",
-            "user": "root",
-            "password": "",
-            "database": "liceopan_enki_sincelejo",
-        }
+    # Usar credenciales proporcionadas
+    db_config = {
+        "host": "190.8.178.74",
+        "port": 3306,
+        "user": "liceopan_root",
+        "password": "@Soporte2020@",
+        "database": "liceopan_enki_sincelejo",
+    }
+    print("Usando configuración de base de datos proporcionada")
 
     # Conectar a la base de datos
     try:
