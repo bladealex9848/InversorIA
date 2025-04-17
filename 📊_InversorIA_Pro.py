@@ -139,619 +139,8 @@ class NumpyEncoder(json.JSONEncoder):
         return super(NumpyEncoder, self).default(obj)
 
 
-# Información de símbolos y nombres completos
-COMPANY_INFO = {
-    # Tecnología
-    "AAPL": {
-        "name": "Apple Inc.",
-        "sector": "Tecnología",
-        "description": "Fabricante de dispositivos electrónicos y software",
-    },
-    "MSFT": {
-        "name": "Microsoft Corporation",
-        "sector": "Tecnología",
-        "description": "Empresa de software y servicios en la nube",
-    },
-    "GOOGL": {
-        "name": "Alphabet Inc. (Google)",
-        "sector": "Tecnología",
-        "description": "Conglomerado especializado en productos y servicios de Internet",
-    },
-    "AMZN": {
-        "name": "Amazon.com Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Comercio electrónico y servicios en la nube",
-    },
-    "TSLA": {
-        "name": "Tesla Inc.",
-        "sector": "Automóviles",
-        "description": "Fabricante de vehículos eléctricos y tecnología de energía limpia",
-    },
-    "NVDA": {
-        "name": "NVIDIA Corporation",
-        "sector": "Tecnología",
-        "description": "Fabricante de unidades de procesamiento gráfico",
-    },
-    "META": {
-        "name": "Meta Platforms Inc.",
-        "sector": "Tecnología",
-        "description": "Empresa de redes sociales y tecnología",
-    },
-    "NFLX": {
-        "name": "Netflix Inc.",
-        "sector": "Comunicación",
-        "description": "Servicio de streaming y producción de contenido",
-    },
-    "PYPL": {
-        "name": "PayPal Holdings Inc.",
-        "sector": "Servicios Financieros",
-        "description": "Plataforma de pagos en línea",
-    },
-    "CRM": {
-        "name": "Salesforce Inc.",
-        "sector": "Tecnología",
-        "description": "Software de gestión de relaciones con clientes",
-    },
-    # Finanzas
-    "JPM": {
-        "name": "JPMorgan Chase & Co.",
-        "sector": "Finanzas",
-        "description": "Banco multinacional y servicios financieros",
-    },
-    "BAC": {
-        "name": "Bank of America Corp.",
-        "sector": "Finanzas",
-        "description": "Institución bancaria multinacional",
-    },
-    "WFC": {
-        "name": "Wells Fargo & Co.",
-        "sector": "Finanzas",
-        "description": "Servicios bancarios y financieros",
-    },
-    "C": {
-        "name": "Citigroup Inc.",
-        "sector": "Finanzas",
-        "description": "Banca de inversión y servicios financieros",
-    },
-    "GS": {
-        "name": "Goldman Sachs Group Inc.",
-        "sector": "Finanzas",
-        "description": "Banca de inversión y gestión de activos",
-    },
-    "MS": {
-        "name": "Morgan Stanley",
-        "sector": "Finanzas",
-        "description": "Servicios financieros y banca de inversión",
-    },
-    "V": {
-        "name": "Visa Inc.",
-        "sector": "Finanzas",
-        "description": "Servicios de pagos electrónicos",
-    },
-    "MA": {
-        "name": "Mastercard Inc.",
-        "sector": "Finanzas",
-        "description": "Tecnología de pagos globales",
-    },
-    "AXP": {
-        "name": "American Express Co.",
-        "sector": "Finanzas",
-        "description": "Servicios financieros y tarjetas de crédito",
-    },
-    "BLK": {
-        "name": "BlackRock Inc.",
-        "sector": "Finanzas",
-        "description": "Gestión de inversiones y servicios financieros",
-    },
-    # ETFs e Índices
-    "SPY": {
-        "name": "SPDR S&P 500 ETF Trust",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice S&P 500",
-    },
-    "QQQ": {
-        "name": "Invesco QQQ Trust",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Nasdaq-100",
-    },
-    "DIA": {
-        "name": "SPDR Dow Jones Industrial Average ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Dow Jones Industrial Average",
-    },
-    "IWM": {
-        "name": "iShares Russell 2000 ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue el índice Russell 2000 de small caps",
-    },
-    "EFA": {
-        "name": "iShares MSCI EAFE ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue acciones internacionales desarrolladas",
-    },
-    "VWO": {
-        "name": "Vanguard FTSE Emerging Markets ETF",
-        "sector": "ETF",
-        "description": "ETF que sigue mercados emergentes",
-    },
-    "XLE": {
-        "name": "Energy Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector energético",
-    },
-    "XLF": {
-        "name": "Financial Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector financiero",
-    },
-    "XLV": {
-        "name": "Health Care Select Sector SPDR Fund",
-        "sector": "ETF",
-        "description": "ETF del sector sanitario",
-    },
-    # Energía
-    "XOM": {
-        "name": "Exxon Mobil Corp.",
-        "sector": "Energía",
-        "description": "Compañía integrada de petróleo y gas",
-    },
-    "CVX": {
-        "name": "Chevron Corporation",
-        "sector": "Energía",
-        "description": "Producción y refinación de petróleo",
-    },
-    "SHEL": {
-        "name": "Shell PLC",
-        "sector": "Energía",
-        "description": "Multinacional energética integrada",
-    },
-    "TTE": {
-        "name": "TotalEnergies SE",
-        "sector": "Energía",
-        "description": "Compañía energética multinacional",
-    },
-    "COP": {
-        "name": "ConocoPhillips",
-        "sector": "Energía",
-        "description": "Exploración y producción de petróleo y gas",
-    },
-    "EOG": {
-        "name": "EOG Resources Inc.",
-        "sector": "Energía",
-        "description": "Exploración y producción de petróleo",
-    },
-    "PXD": {
-        "name": "Pioneer Natural Resources Co.",
-        "sector": "Energía",
-        "description": "Compañía de exploración y producción de petróleo",
-    },
-    "DVN": {
-        "name": "Devon Energy Corp.",
-        "sector": "Energía",
-        "description": "Compañía independiente de petróleo y gas",
-    },
-    "MPC": {
-        "name": "Marathon Petroleum Corp.",
-        "sector": "Energía",
-        "description": "Refinación y comercialización de petróleo",
-    },
-    "PSX": {
-        "name": "Phillips 66",
-        "sector": "Energía",
-        "description": "Refinación de petróleo y productos químicos",
-    },
-    # Salud
-    "JNJ": {
-        "name": "Johnson & Johnson",
-        "sector": "Salud",
-        "description": "Productos farmacéuticos y dispositivos médicos",
-    },
-    "UNH": {
-        "name": "UnitedHealth Group Inc.",
-        "sector": "Salud",
-        "description": "Seguros médicos y servicios de salud",
-    },
-    "PFE": {
-        "name": "Pfizer Inc.",
-        "sector": "Salud",
-        "description": "Farmacéutica multinacional",
-    },
-    "MRK": {
-        "name": "Merck & Co Inc.",
-        "sector": "Salud",
-        "description": "Compañía farmacéutica global",
-    },
-    "ABBV": {
-        "name": "AbbVie Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología y productos farmacéuticos",
-    },
-    "LLY": {
-        "name": "Eli Lilly and Co.",
-        "sector": "Salud",
-        "description": "Farmacéutica especializada en medicamentos innovadores",
-    },
-    "AMGN": {
-        "name": "Amgen Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología y terapias médicas",
-    },
-    "BMY": {
-        "name": "Bristol-Myers Squibb Co.",
-        "sector": "Salud",
-        "description": "Compañía biofarmacéutica global",
-    },
-    "GILD": {
-        "name": "Gilead Sciences Inc.",
-        "sector": "Salud",
-        "description": "Biotecnología especializada en antivirales",
-    },
-    "TMO": {
-        "name": "Thermo Fisher Scientific Inc.",
-        "sector": "Salud",
-        "description": "Equipamiento científico y servicios de laboratorio",
-    },
-    # Consumo Discrecional
-    "MCD": {
-        "name": "McDonald's Corp.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena mundial de restaurantes de comida rápida",
-    },
-    "SBUX": {
-        "name": "Starbucks Corp.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena internacional de cafeterías",
-    },
-    "NKE": {
-        "name": "Nike Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Fabricante de calzado y ropa deportiva",
-    },
-    "TGT": {
-        "name": "Target Corporation",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena minorista de grandes almacenes",
-    },
-    "HD": {
-        "name": "Home Depot Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de mejoras para el hogar",
-    },
-    "LOW": {
-        "name": "Lowe's Companies Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de artículos para el hogar",
-    },
-    "TJX": {
-        "name": "TJX Companies Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de ropa y artículos para el hogar",
-    },
-    "ROST": {
-        "name": "Ross Stores Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Minorista de descuento de ropa y hogar",
-    },
-    "CMG": {
-        "name": "Chipotle Mexican Grill Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Cadena de restaurantes de comida rápida mexicana",
-    },
-    "DHI": {
-        "name": "D.R. Horton Inc.",
-        "sector": "Consumo Discrecional",
-        "description": "Constructora residencial",
-    },
-    # Cripto ETFs
-    "BITO": {
-        "name": "ProShares Bitcoin Strategy ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF vinculado a futuros de Bitcoin",
-    },
-    "GBTC": {
-        "name": "Grayscale Bitcoin Trust",
-        "sector": "Cripto ETF",
-        "description": "Fideicomiso de inversión en Bitcoin",
-    },
-    "ETHE": {
-        "name": "Grayscale Ethereum Trust",
-        "sector": "Cripto ETF",
-        "description": "Fideicomiso de inversión en Ethereum",
-    },
-    "ARKW": {
-        "name": "ARK Next Generation Internet ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF con exposición a blockchain y cripto",
-    },
-    "BLOK": {
-        "name": "Amplify Transformational Data Sharing ETF",
-        "sector": "Cripto ETF",
-        "description": "ETF enfocado en tecnologías blockchain",
-    },
-    # Materias Primas
-    "GLD": {
-        "name": "SPDR Gold Shares",
-        "sector": "Materias Primas",
-        "description": "ETF respaldado por oro físico",
-    },
-    "SLV": {
-        "name": "iShares Silver Trust",
-        "sector": "Materias Primas",
-        "description": "ETF respaldado por plata física",
-    },
-    "USO": {
-        "name": "United States Oil Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado al precio del petróleo",
-    },
-    "UNG": {
-        "name": "United States Natural Gas Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado al precio del gas natural",
-    },
-    "CORN": {
-        "name": "Teucrium Corn Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de maíz",
-    },
-    "SOYB": {
-        "name": "Teucrium Soybean Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de soja",
-    },
-    "WEAT": {
-        "name": "Teucrium Wheat Fund",
-        "sector": "Materias Primas",
-        "description": "ETF vinculado a futuros de trigo",
-    },
-    # Bonos
-    "AGG": {
-        "name": "iShares Core U.S. Aggregate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de grado de inversión",
-    },
-    "BND": {
-        "name": "Vanguard Total Bond Market ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de amplio mercado",
-    },
-    "IEF": {
-        "name": "iShares 7-10 Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a 7-10 años",
-    },
-    "TLT": {
-        "name": "iShares 20+ Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a largo plazo",
-    },
-    "LQD": {
-        "name": "iShares iBoxx $ Investment Grade Corporate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos corporativos grado inversión",
-    },
-    "HYG": {
-        "name": "iShares iBoxx $ High Yield Corporate Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos de alto rendimiento",
-    },
-    "JNK": {
-        "name": "SPDR Bloomberg High Yield Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos basura",
-    },
-    "TIP": {
-        "name": "iShares TIPS Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos protegidos contra inflación",
-    },
-    "MUB": {
-        "name": "iShares National Muni Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos municipales",
-    },
-    "SHY": {
-        "name": "iShares 1-3 Year Treasury Bond ETF",
-        "sector": "Bonos",
-        "description": "ETF de bonos del Tesoro a corto plazo",
-    },
-    # Inmobiliario
-    "VNQ": {
-        "name": "Vanguard Real Estate ETF",
-        "sector": "Inmobiliario",
-        "description": "ETF del sector inmobiliario",
-    },
-    "XLRE": {
-        "name": "Real Estate Select Sector SPDR Fund",
-        "sector": "Inmobiliario",
-        "description": "ETF de bienes raíces",
-    },
-    "REIT": {
-        "name": "iShares Global REIT ETF",
-        "sector": "Inmobiliario",
-        "description": "ETF global de REITs",
-    },
-    "HST": {
-        "name": "Host Hotels & Resorts Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de hoteles de lujo",
-    },
-    "EQR": {
-        "name": "Equity Residential",
-        "sector": "Inmobiliario",
-        "description": "REIT de apartamentos residenciales",
-    },
-    "AVB": {
-        "name": "AvalonBay Communities Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de comunidades residenciales",
-    },
-    "PLD": {
-        "name": "Prologis Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de almacenes logísticos",
-    },
-    "SPG": {
-        "name": "Simon Property Group Inc.",
-        "sector": "Inmobiliario",
-        "description": "REIT de centros comerciales",
-    },
-    "AMT": {
-        "name": "American Tower Corporation",
-        "sector": "Inmobiliario",
-        "description": "REIT de torres de comunicaciones",
-    },
-    # Volatilidad
-    "VXX": {
-        "name": "iPath Series B S&P 500 VIX Short-Term Futures ETN",
-        "sector": "Volatilidad",
-        "description": "Vinculado a futuros de VIX a corto plazo",
-    },
-    "UVXY": {
-        "name": "ProShares Ultra VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "ETF apalancado vinculado al VIX",
-    },
-    "SVXY": {
-        "name": "ProShares Short VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "ETF inverso vinculado al VIX",
-    },
-    "VIXY": {
-        "name": "ProShares VIX Short-Term Futures ETF",
-        "sector": "Volatilidad",
-        "description": "Exposición directa a futuros del VIX",
-    },
-    # Forex (Principales pares por volumen)
-    "EURUSD": {
-        "name": "Euro/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Par más negociado del mundo",
-    },
-    "USDJPY": {
-        "name": "Dólar Estadounidense/Yen Japonés",
-        "sector": "Forex",
-        "description": "Par clave de Asia con alta liquidez",
-    },
-    "GBPUSD": {
-        "name": "Libra Esterlina/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Volátil par influenciado por política del Reino Unido",
-    },
-    "USDCHF": {
-        "name": "Dólar Estadounidense/Franco Suizo",
-        "sector": "Forex",
-        "description": "Par considerado 'refugio seguro'",
-    },
-    "AUDUSD": {
-        "name": "Dólar Australiano/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Vinculado a materias primas y China",
-    },
-    "USDCAD": {
-        "name": "Dólar Estadounidense/Dólar Canadiense",
-        "sector": "Forex",
-        "description": "Par sensible al precio del petróleo",
-    },
-    "NZDUSD": {
-        "name": "Dólar Neozelandés/Dólar Estadounidense",
-        "sector": "Forex",
-        "description": "Conocido como 'kiwi', volátil en sesiones asiáticas",
-    },
-    "EURGBP": {
-        "name": "Euro/Libra Esterlina",
-        "sector": "Forex",
-        "description": "Par clave europeo con alta liquidez",
-    },
-    "EURJPY": {
-        "name": "Euro/Yen Japonés",
-        "sector": "Forex",
-        "description": "Cruce importante entre economías principales",
-    },
-    "GBPJPY": {
-        "name": "Libra Esterlina/Yen Japonés",
-        "sector": "Forex",
-        "description": "Par volátil popular entre traders intradía",
-    },
-    "USDCNH": {
-        "name": "Dólar Estadounidense/Yuan Chino",
-        "sector": "Forex",
-        "description": "Par clave para exposición a China",
-    },
-    "USDINR": {
-        "name": "Dólar Estadounidense/Rupia India",
-        "sector": "Forex",
-        "description": "Par emergente con creciente importancia",
-    },
-    "USDTRY": {
-        "name": "Dólar Estadounidense/Lira Turca",
-        "sector": "Forex",
-        "description": "Par emergente de alta volatilidad",
-    },
-}
-
-# Universo de Trading
-SYMBOLS = {
-    "Índices": ["SPY", "QQQ", "DIA", "IWM", "EFA", "VWO", "IYR", "XLE", "XLF", "XLV"],
-    "Tecnología": [
-        "AAPL",
-        "MSFT",
-        "GOOGL",
-        "AMZN",
-        "TSLA",
-        "NVDA",
-        "META",
-        "NFLX",
-        "PYPL",
-        "CRM",
-    ],
-    "Finanzas": ["JPM", "BAC", "WFC", "C", "GS", "MS", "V", "MA", "AXP", "BLK"],
-    "Energía": ["XOM", "CVX", "SHEL", "TTE", "COP", "EOG", "PXD", "DVN", "MPC", "PSX"],
-    "Salud": ["JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "AMGN", "BMY", "GILD", "TMO"],
-    "Consumo Discrecional": [
-        "MCD",
-        "SBUX",
-        "NKE",
-        "TGT",
-        "HD",
-        "LOW",
-        "TJX",
-        "ROST",
-        "CMG",
-        "DHI",
-    ],
-    "Cripto ETFs": ["BITO", "GBTC", "ETHE", "ARKW", "BLOK"],
-    "Materias Primas": ["GLD", "SLV", "USO", "UNG", "CORN", "SOYB", "WEAT"],
-    "Bonos": ["AGG", "BND", "IEF", "TLT", "LQD", "HYG", "JNK", "TIP", "MUB", "SHY"],
-    "Inmobiliario": [
-        "VNQ",
-        "XLRE",
-        "IYR",
-        "REIT",
-        "HST",
-        "EQR",
-        "AVB",
-        "PLD",
-        "SPG",
-        "AMT",
-    ],
-    "Volatilidad": ["VXX", "UVXY", "SVXY", "VIXY"],
-    "Forex": [
-        "EURUSD",
-        "USDJPY",
-        "GBPUSD",
-        "USDCHF",
-        "AUDUSD",
-        "USDCAD",
-        "NZDUSD",
-        "EURGBP",
-        "EURJPY",
-        "GBPJPY",
-        "USDCNH",
-        "USDINR",
-        "USDTRY",
-    ],
-}
+# Importar información de símbolos y nombres completos desde company_data.py
+from company_data import COMPANY_INFO, SYMBOLS, get_company_info
 
 # Estilos personalizados
 st.markdown(
@@ -1091,19 +480,54 @@ st.markdown(
 
     /* Estilos para scanner de mercado */
     .scanner-result {
-        background-color: #f8f9fa;
+        background-color: rgba(248, 249, 250, 0.1);
         padding: 10px;
         border-radius: 5px;
         margin-bottom: 10px;
         border-left: 4px solid #1E88E5;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
     }
 
     .scanner-result.call {
         border-left: 4px solid #4CAF50;
+        background-color: rgba(76, 175, 80, 0.1);
     }
 
     .scanner-result.put {
         border-left: 4px solid #F44336;
+        background-color: rgba(244, 67, 54, 0.1);
+    }
+
+    /* Mejoras para modo oscuro */
+    @media (prefers-color-scheme: dark) {
+        .scanner-result {
+            background-color: rgba(30, 30, 30, 0.6);
+            border-color: #1E88E5;
+        }
+
+        .scanner-result.call {
+            background-color: rgba(76, 175, 80, 0.15);
+            border-color: #4CAF50;
+        }
+
+        .scanner-result.put {
+            background-color: rgba(244, 67, 54, 0.15);
+            border-color: #F44336;
+        }
+
+        .expert-container {
+            background-color: rgba(30, 30, 30, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .expert-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .expert-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.6);
+        }
     }
 
     .login-container {
@@ -3934,30 +3358,7 @@ def display_web_insights(context):
 # FUNCIONES DE VISUALIZACIÓN AVANZADA
 # =================================================
 
-
-def get_company_info(symbol):
-    """Obtiene información completa de la empresa o activo"""
-    # Si el símbolo está en nuestra base de datos de información de compañías
-    if symbol in COMPANY_INFO:
-        return COMPANY_INFO[symbol]
-
-    # Información para símbolos no conocidos explícitamente
-    # Determinar a qué categoría pertenece
-    category = None
-    for cat, symbols in SYMBOLS.items():
-        if symbol in symbols:
-            category = cat
-            break
-
-    if not category:
-        category = "No categorizado"
-
-    # Crear información básica
-    return {
-        "name": f"{symbol}",
-        "sector": category,
-        "description": f"Activo financiero negociado bajo el símbolo {symbol}",
-    }
+# La función get_company_info ha sido movida a company_data.py e importada al inicio del archivo
 
 
 def display_technical_summary(symbol, technical_data):
@@ -6982,6 +6383,9 @@ def check_authentication():
 
 def main():
     """Función principal de la aplicación"""
+    # Importar get_company_info para asegurar que esté disponible en este ámbito
+    from company_data import get_company_info
+
     try:
         # Verificar autenticación primero
         if not check_authentication():
@@ -8001,8 +7405,127 @@ def main():
                                                 f"No se pudo obtener noticias actualizadas: {str(e)}"
                                             )
 
-                                    # Solo guardar si no existe y está completa
-                                    if not existing_signals and is_complete:
+                                    # Procesar la señal con ai_utils para mejorar la calidad de la información
+                                    try:
+                                        # Importar utilidades de IA
+                                        from ai_utils import process_expert_analysis
+                                        from company_data import get_company_info
+
+                                        # Obtener información completa de la empresa
+                                        company_info = get_company_info(
+                                            signal["symbol"]
+                                        )
+                                        company_name = company_info.get(
+                                            "name", signal["symbol"]
+                                        )
+                                        company_description = company_info.get(
+                                            "description", ""
+                                        )
+
+                                        # Añadir información de la empresa a la señal
+                                        signal["company_name"] = company_name
+                                        signal["company_description"] = (
+                                            company_description
+                                        )
+
+                                        # Obtener contexto de mercado para el símbolo
+                                        try:
+                                            # Usar la función get_market_context ya importada al inicio del archivo
+                                            context = get_market_context(
+                                                signal["symbol"]
+                                            )
+                                        except Exception as context_error:
+                                            logger.warning(
+                                                f"Error obteniendo contexto de mercado: {str(context_error)}"
+                                            )
+                                            context = {
+                                                "symbol": signal["symbol"],
+                                                "last_price": signal.get("price", 0),
+                                                "change_percent": 0,
+                                                "signals": {},
+                                            }
+
+                                        # Si tenemos acceso a OpenAI, procesar con el experto
+                                        if (
+                                            "openai" in sys.modules
+                                            and st.session_state.get("openai_api_key")
+                                        ):
+                                            import openai
+
+                                            client = openai.OpenAI(
+                                                api_key=st.session_state.get(
+                                                    "openai_api_key"
+                                                )
+                                            )
+
+                                            # Obtener ID del asistente
+                                            assistant_id = st.session_state.get(
+                                                "assistant_id"
+                                            )
+
+                                            if client and assistant_id and context:
+                                                # Mostrar mensaje de procesamiento
+                                                processing_msg = st.info(
+                                                    f"Procesando análisis experto para {signal['symbol']}..."
+                                                )
+
+                                                # Procesar análisis experto
+                                                expert_analysis = (
+                                                    process_expert_analysis(
+                                                        client,
+                                                        assistant_id,
+                                                        signal["symbol"],
+                                                        context,
+                                                    )
+                                                )
+
+                                                if (
+                                                    expert_analysis
+                                                    and len(expert_analysis) > 100
+                                                ):
+                                                    # Actualizar campos de la señal con el análisis experto
+                                                    signal["expert_analysis"] = (
+                                                        expert_analysis
+                                                    )
+
+                                                    # Extraer recomendación final
+                                                    if (
+                                                        "RECOMENDACIÓN FINAL"
+                                                        in expert_analysis
+                                                    ):
+                                                        recommendation_section = (
+                                                            expert_analysis.split(
+                                                                "RECOMENDACIÓN FINAL"
+                                                            )[1].strip()
+                                                        )
+                                                        if (
+                                                            "CALL"
+                                                            in recommendation_section.upper()
+                                                        ):
+                                                            signal["recommendation"] = (
+                                                                "COMPRAR"
+                                                            )
+                                                        elif (
+                                                            "PUT"
+                                                            in recommendation_section.upper()
+                                                        ):
+                                                            signal["recommendation"] = (
+                                                                "VENDER"
+                                                            )
+                                                        else:
+                                                            signal["recommendation"] = (
+                                                                "MANTENER"
+                                                            )
+
+                                                # Eliminar mensaje de procesamiento
+                                                processing_msg.empty()
+                                    except Exception as ai_error:
+                                        logger.warning(
+                                            f"Error procesando análisis experto: {str(ai_error)}"
+                                        )
+
+                                    # Guardar la señal (permitir múltiples señales del mismo símbolo si la información está completa)
+                                    if is_complete:
                                         try:
                                             # Guardar señal en la base de datos
                                             signal_id = (
@@ -8015,9 +7538,21 @@ def main():
                                                 logger.info(
                                                     f"Señal guardada para {signal['symbol']} con ID: {signal_id}"
                                                 )
-                                                # Mostrar mensaje de éxito en la interfaz
-                                                st.success(
-                                                    f"Señal guardada para {signal['symbol']} con ID: {signal_id}"
+                                                # Acumular mensaje de éxito para mostrar al final
+                                                if (
+                                                    "saved_signals_info"
+                                                    not in st.session_state
+                                                ):
+                                                    st.session_state.saved_signals_info = (
+                                                        []
+                                                    )
+
+                                                st.session_state.saved_signals_info.append(
+                                                    {
+                                                        "symbol": signal["symbol"],
+                                                        "id": signal_id,
+                                                        "news_count": 0,  # Se actualizará después
+                                                    }
                                                 )
 
                                                 # Guardar noticias y sentimiento de mercado
@@ -8038,9 +7573,29 @@ def main():
                                                         logger.info(
                                                             f"Noticias guardadas para {signal['symbol']}: {len(news_ids)} registros"
                                                         )
-                                                        st.success(
-                                                            f"Noticias guardadas: {len(news_ids)} registros"
-                                                        )
+                                                        # Actualizar contador de noticias en la información de señales guardadas
+                                                        if (
+                                                            "saved_signals_info"
+                                                            in st.session_state
+                                                            and st.session_state.saved_signals_info
+                                                        ):
+                                                            for i, info in enumerate(
+                                                                st.session_state.saved_signals_info
+                                                            ):
+                                                                if (
+                                                                    info["symbol"]
+                                                                    == signal["symbol"]
+                                                                    and info["id"]
+                                                                    == signal_id
+                                                                ):
+                                                                    st.session_state.saved_signals_info[
+                                                                        i
+                                                                    ][
+                                                                        "news_count"
+                                                                    ] = len(
+                                                                        news_ids
+                                                                    )
+                                                                    break
 
                                                     # Guardar sentimiento si es una señal de alta confianza
                                                     if signal.get("is_high_confidence"):
@@ -8104,9 +7659,36 @@ def main():
                                     )
 
                             if signals_saved > 0:
-                                st.success(
-                                    f"Se guardaron {signals_saved} señales en la base de datos"
-                                )
+                                # Mostrar resumen completo de las señales guardadas
+                                if (
+                                    "saved_signals_info" in st.session_state
+                                    and st.session_state.saved_signals_info
+                                ):
+                                    # Crear un mensaje de resumen más detallado
+                                    summary_msg = f"<h4>Se guardaron {signals_saved} señales en la base de datos</h4>"
+                                    summary_msg += "<ul>"
+
+                                    total_news = 0
+                                    for info in st.session_state.saved_signals_info:
+                                        summary_msg += f"<li><b>{info['symbol']}</b> - ID: {info['id']}, Noticias: {info['news_count']}</li>"
+                                        total_news += info["news_count"]
+
+                                    summary_msg += "</ul>"
+
+                                    # Añadir resumen de noticias y sentimiento
+                                    if total_news > 0:
+                                        summary_msg += f"<p>Total de noticias guardadas: {total_news}</p>"
+
+                                    # Mostrar el resumen con formato HTML
+                                    st.markdown(summary_msg, unsafe_allow_html=True)
+
+                                    # Limpiar la información de señales guardadas
+                                    st.session_state.saved_signals_info = []
+                                else:
+                                    st.success(
+                                        f"Se guardaron {signals_saved} señales en la base de datos"
+                                    )
+
                                 st.session_state.signals_saved = True
             except Exception as e:
                 st.error(f"Error al renderizar el scanner mejorado: {str(e)}")
