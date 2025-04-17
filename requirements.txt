@@ -29,6 +29,8 @@ logging
 tenacity
 seaborn
 statsmodels
+markdown>=3.4.0
+pdfkit>=1.0.0
 
 # Base de datos y correo
 mysql-connector-python>=8.0.0

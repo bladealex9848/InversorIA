@@ -24,7 +24,7 @@ def get_db_config():
         "port": 3306,
         "user": "root",
         "password": "",
-        "database": "liceopan_enki_sincelejo",
+        "database": "inversoria_db",
     }
 
 def check_market_news(connection):

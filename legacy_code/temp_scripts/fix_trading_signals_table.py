@@ -50,7 +50,7 @@ def get_db_config():
                 "port": 3306,
                 "user": "root",
                 "password": "",
-                "database": "liceopan_enki_sincelejo",
+                "database": "inversoria_db",
             }
     except Exception as e:
         logger.error(f"Error obteniendo configuración de BD: {str(e)}")
@@ -59,7 +59,7 @@ def get_db_config():
             "port": 3306,
             "user": "root",
             "password": "",
-            "database": "liceopan_enki_sincelejo",
+            "database": "inversoria_db",
         }
 
 def execute_query(connection, query, params=None, fetch=True):

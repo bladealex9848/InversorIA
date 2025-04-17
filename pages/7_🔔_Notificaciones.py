@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import logging
 import socket
 import time
@@ -8,7 +7,6 @@ import smtplib
 import mysql.connector
 import sys
 import os
-import io
 import decimal
 
 # import tempfile  # No se utiliza, usar carpeta 'temp' para archivos temporales
@@ -17,7 +15,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 
 # Intentar importar pdfkit para la generación de PDF
 try:
@@ -723,6 +720,23 @@ class EmailManager:
                             <!-- CONTENIDO -->
                             <tr>
                                 <td style="padding: 30px 20px;">
+                                    <!-- Introducción contextual del boletín -->
+                                    <div style="margin-bottom: 30px;">
+                                        <p style="margin: 0 0 15px; line-height: 1.6; color: #444;">
+                                            Estimado inversor,
+                                        </p>
+                                        <p style="margin: 0 0 15px; line-height: 1.6; color: #444;">
+                                            Le presentamos nuestro boletín de trading con las oportunidades más relevantes identificadas por InversorIA Pro.
+                                            En un mercado caracterizado por {self._get_market_context(market_sentiment)},
+                                            nuestros algoritmos han detectado señales que podrían representar oportunidades significativas.
+                                        </p>
+                                        <p style="margin: 0 0 15px; line-height: 1.6; color: #444;">
+                                            A continuación encontrará un análisis detallado de cada activo, con recomendaciones específicas
+                                            y niveles clave a vigilar. Recuerde que estas señales son el resultado de un análisis técnico y fundamental
+                                            exhaustivo, complementado con la evaluación de nuestro Trading Specialist.
+                                        </p>
+                                    </div>
+
                                     <h2 style="color: #2c3e50; font-size: 22px; margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid #eaeaea; padding-bottom: 10px; font-family: Arial, sans-serif;">Señales de Trading Recientes</h2>
         """
 
@@ -1011,23 +1025,71 @@ class EmailManager:
                         </table>
                         """
 
-                    # Análisis técnico
-                    html += f"""
-                    <p style="margin: 15px 0; font-size: 15px; line-height: 1.6;">
-                        {signal.get('analysis', 'No hay análisis disponible.')}
-                    </p>
-                    """
+                    # Usar el análisis experto si está disponible, o los análisis básicos si no
+                    expert_analysis = signal.get("expert_analysis", "")
 
-                    # Añadir análisis técnico si está disponible
-                    if signal.get("technical_analysis"):
+                    if (
+                        expert_analysis and len(expert_analysis) > 50
+                    ):  # Verificar que sea un análisis sustancial
+                        # Convertir el formato markdown a HTML para el correo
+                        try:
+                            # Importar markdown para convertir el formato
+                            import markdown
+
+                            # Convertir markdown a HTML
+                            expert_html = markdown.markdown(expert_analysis)
+
+                            # Aplicar estilos adicionales para mejorar la presentación
+                            expert_html = expert_html.replace(
+                                "<h2>",
+                                '<h2 style="color: #2c3e50; font-size: 18px; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">',
+                            )
+                            expert_html = expert_html.replace(
+                                "<p>",
+                                '<p style="margin: 10px 0; font-size: 14px; line-height: 1.6; color: #444;">',
+                            )
+                            expert_html = expert_html.replace(
+                                "<ul>",
+                                '<ul style="margin: 10px 0; padding-left: 20px;">',
+                            )
+                            expert_html = expert_html.replace(
+                                "<li>",
+                                '<li style="margin: 5px 0; font-size: 14px; line-height: 1.6; color: #444;">',
+                            )
+
+                            html += f"""
+                            <div style="margin-top: 15px; background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+                                {expert_html}
+                            </div>
+                            """
+                        except Exception as e:
+                            logger.warning(
+                                f"Error al convertir markdown a HTML: {str(e)}"
+                            )
+                            # Si falla la conversión, mostrar el texto plano con formato básico
+                            html += f"""
+                            <div style="margin-top: 15px; background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+                                <pre style="white-space: pre-wrap; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #444;">{expert_analysis}</pre>
+                            </div>
+                            """
+                    else:
+                        # Usar los análisis básicos si no hay análisis experto
                         html += f"""
-                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-                            <p style="margin: 0 0 10px; font-weight: bold; color: #2c3e50;">Análisis Técnico:</p>
-                            <p style="margin: 0; font-size: 14px; line-height: 1.6;">
-                                {signal.get('technical_analysis')}
-                            </p>
-                        </div>
+                        <p style="margin: 15px 0; font-size: 15px; line-height: 1.6;">
+                            {signal.get('analysis', 'No hay análisis disponible.')}
+                        </p>
                         """
+
+                        # Añadir análisis técnico si está disponible
+                        if signal.get("technical_analysis"):
+                            html += f"""
+                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                                <p style="margin: 0 0 10px; font-weight: bold; color: #2c3e50;">Análisis Técnico:</p>
+                                <p style="margin: 0; font-size: 14px; line-height: 1.6;">
+                                    {signal.get('technical_analysis')}
+                                </p>
+                            </div>
+                            """
 
                     # Recomendación final
                     recommendation = signal.get("recommendation")
@@ -1110,6 +1172,10 @@ class EmailManager:
         # Sección de noticias
         html += """
         <h2 style="color: #2c3e50; font-size: 22px; margin-top: 30px; margin-bottom: 20px; border-bottom: 2px solid #eaeaea; padding-bottom: 10px; font-family: Arial, sans-serif;">Noticias Relevantes</h2>
+        <p style="margin: 0 0 20px; line-height: 1.6; color: #444;">
+            A continuación presentamos las noticias más relevantes que podrían impactar sus decisiones de inversión.
+            Estas noticias han sido seleccionadas por su potencial impacto en los mercados y en los activos destacados en este boletín.
+        </p>
         """
 
         if news_summary and len(news_summary) > 0:
@@ -1178,8 +1244,9 @@ class EmailManager:
                             <!-- FOOTER -->
                             <tr>
                                 <td style="padding: 30px 20px; background-color: #f8f9fa; border-top: 1px solid #eaeaea; border-radius: 0 0 8px 8px; color: #6c757d; text-align: center; font-size: 12px;">
-                                    <p style="margin: 0 0 10px;">Este boletín es generado automáticamente por InversorIA Pro. La información proporcionada es solo para fines educativos y no constituye asesoramiento financiero.</p>
-                                    <p style="margin: 0 0 10px;">Los datos presentados son calculados utilizando análisis técnico avanzado y algoritmos de inteligencia artificial.</p>
+                                    <p style="margin: 0 0 15px;"><strong>Aviso importante:</strong> Este boletín es generado automáticamente por InversorIA Pro. La información proporcionada es solo para fines educativos y no constituye asesoramiento financiero.</p>
+                                    <p style="margin: 0 0 15px;">Los datos presentados son calculados utilizando análisis técnico avanzado, algoritmos de inteligencia artificial y evaluación de expertos en trading. Recuerde que toda inversión conlleva riesgos y los resultados pasados no garantizan rendimientos futuros.</p>
+                                    <p style="margin: 0 0 15px;">Para obtener análisis más detallados y personalizados, le recomendamos consultar la plataforma completa de InversorIA Pro, donde encontrará herramientas adicionales y funcionalidades avanzadas.</p>
                                     <p style="margin: 0;">&copy; 2025 InversorIA Pro. Todos los derechos reservados.</p>
                                 </td>
                             </tr>
@@ -1192,6 +1259,95 @@ class EmailManager:
         """
 
         return html
+
+    def _get_market_context(self, market_sentiment):
+        """Genera un contexto de mercado basado en el sentimiento"""
+        if not market_sentiment:
+            return "un mercado en constante evolución"
+
+        overall = market_sentiment.get("overall", "Neutral")
+        vix_value = market_sentiment.get("vix", "")
+        sp500_trend = market_sentiment.get("sp500_trend", "")
+        volume = market_sentiment.get("volume", "")
+
+        # Convertir valores numéricos a cadenas de texto
+        vix_description = ""
+        if vix_value is not None:
+            try:
+                # Si es un valor numérico, interpretarlo
+                if isinstance(vix_value, (int, float)) or (
+                    isinstance(vix_value, str)
+                    and vix_value.replace(".", "", 1).isdigit()
+                ):
+                    vix_num = (
+                        float(vix_value) if isinstance(vix_value, str) else vix_value
+                    )
+                    if vix_num < 15:
+                        vix_description = "bajo"
+                    elif vix_num < 25:
+                        vix_description = "moderado"
+                    else:
+                        vix_description = "alto"
+                elif isinstance(vix_value, str):
+                    # Si es texto, usar directamente
+                    vix_description = vix_value.lower()
+            except (ValueError, TypeError):
+                # Si hay error al convertir, usar un valor por defecto
+                vix_description = (
+                    "" if not isinstance(vix_value, str) else vix_value.lower()
+                )
+
+        # Construir descripción del contexto
+        if overall == "Alcista":
+            context = "un mercado con tendencia alcista"
+            if (
+                sp500_trend
+                and isinstance(sp500_trend, str)
+                and "alcista" in sp500_trend.lower()
+            ):
+                context += ", respaldado por un S&P 500 en ascenso"
+            if vix_description and any(
+                x in vix_description
+                for x in ["bajo", "disminuyendo", "cayendo", "moderado"]
+            ):
+                context += " y niveles de volatilidad controlados"
+            elif vix_description and any(
+                x in vix_description for x in ["alto", "elevado", "aumentando"]
+            ):
+                context += ", aunque con cierta volatilidad presente"
+        elif overall == "Bajista":
+            context = "un mercado con tendencia bajista"
+            if (
+                sp500_trend
+                and isinstance(sp500_trend, str)
+                and "bajista" in sp500_trend.lower()
+            ):
+                context += ", con un S&P 500 en descenso"
+            if vix_description and any(
+                x in vix_description for x in ["alto", "elevado", "aumentando"]
+            ):
+                context += " y alta volatilidad"
+        else:  # Neutral
+            context = "un mercado con tendencia neutral"
+            if vix_description and any(
+                x in vix_description for x in ["alto", "elevado", "aumentando"]
+            ):
+                context += (
+                    " pero con volatilidad elevada que podría generar oportunidades"
+                )
+            elif vix_description and any(
+                x in vix_description
+                for x in ["bajo", "disminuyendo", "cayendo", "moderado"]
+            ):
+                context += " y baja volatilidad"
+
+        # Añadir información de volumen si está disponible
+        if volume and isinstance(volume, str) and "alto" in volume.lower():
+            context += ", con volumen de negociación significativo"
+        elif volume and isinstance(volume, str) and "bajo" in volume.lower():
+            context += ", aunque con volumen de negociación reducido"
+
+        return context
 
     def generate_pdf(self, html_content):
         """Genera un PDF a partir del contenido HTML"""

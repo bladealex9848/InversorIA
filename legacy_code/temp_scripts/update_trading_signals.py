@@ -80,7 +80,7 @@ def connect_to_db():
             'host': 'localhost',
             'user': 'root',
             'password': '',
-            'database': 'liceopan_enki_sincelejo'
+            'database': 'inversoria_db'
         }
     
     # Conectar a la base de datos

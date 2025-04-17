@@ -12,11 +12,11 @@ from datetime import datetime
 def connect_to_db():
     # Usar credenciales proporcionadas
     db_config = {
-        "host": "190.8.178.74",
+        "host": "localhost",
         "port": 3306,
-        "user": "liceopan_root",
-        "password": "@Soporte2020@",
-        "database": "liceopan_enki_sincelejo",
+        "user": "db_user",
+        "password": "db_password",
+        "database": "inversoria_db",
     }
     print("Usando configuración de base de datos proporcionada")
 

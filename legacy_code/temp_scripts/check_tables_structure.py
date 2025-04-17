@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 # Credenciales de la base de datos
 DB_CONFIG = {
-    "host": "190.8.178.74",
+    "host": "localhost",
     "port": 3306,
-    "user": "liceopan_root",
-    "password": "@Soporte2020@",
-    "database": "liceopan_enki_sincelejo",
+    "user": "db_user",
+    "password": "db_password",
+    "database": "inversoria_db",
 }
 
 def check_table_structure(table_name):
