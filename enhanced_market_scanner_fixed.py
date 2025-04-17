@@ -245,11 +245,11 @@ def render_enhanced_market_scanner(
             if not high_confidence.empty:
                 st.markdown("#### 🌟 Oportunidades de Alta Confianza")
 
-                # Selector para activos de alta confianza
+                # Selector para activos de alta confianza con más información
                 selected_high_conf = st.selectbox(
                     "Seleccionar Activo de Alta Confianza",
                     options=high_confidence["Symbol"].tolist(),
-                    format_func=lambda x: f"{x} - {high_confidence[high_confidence['Symbol'] == x]['Estrategia'].values[0]} - {high_confidence[high_confidence['Symbol'] == x]['Setup'].values[0]}",
+                    format_func=lambda x: f"{x} - {high_confidence[high_confidence['Symbol'] == x]['Estrategia'].values[0]} - {high_confidence[high_confidence['Symbol'] == x]['Setup'].values[0]} - Confianza: {high_confidence[high_confidence['Symbol'] == x]['Confianza'].values[0]}",
                 )
 
                 if selected_high_conf:

@@ -8003,15 +8003,100 @@ def main():
 
                                     # Solo guardar si no existe y está completa
                                     if not existing_signals and is_complete:
-                                        # Guardar señal en la base de datos
-                                        signal_manager.db_manager.save_signal(signal)
-                                        signals_saved += 1
-                                        logger.info(
-                                            f"Señal guardada para {signal['symbol']} con toda la información completa"
-                                        )
+                                        try:
+                                            # Guardar señal en la base de datos
+                                            signal_id = (
+                                                signal_manager.db_manager.save_signal(
+                                                    signal
+                                                )
+                                            )
+                                            if signal_id:
+                                                signals_saved += 1
+                                                logger.info(
+                                                    f"Señal guardada para {signal['symbol']} con ID: {signal_id}"
+                                                )
+                                                # Mostrar mensaje de éxito en la interfaz
+                                                st.success(
+                                                    f"Señal guardada para {signal['symbol']} con ID: {signal_id}"
+                                                )
+
+                                                # Guardar noticias y sentimiento de mercado
+                                                try:
+                                                    from market_data_manager import (
+                                                        MarketDataManager,
+                                                    )
+
+                                                    market_data_mgr = MarketDataManager(
+                                                        signal_manager.db_manager
+                                                    )
+
+                                                    # Guardar noticias
+                                                    news_ids = market_data_mgr.save_news_from_signal(
+                                                        signal
+                                                    )
+                                                    if news_ids:
+                                                        logger.info(
+                                                            f"Noticias guardadas para {signal['symbol']}: {len(news_ids)} registros"
+                                                        )
+                                                        st.success(
+                                                            f"Noticias guardadas: {len(news_ids)} registros"
+                                                        )
+
+                                                    # Guardar sentimiento si es una señal de alta confianza
+                                                    if signal.get("is_high_confidence"):
+                                                        sentiment_id = market_data_mgr.save_sentiment_from_signal(
+                                                            signal
+                                                        )
+                                                        if sentiment_id:
+                                                            logger.info(
+                                                                f"Sentimiento de mercado guardado con ID: {sentiment_id}"
+                                                            )
+                                                            st.success(
+                                                                f"Sentimiento de mercado actualizado"
+                                                            )
+                                                except Exception as data_error:
+                                                    logger.error(
+                                                        f"Error guardando datos de mercado: {str(data_error)}"
+                                                    )
+                                                    st.warning(
+                                                        f"No se pudieron guardar datos adicionales de mercado: {str(data_error)}"
+                                                    )
+                                            else:
+                                                logger.error(
+                                                    f"Error al guardar la señal para {signal['symbol']}: No se obtuvo ID"
+                                                )
+                                                # Mostrar mensaje de error en la interfaz
+                                                st.error(
+                                                    f"Error al guardar la señal para {signal['symbol']}: No se obtuvo ID"
+                                                )
+                                        except Exception as save_error:
+                                            logger.error(
+                                                f"Error al guardar la señal para {signal['symbol']}: {str(save_error)}"
+                                            )
+                                            # Mostrar mensaje de error en la interfaz
+                                            st.error(
+                                                f"Error al guardar la señal para {signal['symbol']}: {str(save_error)}"
+                                            )
                                     elif not is_complete:
+                                        missing_fields = [
+                                            field
+                                            for field in required_fields
+                                            if not signal.get(field)
+                                        ]
                                         logger.warning(
-                                            f"No se guardó la señal para {signal['symbol']} porque está incompleta"
+                                            f"No se guardó la señal para {signal['symbol']} porque está incompleta. Campos faltantes: {', '.join(missing_fields)}"
+                                        )
+                                        # Mostrar mensaje de advertencia en la interfaz
+                                        st.warning(
+                                            f"No se guardó la señal para {signal['symbol']} porque está incompleta. Campos faltantes: {', '.join(missing_fields)}"
+                                        )
+                                    elif existing_signals:
+                                        logger.info(
+                                            f"La señal para {signal['symbol']} ya existe en la base de datos con ID: {existing_signals[0]['id']}"
+                                        )
+                                        # Mostrar mensaje informativo en la interfaz
+                                        st.info(
+                                            f"La señal para {signal['symbol']} ya existe en la base de datos con ID: {existing_signals[0]['id']}"
                                         )
                                 except Exception as e:
                                     logger.error(

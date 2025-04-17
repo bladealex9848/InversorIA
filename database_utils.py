@@ -12,6 +12,7 @@ from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseManager:
     """Gestiona la conexión y operaciones con la base de datos"""
 
@@ -263,27 +264,65 @@ class DatabaseManager:
         return self.execute_query(query, params)
 
     def save_signal(self, signal_data):
-        """Guarda una señal de trading en la base de datos"""
+        """Guarda una señal de trading en la base de datos con todos los campos disponibles"""
         try:
             if self.connect():
                 cursor = self.connection.cursor()
 
-                # Preparar consulta
+                # Preparar consulta con todos los campos de la tabla
                 query = """INSERT INTO trading_signals
-                          (symbol, price, direction, confidence_level, timeframe,
-                           strategy, category, analysis, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+                          (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                           direction, confidence_level, timeframe, strategy, setup_type,
+                           category, analysis, technical_analysis, support_level, resistance_level,
+                           rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                           trading_specialist_signal, trading_specialist_confidence, sentiment,
+                           sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                           recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                           bullish_indicators, bearish_indicators, is_high_confidence, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                  %s, %s, %s, %s, %s, %s, %s)"""
 
-                # Preparar datos
+                # Preparar datos con todos los campos
                 params = (
                     signal_data.get("symbol", ""),
                     signal_data.get("price", 0.0),
+                    signal_data.get("entry_price", 0.0),
+                    signal_data.get("stop_loss", 0.0),
+                    signal_data.get("target_price", 0.0),
+                    signal_data.get("risk_reward", 0.0),
                     signal_data.get("direction", "NEUTRAL"),
                     signal_data.get("confidence_level", "Baja"),
                     signal_data.get("timeframe", "Corto Plazo"),
                     signal_data.get("strategy", "Análisis Técnico"),
+                    signal_data.get("setup_type", ""),
                     signal_data.get("category", "General"),
                     signal_data.get("analysis", ""),
+                    signal_data.get("technical_analysis", ""),
+                    signal_data.get("support_level", 0.0),
+                    signal_data.get("resistance_level", 0.0),
+                    signal_data.get("rsi", 0.0),
+                    signal_data.get("trend", ""),
+                    signal_data.get("trend_strength", ""),
+                    signal_data.get("volatility", 0.0),
+                    signal_data.get("options_signal", ""),
+                    signal_data.get("options_analysis", ""),
+                    signal_data.get("trading_specialist_signal", ""),
+                    signal_data.get("trading_specialist_confidence", ""),
+                    signal_data.get("sentiment", ""),
+                    signal_data.get("sentiment_score", 0.0),
+                    signal_data.get("latest_news", ""),
+                    signal_data.get("news_source", ""),
+                    signal_data.get("additional_news", ""),
+                    signal_data.get("expert_analysis", ""),
+                    signal_data.get("recommendation", ""),
+                    signal_data.get("mtf_analysis", ""),
+                    signal_data.get("daily_trend", ""),
+                    signal_data.get("weekly_trend", ""),
+                    signal_data.get("monthly_trend", ""),
+                    signal_data.get("bullish_indicators", ""),
+                    signal_data.get("bearish_indicators", ""),
+                    signal_data.get("is_high_confidence", False),
                     signal_data.get("created_at", datetime.now()),
                 )
 
@@ -296,6 +335,9 @@ class DatabaseManager:
                 cursor.close()
                 self.disconnect()
 
+                logger.info(
+                    f"Señal guardada con ID: {signal_id} para símbolo: {signal_data.get('symbol', '')}"
+                )
                 return signal_id
             else:
                 logger.warning(
