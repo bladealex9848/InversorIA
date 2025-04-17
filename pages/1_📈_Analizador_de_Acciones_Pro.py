@@ -261,7 +261,7 @@ def main():
             with col1:
                 st.write("**Últimos Registros**")
                 st.dataframe(
-                    data.tail(10).style.format("{:.2f}"),
+                    data.tail(10.astype(str)).style.format("{:.2f}"),
                     height=400,
                     use_container_width=True
                 )
@@ -280,7 +280,7 @@ def main():
             with col1:
                 st.markdown(f"**Opciones Call ({options_data['expiry']})**")
                 st.dataframe(
-                    options_data["calls"].sort_values("volume", ascending=False).head(10),
+                    options_data["calls"].sort_values("volume".astype(str), ascending=False).head(10),
                     column_config={
                         "strike": "Strike Price",
                         "lastPrice": "Último Precio",
@@ -290,7 +290,7 @@ def main():
             with col2:
                 st.markdown(f"**Opciones Put ({options_data['expiry']})**")
                 st.dataframe(
-                    options_data["puts"].sort_values("volume", ascending=False).head(10),
+                    options_data["puts"].sort_values("volume".astype(str), ascending=False).head(10),
                     column_config={
                         "strike": "Strike Price",
                         "lastPrice": "Último Precio",

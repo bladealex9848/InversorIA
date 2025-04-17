@@ -618,3 +618,32 @@ def display_news_card(news_item):
         """,
         unsafe_allow_html=True,
     )
+
+
+def safe_dataframe(df):
+    """
+    Convierte un DataFrame a un formato seguro para Streamlit
+    
+    Args:
+        df (pd.DataFrame): DataFrame a convertir
+        
+    Returns:
+        pd.DataFrame: DataFrame convertido
+    """
+    if df is None or not isinstance(df, pd.DataFrame):
+        return pd.DataFrame()
+    
+    # Hacer una copia para evitar modificar el original
+    safe_df = df.copy()
+    
+    # Convertir columnas problemáticas a string
+    for col in safe_df.columns:
+        # Verificar si la columna contiene tipos mixtos
+        if safe_df[col].dtype == 'object':
+            safe_df[col] = safe_df[col].astype(str)
+        
+        # Convertir fechas a string
+        elif pd.api.types.is_datetime64_any_dtype(safe_df[col]):
+            safe_df[col] = safe_df[col].astype(str)
+    
+    return safe_df

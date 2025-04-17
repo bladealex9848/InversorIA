@@ -1430,9 +1430,9 @@ class TechnicalAnalyzer:
             if (
                 len(df) < 15
             ):  # Necesitamos al menos 15 puntos para la mayoría de indicadores
-                logger.warning(
-                    f"⚠️ Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles. Se necesitan al menos 20 filas."
-                )
+                if not hasattr(self, "_warning_shown"):
+                    logger.warning(f"⚠️ Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles. Se necesitan al menos 20 filas.")
+                    self._warning_shown = True
                 return df  # Devolver los datos sin procesar si son insuficientes
 
             # Validar y preparar precios

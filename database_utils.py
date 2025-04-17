@@ -682,6 +682,18 @@ class DatabaseManager:
             return None
 
     def save_market_sentiment(self, sentiment_data: Dict[str, Any]) -> Optional[int]:
+
+        # Verificar si ya existe un registro para hoy
+        today = datetime.now().strftime("%Y-%m-%d")
+        check_query = "SELECT id FROM market_sentiment WHERE DATE(created_at) = %s"
+        existing_record = self.execute_query(check_query, params=[today], fetch=True)
+
+        if existing_record and len(existing_record) > 0:
+            logger.info(
+                f"Ya existe un registro de sentimiento de mercado para hoy ({today}). No se guardará otro."
+            )
+            return existing_record[0]["id"]
+
         """Guarda datos de sentimiento de mercado en la base de datos
 
         Args:
@@ -852,8 +864,8 @@ class DatabaseManager:
 
                 # Preparar consulta para insertar nueva noticia
                 query = """INSERT INTO market_news
-                          (title, summary, source, url, news_date, impact, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+                          (title, summary, source, url, news_date, impact, symbol, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
                 # Preparar datos
                 params = (
@@ -863,6 +875,9 @@ class DatabaseManager:
                     cleaned_data.get("url", ""),
                     cleaned_data.get("news_date", datetime.now()),
                     cleaned_data.get("impact", "Medio"),
+                    cleaned_data.get(
+                        "symbol", "SPY"
+                    ),  # Usar SPY como valor por defecto si no hay símbolo
                 )
 
                 # Ejecutar consulta dentro de la transacción
@@ -1107,8 +1122,8 @@ class DatabaseManager:
                         else:
                             # Preparar consulta para insertar noticia
                             query = """INSERT INTO market_news
-                                      (title, summary, source, url, news_date, impact, created_at)
-                                      VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+                                      (title, summary, source, url, news_date, impact, symbol, created_at)
+                                      VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
                             # Preparar datos
                             params = (
@@ -1118,6 +1133,9 @@ class DatabaseManager:
                                 cleaned_data.get("url", ""),
                                 cleaned_data.get("news_date", datetime.now()),
                                 cleaned_data.get("impact", "Medio"),
+                                cleaned_data.get(
+                                    "symbol", "SPY"
+                                ),  # Usar SPY como valor por defecto si no hay símbolo
                             )
 
                             # Ejecutar consulta dentro de la transacción
@@ -1281,8 +1299,8 @@ def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
 
         # Preparar consulta
         query = """INSERT INTO market_news
-                  (title, summary, source, url, news_date, impact, created_at)
-                  VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+                  (title, summary, source, url, news_date, impact, symbol, created_at)
+                  VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
         params = (
             cleaned_data.get("title", ""),
@@ -1291,6 +1309,9 @@ def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
             cleaned_data.get("url", ""),
             cleaned_data.get("news_date", datetime.now()),
             cleaned_data.get("impact", "Medio"),
+            cleaned_data.get(
+                "symbol", "SPY"
+            ),  # Usar SPY como valor por defecto si no hay símbolo
         )
 
         # Ejecutar consulta
@@ -1318,6 +1339,21 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
     """
     try:
         db_manager = DatabaseManager()
+
+        # Verificar si ya existe un registro para hoy
+        today = datetime.now().strftime("%Y-%m-%d")
+        check_today_query = (
+            "SELECT id FROM market_sentiment WHERE DATE(created_at) = %s"
+        )
+        existing_today = db_manager.execute_query(
+            check_today_query, params=[today], fetch=True
+        )
+
+        if existing_today and len(existing_today) > 0:
+            logger.info(
+                f"Ya existe un registro de sentimiento de mercado para hoy ({today}). No se guardará otro."
+            )
+            return existing_today[0]["id"]
 
         # Validar datos mínimos requeridos
         if not sentiment_data.get("overall"):

@@ -359,7 +359,7 @@ def main():
                 
                 # Mostrar datos
                 st.subheader("Datos")
-                st.dataframe(data.tail())
+                st.dataframe(data.tail(.astype(str)))
             else:
                 st.error(f"No se pudieron obtener datos para {symbol}")
 

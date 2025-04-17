@@ -451,7 +451,7 @@ def main():
                     index=strikes,
                     columns=pd.MultiIndex.from_product([expiry_dates, ["Call", "Put"]]),
                 )
-                st.dataframe(options_data)
+                st.dataframe(options_data.astype(str))
 
                 # Estrategias sugeridas
                 with st.expander("🎯 Estrategias Sugeridas"):
@@ -497,7 +497,7 @@ def main():
                             analysis_table.loc[tf, "Volatilidad"] = signals["volatility"]["volatility_state"]
                             analysis_table.loc[tf, "Señal"] = signals["overall"]["signal"]
 
-                    st.dataframe(analysis_table)
+                    st.dataframe(analysis_table.astype(str))
 
                     # Gráficos comparativos
                     col1, col2 = st.columns(2)

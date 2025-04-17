@@ -288,7 +288,7 @@ def display_system_status():
     # Mostrar como dataframe
     if api_data:
         api_df = pd.DataFrame(api_data)
-        st.dataframe(api_df, use_container_width=True)
+        st.dataframe(api_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de APIs")
 
@@ -306,7 +306,7 @@ def display_system_status():
     # Mostrar como dataframe
     if lib_data:
         lib_df = pd.DataFrame(lib_data)
-        st.dataframe(lib_df, use_container_width=True)
+        st.dataframe(lib_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de librerías")
 
@@ -317,7 +317,7 @@ def display_system_status():
             test_data = fetch_market_data("SPY", "2d")
             if test_data is not None and not test_data.empty:
                 st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
-                st.dataframe(test_data.tail(3), use_container_width=True)
+                st.dataframe(test_data.tail(3.astype(str)), use_container_width=True)
             else:
                 st.error("❌ No se pudieron obtener datos para SPY")
     except Exception as e:

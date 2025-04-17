@@ -24,6 +24,7 @@ InversorIA/
 ├── ai_utils.py                # Utilidades de IA y procesamiento con modelos
 ├── database_utils.py          # Utilidades para interacción con base de datos
 ├── market_utils.py            # Utilidades para análisis de mercado
+├── market_data_processor.py   # Procesador de datos de mercado con IA
 ├── yahoo_finance_scraper.py   # Scraper para obtener datos de Yahoo Finance
 ├── company_data.py            # Datos de compañías y símbolos
 ├── check_database_quality.py  # Herramienta para verificar calidad de datos
@@ -32,6 +33,7 @@ InversorIA/
 │   ├── tests/                 # Scripts de prueba
 │   ├── old_versions/          # Versiones antiguas de archivos
 │   ├── temp_json/             # Archivos JSON temporales
+│   ├── temp_scripts/          # Scripts temporales de mantenimiento
 │   ├── dev_utils/             # Utilidades de desarrollo
 │   ├── docs/                  # Documentación antigua
 │   └── sql/                   # Scripts SQL antiguos
@@ -74,6 +76,7 @@ InversorIA/
   - **tests/**: Scripts de prueba antiguos.
   - **old_versions/**: Versiones anteriores de archivos actuales.
   - **temp_json/**: Archivos JSON temporales antiguos.
+  - **temp_scripts/**: Scripts temporales de mantenimiento y correcciones.
   - **dev_utils/**: Utilidades de desarrollo que no son parte del flujo principal.
   - **docs/**: Documentación antigua o reemplazada.
   - **sql/**: Scripts SQL antiguos o de referencia.

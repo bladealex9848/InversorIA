@@ -68,10 +68,10 @@ class SummaryManager:
             if isinstance(data, dict):
                 # Convertir a DataFrame para mejor visualización
                 df = pd.DataFrame(list(data.items()), columns=["Parámetro", "Valor"])
-                st.dataframe(df, hide_index=True, use_container_width=True)
+                st.dataframe(df.astype(str), hide_index=True, use_container_width=True)
             elif isinstance(data, pd.DataFrame):
                 # Mostrar DataFrame directamente
-                st.dataframe(data, hide_index=True, use_container_width=True)
+                st.dataframe(data.astype(str), hide_index=True, use_container_width=True)
             elif isinstance(data, list):
                 # Mostrar lista como texto
                 for item in data:
@@ -162,7 +162,7 @@ class SummaryManager:
                 for signal_type, count in signals["by_type"].items():
                     type_data.append({"Tipo": signal_type, "Cantidad": count})
                 
-                st.dataframe(pd.DataFrame(type_data), hide_index=True)
+                st.dataframe(pd.DataFrame(type_data.astype(str)), hide_index=True)
             
             # Mostrar símbolos procesados
             if "symbols" in signals and signals["symbols"]:

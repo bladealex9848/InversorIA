@@ -371,7 +371,7 @@ def render_timeframe_analysis(multi_tf_analysis):
                 return ""
 
             st.dataframe(
-                df.style.applymap(highlight_signal, subset=["Señal", "Opciones"])
+                df.style.applymap(highlight_signal.astype(str), subset=["Señal", "Opciones"])
             )
 
             # Mostrar recomendación derivada del análisis multi-timeframe

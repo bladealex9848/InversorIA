@@ -2615,7 +2615,7 @@ with tab3:
                 )
 
             # Mostrar tabla con estilo
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            st.dataframe(styled_df.astype(str), use_container_width=True, hide_index=True)
 
             # Opción para exportar datos
             if st.button("📥 Exportar a CSV", key="export_signals"):
@@ -2709,7 +2709,7 @@ with tab3:
                 )
 
             # Mostrar tabla
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            st.dataframe(styled_df.astype(str), use_container_width=True, hide_index=True)
 
             # Añadir explicación detallada del significado de "Señales Incluidas"
             st.info(

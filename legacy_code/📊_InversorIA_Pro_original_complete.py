@@ -6022,7 +6022,7 @@ def display_system_status():
     # Mostrar como dataframe
     if api_data:
         api_df = pd.DataFrame(api_data)
-        st.dataframe(api_df, use_container_width=True)
+        st.dataframe(api_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de APIs")
 
@@ -6049,7 +6049,7 @@ def display_system_status():
     # Mostrar como dataframe
     if lib_data:
         lib_df = pd.DataFrame(lib_data)
-        st.dataframe(lib_df, use_container_width=True)
+        st.dataframe(lib_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de librerías")
 
@@ -6071,7 +6071,7 @@ def display_system_status():
                 st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
 
                 # Mostrar datos recientes
-                st.dataframe(test_data.tail(3), use_container_width=True)
+                st.dataframe(test_data.tail(3.astype(str)), use_container_width=True)
 
                 # Crear un gráfico rápido para visualizar
                 fig = go.Figure()
@@ -6686,7 +6686,7 @@ def main():
                     styled_df = styled_df.apply(highlight_rows, axis=1)
 
                     # Mostrar tabla
-                    st.dataframe(styled_df, use_container_width=True, height=400)
+                    st.dataframe(styled_df.astype(str), use_container_width=True, height=400)
 
                     # Sección para analizar símbolos del scanner
                     # st.markdown("### 🔬 Análisis Detallado")
@@ -6731,7 +6731,7 @@ def main():
                             {"R/R Promedio": "{:.2f}", "RSI Promedio": "{:.1f}"}
                         )
 
-                        st.dataframe(sector_styled, use_container_width=True)
+                        st.dataframe(sector_styled.astype(str), use_container_width=True)
 
                         # Gráfico de barras con conteo por sector
                         fig = go.Figure()

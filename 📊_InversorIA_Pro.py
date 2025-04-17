@@ -6213,7 +6213,7 @@ def display_system_status():
     # Mostrar como dataframe
     if api_data:
         api_df = pd.DataFrame(api_data)
-        st.dataframe(api_df, use_container_width=True)
+        st.dataframe(api_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de APIs")
 
@@ -6240,7 +6240,7 @@ def display_system_status():
     # Mostrar como dataframe
     if lib_data:
         lib_df = pd.DataFrame(lib_data)
-        st.dataframe(lib_df, use_container_width=True)
+        st.dataframe(lib_df.astype(str), use_container_width=True)
     else:
         st.warning("No se pudo obtener información de librerías")
 
@@ -6262,7 +6262,7 @@ def display_system_status():
                 st.success(f"✅ Datos disponibles para SPY: {len(test_data)} registros")
 
                 # Mostrar datos recientes
-                st.dataframe(test_data.tail(3), use_container_width=True)
+                st.dataframe(test_data.tail(3).astype(str), use_container_width=True)
 
                 # Crear un gráfico rápido para visualizar
                 fig = go.Figure()
@@ -7935,9 +7935,17 @@ def main():
 
                                                             # Intentar parsear el resultado mejorado
                                                             try:
-                                                                improved_data = json.loads(
-                                                                    improved_sentiment
-                                                                )
+                                                                try:
+                                                                    improved_data = json.loads(
+                                                                        improved_sentiment
+                                                                    )
+                                                                except (
+                                                                    json.JSONDecodeError
+                                                                ) as e:
+                                                                    logger.warning(
+                                                                        f"Error decodificando JSON: {str(e)}"
+                                                                    )
+                                                                    improved_data = {}
                                                                 if (
                                                                     isinstance(
                                                                         improved_data,
@@ -7988,6 +7996,13 @@ def main():
                                                                 logger.warning(
                                                                     f"Error procesando JSON de sentimiento: {str(json_error)}"
                                                                 )
+                                                                # Inicializar sentiment_data con valores por defecto
+                                                                sentiment_data = {
+                                                                    "overall": "neutral",
+                                                                    "score": 0.5,
+                                                                    "analysis": "No se pudo procesar el sentimiento de mercado",
+                                                                    "date": datetime.now(),
+                                                                }
 
                                                         sentiment_id = None
                                                         if market_data_mgr:
