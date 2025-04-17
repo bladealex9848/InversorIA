@@ -345,18 +345,56 @@ class DatabaseManager:
         check_query = """SELECT id FROM market_sentiment WHERE date = CURDATE()"""
         result = self.execute_query(check_query)
 
+        # Completar campos adicionales que podrían estar vacíos
+        if not sentiment_data.get("symbol"):
+            sentiment_data["symbol"] = (
+                "SPY"  # Valor por defecto para el mercado general
+            )
+
+        if not sentiment_data.get("sentiment"):
+            sentiment_data["sentiment"] = sentiment_data.get("overall", "Neutral")
+
+        if not sentiment_data.get("score"):
+            # Convertir el sentimiento a un score numérico
+            sentiment_map = {"Alcista": 0.75, "Neutral": 0.5, "Bajista": 0.25}
+            sentiment_data["score"] = sentiment_map.get(
+                sentiment_data.get("overall", "Neutral"), 0.5
+            )
+
+        if not sentiment_data.get("source"):
+            sentiment_data["source"] = "InversorIA Analytics"
+
+        if not sentiment_data.get("analysis"):
+            # Generar un análisis basado en los datos disponibles
+            analysis = f"Análisis de sentimiento de mercado: {sentiment_data.get('overall', 'Neutral')}.\n"
+            if sentiment_data.get("vix"):
+                analysis += f"VIX: {sentiment_data.get('vix')}. "
+            if sentiment_data.get("sp500_trend"):
+                analysis += f"Tendencia S&P 500: {sentiment_data.get('sp500_trend')}. "
+            if sentiment_data.get("technical_indicators"):
+                analysis += f"\nIndicadores técnicos: {sentiment_data.get('technical_indicators')}"
+            if sentiment_data.get("notes"):
+                analysis += f"\nNotas adicionales: {sentiment_data.get('notes')}"
+            sentiment_data["analysis"] = analysis
+
+        if not sentiment_data.get("sentiment_date"):
+            sentiment_data["sentiment_date"] = datetime.now()
+
         if result and len(result) > 0:
             # Si existe, actualizar el registro existente
             query = """UPDATE market_sentiment
                       SET overall = %s, vix = %s, sp500_trend = %s,
-                          technical_indicators = %s, volume = %s, notes = %s
+                          technical_indicators = %s, volume = %s, notes = %s,
+                          symbol = %s, sentiment = %s, score = %s, source = %s,
+                          analysis = %s, sentiment_date = %s
                       WHERE date = CURDATE()"""
             logger.info("Actualizando sentimiento del mercado existente para hoy")
         else:
             # Si no existe, insertar un nuevo registro
             query = """INSERT INTO market_sentiment
-                      (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
-                      VALUES (CURDATE(), %s, %s, %s, %s, %s, %s, NOW())"""
+                      (date, overall, vix, sp500_trend, technical_indicators, volume, notes,
+                       symbol, sentiment, score, source, analysis, sentiment_date, created_at)
+                      VALUES (CURDATE(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())"""
             logger.info("Insertando nuevo sentimiento del mercado para hoy")
 
         params = (
@@ -366,6 +404,12 @@ class DatabaseManager:
             sentiment_data.get("technical_indicators"),
             sentiment_data.get("volume"),
             sentiment_data.get("notes", "Generado automáticamente al enviar boletín"),
+            sentiment_data.get("symbol"),
+            sentiment_data.get("sentiment"),
+            sentiment_data.get("score"),
+            sentiment_data.get("source"),
+            sentiment_data.get("analysis"),
+            sentiment_data.get("sentiment_date"),
         )
 
         return self.execute_query(query, params, fetch=False)
@@ -383,10 +427,72 @@ class DatabaseManager:
             )
             return True
 
+        # Asegurar que el símbolo esté presente
+        if not news_data.get("symbol"):
+            news_data["symbol"] = "SPY"  # Valor por defecto
+
+        # Traducir y condensar el título y resumen al español
+        try:
+            # Importar función para obtener análisis del experto
+            sys.path.append(
+                os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            )
+            from ai_utils import get_expert_analysis
+
+            # Traducir título si está en inglés
+            if news_data.get("title") and not news_data.get("title").startswith(
+                "Error"
+            ):
+                # Detectar si el título está en inglés (verificación simple)
+                title = news_data.get("title")
+                english_words = [
+                    "the",
+                    "and",
+                    "why",
+                    "what",
+                    "how",
+                    "is",
+                    "are",
+                    "to",
+                    "for",
+                    "in",
+                    "on",
+                    "at",
+                ]
+                is_english = any(
+                    word.lower() in title.lower().split() for word in english_words
+                )
+
+                if is_english:
+                    prompt = f"Traduce este título de noticia financiera al español de forma concisa y profesional: '{title}'"
+                    translated_title = get_expert_analysis(prompt)
+                    if translated_title and len(translated_title) > 10:
+                        news_data["title"] = translated_title.strip()
+                        logger.info(f"Título traducido: {news_data['title']}")
+
+            # Traducir y condensar resumen
+            if news_data.get("summary") and len(news_data.get("summary", "")) > 20:
+                summary = news_data.get("summary")
+                # Detectar si el resumen está en inglés
+                is_english = any(
+                    word.lower() in summary.lower().split() for word in english_words
+                )
+
+                if is_english:
+                    prompt = f"Traduce y condensa este resumen de noticia financiera al español de forma profesional y concisa (máximo 200 caracteres): '{summary}'"
+                    translated_summary = get_expert_analysis(prompt)
+                    if translated_summary and len(translated_summary) > 20:
+                        news_data["summary"] = translated_summary.strip()
+                        logger.info(
+                            f"Resumen traducido y condensado: {news_data['summary']}"
+                        )
+        except Exception as e:
+            logger.warning(f"No se pudo traducir la noticia: {str(e)}")
+
         # Si no existe, insertar la noticia
         query = """INSERT INTO market_news
-                  (title, summary, source, url, news_date, impact, created_at)
-                  VALUES (%s, %s, %s, %s, NOW(), %s, NOW())"""
+                  (title, summary, source, url, news_date, impact, symbol, created_at)
+                  VALUES (%s, %s, %s, %s, NOW(), %s, %s, NOW())"""
 
         params = (
             news_data.get("title"),
@@ -394,6 +500,7 @@ class DatabaseManager:
             news_data.get("source"),
             news_data.get("url", ""),
             news_data.get("impact", "Medio"),
+            news_data.get("symbol"),
         )
 
         return self.execute_query(query, params, fetch=False)
@@ -2063,9 +2170,20 @@ with tab1:
                         <div style="font-size: 14px; font-weight: 500; color: #444; margin-bottom: 10px;">
                             Noticias Relevantes
                         </div>
+                    """
+
+                    # Preparar enlace si hay fuente de noticias
+                    news_link = ""
+                    if news_source and news_source.startswith("http"):
+                        news_link = f"<a href='{news_source}' target='_blank' style='color: #0275d8; text-decoration: none;'>Ver fuente <span style='font-size: 12px;'>&#128279;</span></a>"
+
+                    html += f"""
                         <div style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 5px; margin-bottom: 10px;">
-                            <p style="margin: 0; font-weight: 500;">{latest_news}</p>
-                            {f'<small style="color: #666;">Fuente: {news_source}</small>' if news_source else ''}
+                            <p style="margin: 0 0 8px 0; font-weight: 500;">{latest_news}</p>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <small style="color: #666;">{signal.get('symbol', '')}</small>
+                                {f'<small style="color: #0275d8;">{news_link}</small>' if news_link else ''}
+                            </div>
                         </div>
                     """
 
@@ -2212,18 +2330,33 @@ with tab1:
                 impact_color = "#6c757d"  # Gris
 
             # Mostrar noticia con diseño mejorado (compatible con modo oscuro)
+            # Preparar URL para enlace si existe
+            url = item.get("url", "")
+            title_with_link = item.get("title", "")
+            if url and len(url) > 5:  # Verificar que la URL sea válida
+                title_with_link = f"<a href='{url}' target='_blank' style='text-decoration: none; color: #0275d8;'>{item.get('title', '')} <span style='font-size: 14px;'>&#128279;</span></a>"
+
+            # Preparar símbolo si existe
+            symbol = item.get("symbol", "")
+            symbol_badge = (
+                f"<span style='background-color: rgba(2, 117, 216, 0.1); color: #0275d8; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-right: 10px;'>{symbol}</span>"
+                if symbol
+                else ""
+            )
+
             st.markdown(
                 f"""
             <div style="background-color: rgba(255,255,255,0.05); padding: 20px;
                        border-radius: 10px; margin-bottom: 15px;
                        border: 1px solid rgba(0,0,0,0.05);
                        box-shadow: 0 4px 6px rgba(0,0,0,0.03);">
-                <h4 style="margin-top: 0; color: #0275d8; font-weight: 600; font-size: 18px;">
-                    {item.get('title', '')}
+                <h4 style="margin-top: 0; font-weight: 600; font-size: 18px;">
+                    {title_with_link}
                 </h4>
                 <p>{item.get('summary', '')}</p>
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                     <div>
+                        {symbol_badge}
                         <span style="color: {impact_color}; font-weight: 500; margin-right: 10px;">
                             Impacto: {impact}
                         </span>
@@ -2615,7 +2748,9 @@ with tab3:
                 )
 
             # Mostrar tabla con estilo
-            st.dataframe(styled_df.astype(str), use_container_width=True, hide_index=True)
+            st.dataframe(
+                styled_df.astype(str), use_container_width=True, hide_index=True
+            )
 
             # Opción para exportar datos
             if st.button("📥 Exportar a CSV", key="export_signals"):
@@ -2709,7 +2844,9 @@ with tab3:
                 )
 
             # Mostrar tabla
-            st.dataframe(styled_df.astype(str), use_container_width=True, hide_index=True)
+            st.dataframe(
+                styled_df.astype(str), use_container_width=True, hide_index=True
+            )
 
             # Añadir explicación detallada del significado de "Señales Incluidas"
             st.info(
