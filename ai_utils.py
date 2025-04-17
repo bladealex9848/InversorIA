@@ -119,6 +119,8 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     if not client or not assistant_id:
         return None
 
+    # Instrucciones para evitar frases introductorias y de cierre genéricas
+
     # Formatear prompt para el asistente
     price = context.get("last_price", 0)
     change = context.get("change_percent", 0)
@@ -288,6 +290,8 @@ def process_expert_analysis(client, assistant_id, symbol, context):
     {analysis_structure}
 
     IMPORTANTE:
+    - NO incluyas frases introductorias como "Claro, aquí tienes un análisis..." ni frases de cierre como "¿Deseas que prepare un plan...?"
+    - Ve directamente al análisis y termina con la recomendación final
     - Sé específico con los niveles de precio y porcentajes
     - Incluye estrategias prácticas con puntos de entrada, salida y stop loss
     - Evalúa el riesgo/recompensa de forma cuantitativa
@@ -313,21 +317,46 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             thread_id=st.session_state.thread_id, assistant_id=assistant_id
         )
 
-        # Mostrar progreso
+        # Mostrar progreso con información más detallada
         progress_bar = st.progress(0)
         status_text = st.empty()
+        status_details = st.empty()
+
+        # Fases del análisis para mostrar al usuario
+        analysis_phases = [
+            "Recopilando datos de mercado...",
+            "Analizando patrones técnicos...",
+            "Evaluando indicadores...",
+            "Calculando niveles de soporte y resistencia...",
+            "Analizando volumen y volatilidad...",
+            "Evaluando noticias y sentimiento...",
+            "Comparando con activos relacionados...",
+            "Generando estrategias de trading...",
+            "Calculando riesgo/recompensa...",
+            "Formulando recomendación final...",
+            "Finalizando análisis...",
+        ]
 
         # Esperar a que se complete la ejecución con timeout
         start_time = time.time()
         timeout = 45  # 45 segundos máximo
+        phase_duration = timeout / len(analysis_phases)
+        current_phase = 0
+
         while run.status in ["queued", "in_progress"]:
             # Calcular progreso basado en tiempo transcurrido
             elapsed = time.time() - start_time
             progress = min(elapsed / timeout, 0.95)  # Máximo 95% hasta completar
             progress_bar.progress(progress)
 
-            # Actualizar mensaje de estado
-            status_text.text(f"Analizando {symbol}... ({run.status})")
+            # Actualizar fase actual basado en el tiempo transcurrido
+            new_phase = min(int(elapsed / phase_duration), len(analysis_phases) - 1)
+            if new_phase > current_phase:
+                current_phase = new_phase
+
+            # Actualizar mensajes de estado
+            status_text.text(f"Analizando {symbol}... ({int(progress*100)}%)")
+            status_details.text(analysis_phases[current_phase])
 
             # Verificar timeout
             if elapsed > timeout:
@@ -344,6 +373,9 @@ def process_expert_analysis(client, assistant_id, symbol, context):
 
         # Completar barra de progreso
         progress_bar.progress(1.0)
+        status_text.text("¡Análisis completado!")
+        status_details.empty()
+        time.sleep(1)  # Mostrar el mensaje de completado por un segundo
         status_text.empty()
 
         if run.status != "completed":
@@ -645,6 +677,10 @@ def process_content_with_ai(
             Haz que sea más coherente, informativo y profesional, manteniendo los puntos clave pero mejorando
             la redacción y estructura. El análisis debe estar en español y ser fácil de entender.
 
+            IMPORTANTE: NO incluyas frases introductorias como "Aquí tienes un análisis..." o "Por supuesto..."
+            ni frases de cierre como "Espero que esto te ayude..." o "Quieres que agregue...". Ve directamente
+            al análisis y termina con una conclusión concreta.
+
             Análisis original:
             {content}
 
@@ -656,6 +692,10 @@ def process_content_with_ai(
             Como especialista en análisis técnico, mejora el siguiente análisis técnico para {symbol}.
             Haz que sea más preciso, detallado y profesional, incluyendo referencias a indicadores clave,
             patrones y niveles importantes. El análisis debe estar en español y ser técnicamente sólido.
+
+            IMPORTANTE: NO incluyas frases introductorias como "Claro, aquí tienes..." o "A continuación..."
+            ni frases de cierre como "Espero que este análisis..." o "Deseas que agregue...". Ve directamente
+            al análisis técnico y termina con una conclusión concreta.
 
             Análisis técnico original:
             {content}
@@ -669,13 +709,17 @@ def process_content_with_ai(
             Haz que sea más informativa, precisa y profesional. La noticia debe estar en español,
             ser objetiva y proporcionar información relevante para inversores.
 
+            IMPORTANTE:
+            1. NO incluyas frases introductorias ni de cierre. Ve directamente a la noticia.
+            2. Asegúrate de incluir una fuente confiable y una URL real (no inventada).
+            3. Estructura la noticia con un titular claro, seguido del cuerpo de la noticia.
+            4. Incluye fecha y fuente al final en formato: [Fecha] - [Fuente] - [URL]
+
             Noticia original:
             {content}
 
             Contexto adicional:
             {additional_context or ''}
-
-            Asegúrate de incluir una fuente confiable y una URL si está disponible.
             """
         elif content_type == "expert_analysis":
             prompt = f"""
@@ -683,21 +727,27 @@ def process_content_with_ai(
             El análisis debe incluir evaluación técnica, fundamental, de sentimiento y de riesgo.
             Debe estar en español, ser profesional y proporcionar una recomendación clara.
 
+            IMPORTANTE:
+            1. NO incluyas frases introductorias como "Aquí tienes un análisis..." o "A continuación..."
+            2. NO incluyas frases de cierre como "Espero que este análisis..." o "Deseas que prepare..."
+            3. Ve directamente al análisis y termina con la recomendación final
+            4. Usa un formato claro con encabezados para cada sección
+
             Información disponible:
             {content}
 
             Contexto adicional:
             {additional_context or ''}
 
-            Estructura tu respuesta con las siguientes secciones:
-            1. Evaluación General
-            2. Análisis Técnico
-            3. Niveles Clave
-            4. Análisis Fundamental
-            5. Estrategias Recomendadas
-            6. Gestión de Riesgo
-            7. Proyección de Movimiento
-            8. Recomendación Final (CALL/PUT/NEUTRAL)
+            Estructura tu respuesta con las siguientes secciones exactas:
+            ## EVALUACIÓN GENERAL
+            ## ANÁLISIS TÉCNICO
+            ## NIVELES CLAVE
+            ## ANÁLISIS FUNDAMENTAL
+            ## ESTRATEGIAS RECOMENDADAS
+            ## ANÁLISIS DE RIESGO
+            ## PROYECCIÓN DE MOVIMIENTO
+            ## RECOMENDACIÓN FINAL: CALL/PUT/NEUTRAL
             """
         else:
             # Caso genérico para otros tipos de contenido
@@ -705,6 +755,12 @@ def process_content_with_ai(
             Como experto financiero, mejora el siguiente contenido relacionado con {symbol}.
             Haz que sea más coherente, informativo y profesional. El contenido debe estar en español
             y ser fácil de entender para inversores.
+
+            IMPORTANTE:
+            1. NO incluyas frases introductorias ni de cierre
+            2. Ve directamente al contenido principal
+            3. Usa un lenguaje claro, preciso y profesional
+            4. Elimina cualquier texto genérico o redundante
 
             Contenido original:
             {content}

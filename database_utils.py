@@ -143,7 +143,7 @@ class DatabaseManager:
                     overall ENUM('Alcista', 'Bajista', 'Neutral') NOT NULL,
                     vix VARCHAR(50),
                     sp500_trend VARCHAR(100),
-                    technical_indicators VARCHAR(100),
+                    technical_indicators TEXT,
                     volume VARCHAR(100),
                     notes TEXT,
                     created_at DATETIME NOT NULL,

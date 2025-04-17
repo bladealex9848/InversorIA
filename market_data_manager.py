@@ -61,10 +61,25 @@ class MarketDataManager:
                     )
                     summary = f"Análisis experto para {company_name}: {expert_summary}"
 
-                # Crear URL si está disponible en la fuente
+                # Crear URL si está disponible en la fuente o en las noticias
                 url = ""
                 if "http" in signal_data.get("news_source", ""):
                     url = signal_data.get("news_source", "")
+                elif signal_data.get("news") and isinstance(
+                    signal_data.get("news"), list
+                ):
+                    # Buscar URL en las noticias
+                    for news_item in signal_data.get("news", []):
+                        if (
+                            isinstance(news_item, dict)
+                            and news_item.get("url")
+                            and "http" in news_item.get("url", "")
+                        ):
+                            url = news_item.get("url")
+                            # Actualizar también la fuente si está disponible
+                            if news_item.get("source"):
+                                signal_data["news_source"] = news_item.get("source")
+                            break
 
                 main_news = {
                     "title": signal_data.get("latest_news", ""),
@@ -122,13 +137,38 @@ class MarketDataManager:
                         # Crear resumen más informativo
                         summary = f"Noticia relacionada con {company_name}: {news_title.strip()[:100]}"
 
+                        # Buscar URL y fuente en las noticias si están disponibles
+                        url = ""
+                        source = signal_data.get("news_source", "InversorIA Analytics")
+
+                        if signal_data.get("news") and isinstance(
+                            signal_data.get("news"), list
+                        ):
+                            # Buscar coincidencia por título
+                            for news_item in signal_data.get("news", []):
+                                if isinstance(news_item, dict) and news_item.get(
+                                    "title"
+                                ):
+                                    # Verificar si hay coincidencia parcial en el título
+                                    if (
+                                        news_title.strip().lower()
+                                        in news_item.get("title", "").lower()
+                                        or news_item.get("title", "").lower()
+                                        in news_title.strip().lower()
+                                    ):
+                                        if news_item.get(
+                                            "url"
+                                        ) and "http" in news_item.get("url", ""):
+                                            url = news_item.get("url")
+                                        if news_item.get("source"):
+                                            source = news_item.get("source")
+                                        break
+
                         add_news = {
                             "title": news_title.strip(),
                             "summary": summary,
-                            "source": signal_data.get(
-                                "news_source", "InversorIA Analytics"
-                            ),
-                            "url": "",  # URL no disponible para noticias adicionales
+                            "source": source,
+                            "url": url,
                             "news_date": datetime.now(),
                             "impact": impact,
                         }
@@ -311,7 +351,27 @@ class MarketDataManager:
         if signal_data.get("trend"):
             technical_info.append(f"Tendencia: {signal_data.get('trend')}")
 
-        return " | ".join(technical_info) if technical_info else "N/A"
+        # Añadir parámetros de opciones si están disponibles
+        if signal_data.get("options_params") or signal_data.get("costo_strike"):
+            options_info = []
+            if signal_data.get("costo_strike"):
+                options_info.append(f"Costo strike: {signal_data.get('costo_strike')}")
+            if signal_data.get("volumen_min"):
+                options_info.append(f"Volumen mínimo: {signal_data.get('volumen_min')}")
+            if signal_data.get("distance_spot_strike"):
+                options_info.append(
+                    f"Distancia spot-strike: {signal_data.get('distance_spot_strike')}"
+                )
+
+            if options_info:
+                technical_info.append(" | ".join(options_info))
+
+        # Limitar la longitud total para evitar errores de base de datos
+        result = " | ".join(technical_info) if technical_info else "N/A"
+        if len(result) > 1000:  # Limitar a 1000 caracteres para evitar errores
+            result = result[:997] + "..."
+
+        return result
 
     def _extract_vix(self, signal_data):
         """Extrae información del VIX del análisis"""
