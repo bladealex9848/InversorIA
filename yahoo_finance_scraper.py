@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Yahoo Finance Scraper - Módulo para obtener datos y noticias de Yahoo Finance
-Versión mejorada con múltiples fuentes y fallbacks
+Yahoo Finance Scraper - Módulo para obtener datos y noticias financieras de múltiples fuentes
+Versión optimizada con sistema robusto de fallbacks
 """
 
 import requests
@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Intentar importar yfinance
+# Intentar importar módulos opcionales
 YFINANCE_AVAILABLE = False
 try:
     import yfinance as yf
@@ -30,7 +30,6 @@ try:
 except ImportError:
     logger.warning("yfinance no está disponible. Se usarán métodos alternativos.")
 
-# Intentar importar duckduckgo_search
 DDG_AVAILABLE = False
 try:
     from duckduckgo_search import DDGS
@@ -44,9 +43,9 @@ except ImportError:
 
 
 class YahooFinanceScraper:
-    """Clase para obtener datos y noticias de Yahoo Finance con múltiples fuentes"""
+    """Clase para obtener datos y noticias financieras de múltiples fuentes"""
 
-    def __init__(self):
+    def __init__(self, api_keys=None):
         """Inicializa el scraper con headers para simular un navegador"""
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -59,6 +58,7 @@ class YahooFinanceScraper:
         self.cache = {}
         self.cache_expiry = {}
         self.cache_duration = 3600  # 1 hora en segundos
+        self.api_keys = api_keys or {}
 
         # Inicializar DuckDuckGo si está disponible
         self.ddgs = None
@@ -96,6 +96,113 @@ class YahooFinanceScraper:
         if cached_data:
             return cached_data
 
+        # Intentar primero con yfinance (más confiable)
+        if YFINANCE_AVAILABLE:
+            try:
+                logger.info(
+                    f"Obteniendo datos de cotización para {symbol} con yfinance"
+                )
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
+
+                if info:
+                    data = {
+                        "symbol": symbol,
+                        "timestamp": datetime.now().isoformat(),
+                        "price": {
+                            "current": info.get(
+                                "currentPrice", info.get("regularMarketPrice")
+                            ),
+                            "change": info.get("regularMarketChange"),
+                            "change_percent": info.get("regularMarketChangePercent"),
+                            "open": info.get("regularMarketOpen"),
+                            "high": info.get("regularMarketDayHigh"),
+                            "low": info.get("regularMarketDayLow"),
+                            "previous_close": info.get("regularMarketPreviousClose"),
+                        },
+                        "company_info": {
+                            "name": info.get("shortName", info.get("longName", symbol)),
+                            "sector": info.get("sector"),
+                            "industry": info.get("industry"),
+                            "website": info.get("website"),
+                            "description": info.get("longBusinessSummary"),
+                        },
+                        "stats": {
+                            "market_cap": info.get("marketCap"),
+                            "beta": info.get("beta"),
+                            "pe_ratio": info.get("trailingPE"),
+                            "eps": info.get("trailingEps"),
+                            "dividend_rate": info.get("dividendRate"),
+                            "dividend_yield": info.get("dividendYield"),
+                            "52wk_high": info.get("fiftyTwoWeekHigh"),
+                            "52wk_low": info.get("fiftyTwoWeekLow"),
+                            "avg_volume": info.get("averageVolume"),
+                            "volume": info.get("volume"),
+                        },
+                    }
+
+                    # Almacenar en caché
+                    self._cache_data(cache_key, data)
+                    return data
+            except Exception as e:
+                logger.warning(
+                    f"Error obteniendo datos con yfinance: {str(e)}. Intentando con API..."
+                )
+
+        # Intentar con la API de Yahoo Finance
+        try:
+            api_url = (
+                f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbol}"
+            )
+            response = requests.get(api_url, headers=self.headers, timeout=10)
+
+            if response.status_code == 200:
+                json_data = response.json()
+                quote_data = json_data.get("quoteResponse", {}).get("result", [])
+
+                if quote_data and len(quote_data) > 0:
+                    result = quote_data[0]
+
+                    data = {
+                        "symbol": symbol,
+                        "timestamp": datetime.now().isoformat(),
+                        "price": {
+                            "current": result.get("regularMarketPrice"),
+                            "change": result.get("regularMarketChange"),
+                            "change_percent": result.get("regularMarketChangePercent"),
+                            "open": result.get("regularMarketOpen"),
+                            "high": result.get("regularMarketDayHigh"),
+                            "low": result.get("regularMarketDayLow"),
+                            "previous_close": result.get("regularMarketPreviousClose"),
+                        },
+                        "company_info": {
+                            "name": result.get(
+                                "shortName", result.get("longName", symbol)
+                            ),
+                            "exchange": result.get("fullExchangeName"),
+                            "currency": result.get("currency"),
+                        },
+                        "stats": {
+                            "market_cap": result.get("marketCap"),
+                            "volume": result.get("regularMarketVolume"),
+                            "avg_volume": result.get("averageDailyVolume3Month"),
+                            "pe_ratio": result.get("trailingPE"),
+                            "eps": result.get("epsTrailingTwelveMonths"),
+                        },
+                    }
+
+                    # Almacenar en caché
+                    self._cache_data(cache_key, data)
+                    logger.info(
+                        f"Datos de cotización obtenidos desde la API para {symbol}"
+                    )
+                    return data
+        except Exception as e:
+            logger.warning(
+                f"Error obteniendo datos de la API de Yahoo Finance: {str(e)}. Intentando con scraping..."
+            )
+
+        # Si los métodos anteriores fallan, intentar con scraping directo
         try:
             url = f"{self.base_url}/quote/{symbol}"
             response = requests.get(url, headers=self.headers, timeout=10)
@@ -117,47 +224,122 @@ class YahooFinanceScraper:
                 "stats": {},
             }
 
-            # Precio actual
+            # Precio actual - Intentar varios selectores
             try:
-                price_elem = soup.select_one('[data-test="qsp-price"]')
-                if price_elem:
-                    data["price"]["current"] = float(price_elem.text.replace(",", ""))
+                price_elem = None
+                for selector in [
+                    '[data-test="qsp-price"]',
+                    'fin-streamer[data-field="regularMarketPrice"]',
+                    'div[class*="price"] span',
+                    'fin-streamer[data-symbol="'
+                    + symbol
+                    + '"][data-field="regularMarketPrice"]',
+                ]:
+                    price_elem = soup.select_one(selector)
+                    if price_elem:
+                        break
 
-                # Cambio y porcentaje de cambio
-                change_elems = soup.select('[data-test="qsp-price-change"]')
-                if len(change_elems) >= 2:
-                    data["price"]["change"] = float(
-                        change_elems[0].text.replace(",", "")
-                    )
-                    # Extraer solo el número del porcentaje (quitar paréntesis y %)
-                    percent_text = change_elems[1].text.strip("()%")
-                    data["price"]["change_percent"] = float(percent_text)
+                if price_elem:
+                    price_text = price_elem.text.replace(",", "")
+                    try:
+                        data["price"]["current"] = float(price_text)
+                    except ValueError:
+                        # Extraer usando regex si hay caracteres extra
+                        price_match = re.search(r"(\d+\.\d+)", price_text)
+                        if price_match:
+                            data["price"]["current"] = float(price_match.group(1))
+
+                # Cambio y porcentaje
+                change_elem = None
+                for selector in [
+                    '[data-test="qsp-price-change"]',
+                    'fin-streamer[data-field="regularMarketChange"]',
+                    'div[class*="price-change"]',
+                ]:
+                    change_elems = soup.select(selector)
+                    if change_elems:
+                        break
+
+                if change_elems and len(change_elems) >= 1:
+                    try:
+                        data["price"]["change"] = float(
+                            change_elems[0].text.replace(",", "")
+                        )
+                    except (ValueError, IndexError):
+                        pass
+
+                # Buscar el porcentaje de cambio
+                percent_elem = None
+                for selector in [
+                    'fin-streamer[data-field="regularMarketChangePercent"]',
+                    'span[class*="percent"]',
+                    'div[class*="percent"]',
+                ]:
+                    percent_elem = soup.select_one(selector)
+                    if percent_elem:
+                        break
+
+                if percent_elem:
+                    try:
+                        # Extraer solo el número del porcentaje (quitar paréntesis y %)
+                        percent_text = (
+                            percent_elem.text.strip()
+                            .replace("(", "")
+                            .replace(")", "")
+                            .replace("%", "")
+                        )
+                        data["price"]["change_percent"] = float(percent_text)
+                    except ValueError:
+                        pass
             except Exception as e:
                 logger.debug(f"Error obteniendo precio para {symbol}: {str(e)}")
 
             # Nombre de la empresa
             try:
-                name_elem = soup.select_one("h1")
+                name_elem = None
+                for selector in [
+                    "h1",
+                    'div[class*="title"]',
+                    'div[class*="header"] h1',
+                ]:
+                    name_elem = soup.select_one(selector)
+                    if name_elem:
+                        break
+
                 if name_elem:
                     data["company_info"]["name"] = name_elem.text.strip()
             except Exception as e:
                 logger.debug(f"Error obteniendo nombre para {symbol}: {str(e)}")
 
-            # Estadísticas clave (volumen, rango, etc.)
+            # Estadísticas clave
             try:
-                stat_rows = soup.select('table[data-test="qsp-statistics"] tr')
-                for row in stat_rows:
-                    cells = row.select("td")
-                    if len(cells) >= 2:
-                        key = cells[0].text.strip().lower().replace(" ", "_")
-                        value = cells[1].text.strip()
-                        data["stats"][key] = value
+                stat_tables = soup.select(
+                    'table[data-test="qsp-statistics"], div[class*="key-statistics"] table'
+                )
+
+                for table in stat_tables:
+                    rows = table.select("tr")
+                    for row in rows:
+                        cells = row.select("td, th")
+                        if len(cells) >= 2:
+                            key = (
+                                cells[0]
+                                .text.strip()
+                                .lower()
+                                .replace(" ", "_")
+                                .replace(".", "")
+                            )
+                            value = cells[1].text.strip()
+                            data["stats"][key] = value
             except Exception as e:
                 logger.debug(f"Error obteniendo estadísticas para {symbol}: {str(e)}")
 
             # Almacenar en caché
             self._cache_data(cache_key, data)
 
+            logger.info(
+                f"Datos de cotización obtenidos mediante scraping para {symbol}"
+            )
             return data
 
         except Exception as e:
@@ -180,241 +362,453 @@ class YahooFinanceScraper:
         if cached_data:
             return cached_data
 
-        # Intentar primero con yfinance si está disponible
-        if YFINANCE_AVAILABLE:
+        # Lista de fuentes en orden de prioridad
+        news_sources = [
+            (self._get_news_from_yfinance, "yfinance", symbol, max_news),
+            (self._get_news_from_yahoo_api, "Yahoo API", symbol, max_news),
+            (self._get_news_from_finviz, "FinViz", symbol, max_news),
+            (self._get_news_from_alpha_vantage, "Alpha Vantage", symbol, max_news),
+            (self._get_news_from_duckduckgo, "DuckDuckGo", symbol, max_news),
+            (self._get_news_from_investing, "Investing.com", symbol, max_news),
+        ]
+
+        # Intentar cada fuente en orden hasta obtener resultados
+        for source_func, source_name, src_symbol, src_max_news in news_sources:
             try:
-                logger.info(f"Obteniendo noticias de {symbol} con yfinance")
-                ticker = yf.Ticker(symbol)
-                news_data = ticker.news
+                logger.info(f"Obteniendo noticias de {symbol} con {source_name}")
+                news_data = source_func(src_symbol, src_max_news)
 
                 if news_data and isinstance(news_data, list) and len(news_data) > 0:
-                    news = []
-                    for item in news_data[:max_news]:  # Limitar a max_news noticias
-                        # Verificar que el item sea un diccionario válido
-                        if not isinstance(item, dict):
-                            continue
+                    # Filtrar noticias vacías o inválidas
+                    news_data = [
+                        n for n in news_data if n.get("title") and n.get("title") != ""
+                    ]
 
-                        # Verificar que tenga al menos título
-                        if not item.get("title"):
-                            continue
-
-                        # Crear objeto de noticia con valores por defecto para campos faltantes
-                        news_item = {
-                            "title": item.get("title", "Sin título"),
-                            "summary": item.get("summary", ""),
-                            "url": item.get("link", ""),
-                            "source": item.get("publisher", "Yahoo Finance"),
-                            "date": datetime.now().strftime("%Y-%m-%d"),
-                        }
-
-                        # Intentar obtener la fecha de publicación si está disponible
-                        if item.get("providerPublishTime") and isinstance(
-                            item.get("providerPublishTime"), (int, float)
-                        ):
-                            try:
-                                news_item["date"] = datetime.fromtimestamp(
-                                    item.get("providerPublishTime")
-                                ).strftime("%Y-%m-%d")
-                            except:
-                                pass  # Mantener la fecha por defecto
-
-                        news.append(news_item)
-
-                    # Registrar la fuente de las noticias
-                    for item in news:
-                        item["_source_method"] = "yfinance"
-
-                    # Almacenar en caché
-                    self._cache_data(cache_key, news)
-                    logger.info(
-                        f"Noticias de yfinance obtenidas correctamente para {symbol}"
-                    )
-                    return news
+                    if news_data:  # Si hay noticias válidas
+                        # Almacenar en caché
+                        self._cache_data(cache_key, news_data)
+                        logger.info(
+                            f"Noticias de {source_name} obtenidas correctamente para {symbol}"
+                        )
+                        return news_data
             except Exception as e:
-                logger.warning(
-                    f"Error obteniendo noticias con yfinance: {str(e)}. Intentando con scraping..."
-                )
-
-        # Intentar con scraping de Yahoo Finance
-        try:
-            logger.info(f"Obteniendo noticias de {symbol} con web scraping")
-            url = f"{self.base_url}/quote/{symbol}/news"
-            response = requests.get(url, headers=self.headers, timeout=10)
-
-            if response.status_code != 200:
-                logger.warning(
-                    f"Error obteniendo noticias para {symbol}: HTTP {response.status_code}"
-                )
-                # No retornar aquí, intentar con DuckDuckGo si está disponible
-            else:
-                soup = BeautifulSoup(response.text, "html.parser")
-
-                # Buscar elementos de noticias
-                news_items = soup.select('div[data-test="story"]')
-
-                if not news_items:
-                    # Intentar con otro selector si el primero falla
-                    news_items = soup.select('li[class*="js-stream-content"]')
-
-                if news_items:
-                    news = []
-                    for item in news_items[:max_news]:
-                        # Extraer título
-                        title_element = item.select_one('h3, a[class*="headline"]')
-                        title = (
-                            title_element.text.strip()
-                            if title_element
-                            else "Sin título"
-                        )
-
-                        # Extraer enlace
-                        link_element = item.select_one("a[href]")
-                        url = (
-                            link_element["href"]
-                            if link_element and "href" in link_element.attrs
-                            else "#"
-                        )
-
-                        # Convertir enlaces relativos a absolutos
-                        if url.startswith("/"):
-                            url = f"{self.base_url}{url}"
-
-                        # Extraer descripción/resumen
-                        summary_element = item.select_one('p, div[class*="summary"]')
-                        summary = (
-                            summary_element.text.strip() if summary_element else ""
-                        )
-
-                        # Extraer fuente y fecha
-                        source_element = item.select_one(
-                            'div[class*="author"], span[class*="provider-name"]'
-                        )
-                        source = (
-                            source_element.text.strip()
-                            if source_element
-                            else "Yahoo Finance"
-                        )
-
-                        date_element = item.select_one(
-                            'div[class*="date"], span[class*="date"]'
-                        )
-                        date_str = date_element.text.strip() if date_element else ""
-
-                        # Convertir fecha relativa a absoluta si es posible
-                        try:
-                            if "ago" in date_str.lower():
-                                # Fecha aproximada basada en texto relativo
-                                date = datetime.now().strftime("%Y-%m-%d")
-                            else:
-                                # Intentar parsear la fecha
-                                date = datetime.strptime(
-                                    date_str, "%b %d, %Y"
-                                ).strftime("%Y-%m-%d")
-                        except:
-                            date = datetime.now().strftime("%Y-%m-%d")
-
-                        news.append(
-                            {
-                                "title": title,
-                                "summary": summary,
-                                "url": url,
-                                "source": source,
-                                "date": date,
-                            }
-                        )
-
-                    # Registrar la fuente de las noticias
-                    for item in news:
-                        item["_source_method"] = "yahoo_scraping"
-
-                    # Almacenar en caché
-                    self._cache_data(cache_key, news)
-                    logger.info(
-                        f"Noticias de scraping obtenidas correctamente para {symbol}"
-                    )
-                    return news
-        except Exception as e:
-            logger.error(f"Error en scraping de noticias para {symbol}: {str(e)}")
-
-        # Intentar con DuckDuckGo si está disponible
-        if DDG_AVAILABLE and self.ddgs:
-            try:
-                logger.info(f"Obteniendo noticias de {symbol} con DuckDuckGo")
-                # Obtener nombre de la empresa para mejorar la búsqueda
-                company_name = self._get_company_name(symbol)
-                query = f"{company_name} {symbol} stock news"
-
-                # Realizar búsqueda de noticias
-                results = self.ddgs.news(query, max_results=max_news)
-
-                if results:
-                    news = []
-                    for item in results:
-                        news.append(
-                            {
-                                "title": item.get("title", ""),
-                                "summary": item.get("body", ""),
-                                "url": item.get("url", ""),
-                                "source": item.get("source", ""),
-                                "date": item.get(
-                                    "date", datetime.now().strftime("%Y-%m-%d")
-                                ),
-                            }
-                        )
-
-                    # Registrar la fuente de las noticias
-                    for item in news:
-                        item["_source_method"] = "duckduckgo"
-
-                    # Almacenar en caché
-                    self._cache_data(cache_key, news)
-                    logger.info(
-                        f"Noticias de DuckDuckGo obtenidas correctamente para {symbol}"
-                    )
-                    return news
-            except Exception as e:
-                logger.error(f"Error en búsqueda de noticias con DuckDuckGo: {str(e)}")
-
-        # Intentar con Google Finance como alternativa
-        try:
-            logger.info(f"Obteniendo noticias de {symbol} con Google Finance")
-            google_news = self._get_news_from_google_finance(symbol, max_news)
-            if google_news:
-                # Registrar la fuente de las noticias
-                for item in google_news:
-                    item["_source_method"] = "google_finance"
-
-                # Almacenar en caché
-                self._cache_data(cache_key, google_news)
-                logger.info(
-                    f"Noticias de Google Finance obtenidas correctamente para {symbol}"
-                )
-                return google_news
-        except Exception as e:
-            logger.error(f"Error en búsqueda de noticias con Google Finance: {str(e)}")
-
-        # Intentar con MarketWatch como última alternativa
-        try:
-            logger.info(f"Obteniendo noticias de {symbol} con MarketWatch")
-            mw_news = self._get_news_from_marketwatch(symbol, max_news)
-            if mw_news:
-                # Registrar la fuente de las noticias
-                for item in mw_news:
-                    item["_source_method"] = "marketwatch"
-
-                # Almacenar en caché
-                self._cache_data(cache_key, mw_news)
-                logger.info(
-                    f"Noticias de MarketWatch obtenidas correctamente para {symbol}"
-                )
-                return mw_news
-        except Exception as e:
-            logger.error(f"Error en búsqueda de noticias con MarketWatch: {str(e)}")
+                logger.warning(f"Error obteniendo noticias con {source_name}: {str(e)}")
 
         # Si todo falla, devolver lista vacía
         logger.warning(
             f"No se pudieron obtener noticias para {symbol} de ninguna fuente"
         )
+        return []
+
+    def _get_news_from_yfinance(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias usando yfinance"""
+        if not YFINANCE_AVAILABLE:
+            return []
+
+        try:
+            ticker = yf.Ticker(symbol)
+            news_data = ticker.news
+
+            if news_data and isinstance(news_data, list) and len(news_data) > 0:
+                news = []
+                for item in news_data[:max_news]:
+                    if not isinstance(item, dict) or not item.get("title"):
+                        continue
+
+                    news_item = {
+                        "title": item.get("title", "Sin título"),
+                        "summary": item.get("summary", ""),
+                        "url": item.get("link", ""),
+                        "source": item.get("publisher", "Yahoo Finance"),
+                        "date": datetime.now().strftime(
+                            "%Y-%m-%d"
+                        ),  # Valor por defecto
+                        "_source_method": "yfinance",
+                    }
+
+                    # Obtener fecha de publicación si está disponible
+                    if item.get("providerPublishTime") and isinstance(
+                        item.get("providerPublishTime"), (int, float)
+                    ):
+                        try:
+                            timestamp = item.get("providerPublishTime")
+                            if timestamp > 0:
+                                news_item["date"] = datetime.fromtimestamp(
+                                    timestamp
+                                ).strftime("%Y-%m-%d")
+                        except:
+                            pass
+
+                    news.append(news_item)
+
+                return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias con yfinance: {str(e)}")
+
+        return []
+
+    def _get_news_from_yahoo_api(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias usando la API de Yahoo Finance"""
+        try:
+            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={symbol}&newsCount={max_news}"
+            response = requests.get(url, headers=self.headers, timeout=10)
+
+            if response.status_code == 200:
+                json_data = response.json()
+                news_items = json_data.get("news", [])
+
+                if news_items:
+                    news = []
+                    for item in news_items[:max_news]:
+                        # Verificar que tenga al menos título
+                        if not item.get("title"):
+                            continue
+
+                        # Crear objeto de noticia
+                        news_item = {
+                            "title": item.get("title", "Sin título"),
+                            "summary": item.get("summary", ""),
+                            "url": item.get("link", ""),
+                            "source": item.get("publisher", "Yahoo Finance"),
+                            "date": datetime.now().strftime(
+                                "%Y-%m-%d"
+                            ),  # Valor por defecto
+                            "_source_method": "yahoo_api",
+                        }
+
+                        # Obtener fecha de publicación
+                        if item.get("providerPublishTime"):
+                            try:
+                                timestamp = item.get("providerPublishTime")
+                                if timestamp > 0:
+                                    news_item["date"] = datetime.fromtimestamp(
+                                        timestamp
+                                    ).strftime("%Y-%m-%d")
+                            except:
+                                pass
+
+                        news.append(news_item)
+
+                    return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias con la API de Yahoo: {str(e)}")
+
+        return []
+
+    def _get_news_from_finviz(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias de FinViz"""
+        try:
+            url = f"https://finviz.com/quote.ashx?t={symbol}"
+            response = requests.get(url, headers=self.headers, timeout=10)
+
+            if response.status_code != 200:
+                return []
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # En FinViz, las noticias están en una tabla con id "news-table"
+            news_table = soup.select_one("table#news-table")
+            if not news_table:
+                return []
+
+            news_rows = news_table.select("tr")
+
+            news = []
+            current_date = None
+
+            for i, row in enumerate(news_rows):
+                if len(news) >= max_news:
+                    break
+
+                # Verificar si hay celdas
+                cells = row.select("td")
+                if len(cells) < 2:
+                    continue
+
+                # Extraer fecha/hora
+                date_cell = cells[0].text.strip()
+
+                # La fecha sólo aparece en la primera noticia del día
+                # Las siguientes solo tienen hora
+                if "-" in date_cell:
+                    # Nueva fecha encontrada
+                    date_parts = date_cell.split()
+                    current_date = date_parts[0]
+                    time_str = date_parts[1] if len(date_parts) > 1 else ""
+                else:
+                    # Solo hora, mantener la fecha anterior
+                    time_str = date_cell
+
+                # Normalizar fecha
+                try:
+                    date_obj = datetime.strptime(current_date, "%b-%d-%y")
+                    formatted_date = date_obj.strftime("%Y-%m-%d")
+                except:
+                    formatted_date = datetime.now().strftime("%Y-%m-%d")
+
+                # Extraer título y enlace
+                title_cell = cells[1]
+                a_tag = title_cell.a
+
+                if a_tag:
+                    title = a_tag.text.strip()
+                    url = a_tag["href"]
+
+                    # Buscar fuente (texto junto al enlace)
+                    source_span = title_cell.select_one("span.news-source")
+                    source = source_span.text.strip() if source_span else "FinViz"
+
+                    news.append(
+                        {
+                            "title": title,
+                            "summary": "",  # FinViz no proporciona resúmenes
+                            "url": url,
+                            "source": source,
+                            "date": formatted_date,
+                            "_source_method": "finviz",
+                        }
+                    )
+
+            return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias de FinViz: {str(e)}")
+
+        return []
+
+    def _get_news_from_alpha_vantage(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias desde Alpha Vantage"""
+        if "alpha_vantage" not in self.api_keys:
+            return []
+
+        try:
+            api_key = self.api_keys["alpha_vantage"]
+            url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={symbol}&apikey={api_key}&limit={max_news}"
+
+            response = requests.get(url, timeout=10)
+
+            if response.status_code != 200:
+                return []
+
+            data = response.json()
+            news = []
+
+            if "feed" in data and isinstance(data["feed"], list):
+                for item in data["feed"][:max_news]:
+                    # Procesar fecha
+                    if "time_published" in item:
+                        try:
+                            pub_date = datetime.strptime(
+                                item["time_published"][:19], "%Y%m%dT%H%M%S"
+                            )
+                            date_str = pub_date.strftime("%Y-%m-%d")
+                        except:
+                            date_str = datetime.now().strftime("%Y-%m-%d")
+                    else:
+                        date_str = datetime.now().strftime("%Y-%m-%d")
+
+                    # Obtener sentimiento
+                    sentiment_score = 0.5  # Neutral por defecto
+                    if "overall_sentiment_score" in item:
+                        try:
+                            sentiment_score = float(item["overall_sentiment_score"])
+                        except:
+                            pass
+
+                    news.append(
+                        {
+                            "title": item.get("title", "Sin título"),
+                            "summary": item.get("summary", ""),
+                            "url": item.get("url", "#"),
+                            "source": item.get("source", "Alpha Vantage"),
+                            "date": date_str,
+                            "sentiment": sentiment_score,
+                            "_source_method": "alpha_vantage",
+                        }
+                    )
+
+                return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias de Alpha Vantage: {str(e)}")
+
+        return []
+
+    def _get_news_from_duckduckgo(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias usando DuckDuckGo"""
+        if not DDG_AVAILABLE or not self.ddgs:
+            return []
+
+        try:
+            # Obtener nombre de la empresa para mejorar la búsqueda
+            company_name = self._get_company_name(symbol)
+            query = f"{company_name} {symbol} stock news"
+
+            # Realizar búsqueda de noticias
+            results = self.ddgs.news(query, max_results=max_news)
+
+            if results:
+                news = []
+                for item in results:
+                    # Calcular un sentimiento básico (neutral por defecto)
+                    sentiment_value = 0.5
+
+                    # Análisis simple basado en palabras clave
+                    title_lower = item.get("title", "").lower()
+                    if any(
+                        word in title_lower
+                        for word in ["up", "rise", "gain", "bull", "positive", "growth"]
+                    ):
+                        sentiment_value = 0.7  # Positivo
+                    elif any(
+                        word in title_lower
+                        for word in ["down", "fall", "drop", "bear", "negative", "loss"]
+                    ):
+                        sentiment_value = 0.3  # Negativo
+
+                    news.append(
+                        {
+                            "title": item.get("title", ""),
+                            "summary": item.get("body", ""),
+                            "url": item.get("url", ""),
+                            "source": item.get("source", ""),
+                            "date": self._normalize_date_format(item.get("date", "")),
+                            "sentiment": sentiment_value,
+                            "_source_method": "duckduckgo",
+                        }
+                    )
+
+                return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias con DuckDuckGo: {str(e)}")
+
+        return []
+
+    def _get_news_from_investing(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias de Investing.com"""
+        try:
+            # Investing.com requiere una búsqueda para encontrar el perfil de la acción
+            search_url = f"https://www.investing.com/search/?q={symbol}"
+            response = requests.get(search_url, headers=self.headers, timeout=10)
+
+            if response.status_code != 200:
+                return []
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Buscar el enlace a la página del instrumento
+            stock_url = None
+
+            # Buscar en resultados de búsqueda
+            for selector in [
+                "a.js-inner-all-results-quote-item",
+                'a[class*="searchSuggest"]',
+                'a[href*="/equities/"]',
+                "table.searchSuggest a",
+            ]:
+                links = soup.select(selector)
+                for link in links:
+                    if symbol.lower() in link.text.lower():
+                        stock_url = (
+                            "https://www.investing.com" + link["href"]
+                            if link["href"].startswith("/")
+                            else link["href"]
+                        )
+                        break
+
+                if stock_url:
+                    break
+
+            if not stock_url:
+                # Intentar URL directa para los símbolos más comunes
+                stock_url = f"https://www.investing.com/equities/{symbol.lower()}"
+
+            # Obtener la página de noticias del instrumento
+            news_url = (
+                stock_url + "-news"
+                if not stock_url.endswith("/")
+                else stock_url + "news"
+            )
+            response = requests.get(news_url, headers=self.headers, timeout=10)
+
+            if response.status_code != 200:
+                return []
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Extraer artículos de noticias
+            news_items = []
+            for selector in [
+                "div.articleItem",
+                "div.textDiv",
+                "article.js-article-item",
+                "div.common-articles article",
+            ]:
+                items = soup.select(selector)
+                if items:
+                    news_items = items
+                    break
+
+            news = []
+            for item in news_items[:max_news]:
+                # Extraer título
+                title_element = None
+                for selector in ["a.title", 'a[class*="title"]', "a.linkTitle", "h4 a"]:
+                    title_element = item.select_one(selector)
+                    if title_element:
+                        break
+
+                if not title_element:
+                    continue
+
+                title = title_element.text.strip()
+                url = (
+                    "https://www.investing.com" + title_element["href"]
+                    if title_element["href"].startswith("/")
+                    else title_element["href"]
+                )
+
+                # Extraer resumen
+                summary_element = item.select_one('p, div[class*="articleSummary"]')
+                summary = summary_element.text.strip() if summary_element else ""
+
+                # Extraer fecha
+                date_element = item.select_one("span.date, time")
+                date_str = date_element.text.strip() if date_element else ""
+                date = (
+                    self._normalize_date_format(date_str)
+                    if date_str
+                    else datetime.now().strftime("%Y-%m-%d")
+                )
+
+                # Extraer fuente
+                source = "Investing.com"
+
+                news.append(
+                    {
+                        "title": title,
+                        "summary": summary,
+                        "url": url,
+                        "source": source,
+                        "date": date,
+                        "_source_method": "investing",
+                    }
+                )
+
+            return news
+        except Exception as e:
+            logger.warning(f"Error obteniendo noticias de Investing.com: {str(e)}")
+
         return []
 
     def get_analysis(self, symbol: str) -> Dict[str, Any]:
@@ -432,6 +826,115 @@ class YahooFinanceScraper:
         if cached_data:
             return cached_data
 
+        # Estructura base para la respuesta
+        data = {
+            "symbol": symbol,
+            "timestamp": datetime.now().isoformat(),
+            "recommendations": {},
+            "price_targets": {},
+            "ratings": [],
+        }
+
+        # Intentar primero con yfinance (más completo)
+        if YFINANCE_AVAILABLE:
+            try:
+                logger.info(f"Obteniendo análisis para {symbol} con yfinance")
+                ticker = yf.Ticker(symbol)
+
+                # Obtener info básica (siempre disponible)
+                info = ticker.info
+
+                # Extraer objetivos de precio directamente de info
+                if info:
+                    target_fields = [
+                        ("targetMeanPrice", "average"),
+                        ("targetHighPrice", "high"),
+                        ("targetLowPrice", "low"),
+                        ("targetMedianPrice", "median"),
+                    ]
+
+                    for src_field, dest_field in target_fields:
+                        if src_field in info and info[src_field] is not None:
+                            data["price_targets"][dest_field] = info[src_field]
+
+                # Intentar obtener recomendaciones
+                try:
+                    recommendations = ticker.recommendations
+                    if recommendations is not None and not recommendations.empty:
+                        # Buscar diferentes nombres de columnas posibles
+                        for col in ["To Grade", "toGrade", "grade", "recommendation"]:
+                            if col in recommendations.columns:
+                                try:
+                                    rec_counts = (
+                                        recommendations[col].value_counts().to_dict()
+                                    )
+
+                                    # Determinar la recomendación promedio
+                                    if rec_counts:
+                                        most_common = max(
+                                            rec_counts.items(), key=lambda x: x[1]
+                                        )
+                                        data["recommendations"]["average"] = (
+                                            most_common[0]
+                                        )
+
+                                        # Agregar recuentos
+                                        for grade, count in rec_counts.items():
+                                            key = (
+                                                grade.lower()
+                                                .replace(" ", "_")
+                                                .replace("-", "_")
+                                            )
+                                            data["recommendations"][key] = int(count)
+
+                                        # Incluir historial reciente
+                                        for idx, row in recommendations.tail(
+                                            10
+                                        ).iterrows():
+                                            rating = {
+                                                "date": (
+                                                    idx.strftime("%Y-%m-%d")
+                                                    if hasattr(idx, "strftime")
+                                                    else str(idx)
+                                                ),
+                                                "firm": (
+                                                    row.get("Firm", "")
+                                                    if "Firm" in row
+                                                    else ""
+                                                ),
+                                                "action": (
+                                                    f"{row.get('From Grade', '')} to {row.get(col, '')}"
+                                                    if "From Grade" in row
+                                                    else row.get(col, "")
+                                                ),
+                                                "rating": row.get(col, ""),
+                                            }
+                                            data["ratings"].append(rating)
+                                except Exception as e:
+                                    logger.debug(
+                                        f"Error procesando columna {col}: {str(e)}"
+                                    )
+                                break
+                except Exception as e:
+                    logger.debug(
+                        f"Error obteniendo recomendaciones de yfinance: {str(e)}"
+                    )
+
+                # Si tenemos datos significativos, guardar en caché y devolver
+                if (
+                    (data["price_targets"] and len(data["price_targets"]) > 0)
+                    or (data["recommendations"] and len(data["recommendations"]) > 1)
+                    or len(data["ratings"]) > 0
+                ):
+                    self._cache_data(cache_key, data)
+                    return data
+
+            except Exception as e:
+                logger.warning(
+                    f"Error obteniendo análisis con yfinance: {str(e)}. Intentando con scraping..."
+                )
+
+        # Scraping de Yahoo Finance como alternativa
         try:
             url = f"{self.base_url}/quote/{symbol}/analysis"
             response = requests.get(url, headers=self.headers, timeout=10)
@@ -440,35 +943,51 @@ class YahooFinanceScraper:
                 logger.warning(
                     f"Error obteniendo análisis para {symbol}: HTTP {response.status_code}"
                 )
-                return {"error": f"HTTP {response.status_code}", "symbol": symbol}
+                return data
 
             soup = BeautifulSoup(response.text, "html.parser")
 
-            data = {
-                "symbol": symbol,
-                "timestamp": datetime.now().isoformat(),
-                "recommendations": {},
-                "price_targets": {},
-                "ratings": [],
-            }
-
-            # Recomendaciones de analistas
+            # Recomendaciones de analistas - actualizado para el nuevo diseño
             try:
-                rec_section = soup.select_one('section[data-test="analyst-ratings"]')
+                # Buscar sección de recomendaciones con diferentes selectores
+                rec_section = None
+                for selector in [
+                    'section[data-test="analyst-ratings"]',
+                    'div[class*="analyst-ratings"]',
+                    'div[data-test="rec-rating-container"]',
+                    'div[class*="recommend"]',
+                ]:
+                    rec_section = soup.select_one(selector)
+                    if rec_section:
+                        break
+
                 if rec_section:
                     # Obtener recomendación promedio
-                    avg_rec = rec_section.select_one(
-                        'div[class*="recommendation-text"]'
-                    )
+                    avg_rec = None
+                    for selector in [
+                        'div[class*="recommendation-text"]',
+                        'span[class*="rating-text"]',
+                        'div[class*="ratings-container"] span',
+                    ]:
+                        avg_rec = rec_section.select_one(selector)
+                        if avg_rec:
+                            break
+
                     if avg_rec:
                         data["recommendations"]["average"] = avg_rec.text.strip()
 
                     # Obtener distribución de recomendaciones
-                    rec_rows = rec_section.select("tr")
+                    rec_rows = rec_section.select("tr, div[class*='rec-rating-row']")
                     for row in rec_rows:
-                        cells = row.select("td")
+                        cells = row.select("td, span")
                         if len(cells) >= 2:
-                            key = cells[0].text.strip().lower().replace(" ", "_")
+                            key = (
+                                cells[0]
+                                .text.strip()
+                                .lower()
+                                .replace(" ", "_")
+                                .replace(".", "")
+                            )
                             value_text = cells[1].text.strip()
                             try:
                                 value = int(value_text)
@@ -482,10 +1001,30 @@ class YahooFinanceScraper:
 
             # Objetivos de precio
             try:
-                target_section = soup.select_one('section[data-test="price-targets"]')
+                # Buscar sección de objetivos de precio con diferentes selectores
+                target_section = None
+                for selector in [
+                    'section[data-test="price-targets"]',
+                    'div[class*="price-targets"]',
+                    'div[data-test="price-target-container"]',
+                    'div[class*="target"]',
+                ]:
+                    target_section = soup.select_one(selector)
+                    if target_section:
+                        break
+
                 if target_section:
                     # Obtener objetivo promedio
-                    avg_target = target_section.select_one('div[class*="price-text"]')
+                    avg_target = None
+                    for selector in [
+                        'div[class*="price-text"]',
+                        'span[class*="target-price"]',
+                        'div[class*="average"] span',
+                    ]:
+                        avg_target = target_section.select_one(selector)
+                        if avg_target:
+                            break
+
                     if avg_target:
                         try:
                             data["price_targets"]["average"] = float(
@@ -495,8 +1034,17 @@ class YahooFinanceScraper:
                             data["price_targets"]["average"] = avg_target.text.strip()
 
                     # Obtener rango de objetivos
-                    range_elements = target_section.select('div[class*="range-text"]')
-                    if len(range_elements) >= 2:
+                    range_elements = None
+                    for selector in [
+                        'div[class*="range-text"]',
+                        'span[class*="range"]',
+                        'div[class*="low-high"] span',
+                    ]:
+                        range_elements = target_section.select(selector)
+                        if range_elements and len(range_elements) >= 2:
+                            break
+
+                    if range_elements and len(range_elements) >= 2:
                         try:
                             data["price_targets"]["low"] = float(
                                 range_elements[0].text.strip().replace(",", "")
@@ -513,7 +1061,17 @@ class YahooFinanceScraper:
 
             # Historial de calificaciones
             try:
-                ratings_table = soup.select_one('table[class*="ratings-history"]')
+                # Buscar tabla de historial con diferentes selectores
+                ratings_table = None
+                for selector in [
+                    'table[class*="ratings-history"]',
+                    'table[data-test="research-ratings"]',
+                    'div[class*="ratings-history"] table',
+                ]:
+                    ratings_table = soup.select_one(selector)
+                    if ratings_table:
+                        break
+
                 if ratings_table:
                     rows = ratings_table.select("tr:not(:first-child)")
                     for row in rows:
@@ -540,15 +1098,12 @@ class YahooFinanceScraper:
                 logger.debug(
                     f"Error obteniendo historial de calificaciones para {symbol}: {str(e)}"
                 )
-
-            # Almacenar en caché
-            self._cache_data(cache_key, data)
-
-            return data
-
         except Exception as e:
             logger.error(f"Error en get_analysis para {symbol}: {str(e)}")
-            return {"error": str(e), "symbol": symbol}
+
+        # Almacenar en caché
+        self._cache_data(cache_key, data)
+        return data
 
     def get_options_data(self, symbol: str) -> Dict[str, Any]:
         """
@@ -565,6 +1120,79 @@ class YahooFinanceScraper:
         if cached_data:
             return cached_data
 
+        # Intentar primero con yfinance (más confiable)
+        if YFINANCE_AVAILABLE:
+            try:
+                logger.info(f"Obteniendo opciones para {symbol} con yfinance")
+                ticker = yf.Ticker(symbol)
+
+                # Obtener fechas de vencimiento disponibles
+                expirations = ticker.options
+
+                if expirations:
+                    data = {
+                        "symbol": symbol,
+                        "timestamp": datetime.now().isoformat(),
+                        "expiration_dates": expirations,
+                        "calls": [],
+                        "puts": [],
+                    }
+
+                    # Obtener datos de opciones para la fecha más cercana
+                    if len(expirations) > 0:
+                        nearest_expiry = expirations[0]
+                        options_chain = ticker.option_chain(nearest_expiry)
+
+                        # Procesar opciones call
+                        if (
+                            hasattr(options_chain, "calls")
+                            and not options_chain.calls.empty
+                        ):
+                            for _, row in options_chain.calls.iterrows():
+                                option = {
+                                    "contract_name": f"{symbol}{nearest_expiry}C{row.get('strike', 0)}",
+                                    "strike": row.get("strike"),
+                                    "last_price": row.get("lastPrice"),
+                                    "bid": row.get("bid"),
+                                    "ask": row.get("ask"),
+                                    "change": row.get("change"),
+                                    "percent_change": row.get("percentChange"),
+                                    "volume": row.get("volume"),
+                                    "open_interest": row.get("openInterest"),
+                                    "implied_volatility": row.get("impliedVolatility"),
+                                }
+                                data["calls"].append(option)
+
+                        # Procesar opciones put
+                        if (
+                            hasattr(options_chain, "puts")
+                            and not options_chain.puts.empty
+                        ):
+                            for _, row in options_chain.puts.iterrows():
+                                option = {
+                                    "contract_name": f"{symbol}{nearest_expiry}P{row.get('strike', 0)}",
+                                    "strike": row.get("strike"),
+                                    "last_price": row.get("lastPrice"),
+                                    "bid": row.get("bid"),
+                                    "ask": row.get("ask"),
+                                    "change": row.get("change"),
+                                    "percent_change": row.get("percentChange"),
+                                    "volume": row.get("volume"),
+                                    "open_interest": row.get("openInterest"),
+                                    "implied_volatility": row.get("impliedVolatility"),
+                                }
+                                data["puts"].append(option)
+
+                        # Almacenar en caché
+                        self._cache_data(cache_key, data)
+                        logger.info(f"Opciones obtenidas con yfinance para {symbol}")
+                        return data
+            except Exception as e:
+                logger.warning(
+                    f"Error obteniendo opciones con yfinance: {str(e)}. Intentando con scraping..."
+                )
+
+        # Si yfinance falla, intentar con scraping
         try:
             url = f"{self.base_url}/quote/{symbol}/options"
             response = requests.get(url, headers=self.headers, timeout=10)
@@ -587,7 +1215,17 @@ class YahooFinanceScraper:
 
             # Fechas de vencimiento disponibles
             try:
-                expiry_select = soup.select_one('select[class*="expiration-date"]')
+                # Buscar selector de fechas con diferentes selectores
+                expiry_select = None
+                for selector in [
+                    'select[class*="expiration-date"]',
+                    'select[data-test="date-picker"]',
+                    'div[class*="options-menu"] select',
+                ]:
+                    expiry_select = soup.select_one(selector)
+                    if expiry_select:
+                        break
+
                 if expiry_select:
                     options = expiry_select.select("option")
                     for option in options:
@@ -600,7 +1238,17 @@ class YahooFinanceScraper:
 
             # Datos de opciones call
             try:
-                calls_table = soup.select_one('table[class*="calls"]')
+                # Buscar tabla de opciones call con diferentes selectores
+                calls_table = None
+                for selector in [
+                    'table[class*="calls"]',
+                    'section[data-test="options-calls"] table',
+                    'div[class*="call-options"] table',
+                ]:
+                    calls_table = soup.select_one(selector)
+                    if calls_table:
+                        break
+
                 if calls_table:
                     rows = calls_table.select("tr:not(:first-child)")
                     for row in rows:
@@ -639,7 +1287,17 @@ class YahooFinanceScraper:
 
             # Datos de opciones put
             try:
-                puts_table = soup.select_one('table[class*="puts"]')
+                # Buscar tabla de opciones put con diferentes selectores
+                puts_table = None
+                for selector in [
+                    'table[class*="puts"]',
+                    'section[data-test="options-puts"] table',
+                    'div[class*="put-options"] table',
+                ]:
+                    puts_table = soup.select_one(selector)
+                    if puts_table:
+                        break
+
                 if puts_table:
                     rows = puts_table.select("tr:not(:first-child)")
                     for row in rows:
@@ -678,7 +1336,6 @@ class YahooFinanceScraper:
 
             # Almacenar en caché
             self._cache_data(cache_key, data)
-
             return data
 
         except Exception as e:
@@ -696,7 +1353,7 @@ class YahooFinanceScraper:
             Dict[str, Any]: Todos los datos disponibles
         """
         # Añadir pequeño retraso para evitar bloqueos
-        time.sleep(random.uniform(0.5, 1.5))
+        time.sleep(random.uniform(0.5, 1.0))
 
         quote_data = self.get_quote_data(symbol)
 
@@ -705,12 +1362,12 @@ class YahooFinanceScraper:
             return quote_data
 
         # Añadir pequeño retraso entre solicitudes
-        time.sleep(random.uniform(0.5, 1.5))
+        time.sleep(random.uniform(0.5, 1.0))
 
         news_data = self.get_news(symbol)
 
         # Añadir pequeño retraso entre solicitudes
-        time.sleep(random.uniform(0.5, 1.5))
+        time.sleep(random.uniform(0.5, 1.0))
 
         analysis_data = self.get_analysis(symbol)
 
@@ -729,7 +1386,7 @@ class YahooFinanceScraper:
         self, news_data: List[Dict[str, Any]], symbol: str, company_name: str = None
     ) -> List[Dict[str, Any]]:
         """
-        Procesa noticias con el experto en IA para mejorar su calidad
+        Procesa noticias para mejorar su calidad
 
         Args:
             news_data (List[Dict[str, Any]]): Lista de noticias a procesar
@@ -932,6 +1589,7 @@ class YahooFinanceScraper:
             "motley fool",
             "zacks",
             "investopedia",
+            "finviz",
         ]
 
         is_financial_source = any(fs in source for fs in financial_sources)
@@ -978,18 +1636,18 @@ class YahooFinanceScraper:
 
         if "yahoo" in source_lower:
             return f"https://finance.yahoo.com/quote/{symbol}"
-        elif "google" in source_lower:
-            return f"https://www.google.com/finance/quote/{symbol}"
-        elif "marketwatch" in source_lower:
-            return f"https://www.marketwatch.com/investing/stock/{symbol.lower()}"
+        elif "finviz" in source_lower:
+            return f"https://finviz.com/quote.ashx?t={symbol}"
+        elif "investing" in source_lower:
+            return f"https://www.investing.com/search/?q={symbol}"
         elif "bloomberg" in source_lower:
             return f"https://www.bloomberg.com/quote/{symbol}"
+        elif "alpha vantage" in source_lower:
+            return f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}"
         elif "cnbc" in source_lower:
             return f"https://www.cnbc.com/quotes/{symbol}"
         elif "reuters" in source_lower:
             return f"https://www.reuters.com/companies/{symbol}"
-        elif "investing.com" in source_lower:
-            return f"https://www.investing.com/search/?q={symbol}"
         elif "seeking alpha" in source_lower:
             return f"https://seekingalpha.com/symbol/{symbol}"
         elif "barrons" in source_lower:
@@ -999,7 +1657,7 @@ class YahooFinanceScraper:
         elif "wsj" in source_lower or "wall street journal" in source_lower:
             return f"https://www.wsj.com/market-data/quotes/{symbol}"
         else:
-            return f"https://www.google.com/finance/quote/{symbol}"
+            return f"https://finance.yahoo.com/quote/{symbol}"
 
     def _parse_float(self, value: str) -> Optional[float]:
         """Convierte un string a float, manejando errores"""
@@ -1008,6 +1666,13 @@ class YahooFinanceScraper:
             clean_value = value.replace(",", "").replace("N/A", "").strip()
             if not clean_value:
                 return None
+
+            # Intentar extraer el número usando regex si hay caracteres extra
+            if not clean_value.replace(".", "").replace("-", "").isdigit():
+                float_match = re.search(r"(-?\d+\.?\d*)", clean_value)
+                if float_match:
+                    clean_value = float_match.group(1)
+
             return float(clean_value)
         except:
             return None
@@ -1019,6 +1684,13 @@ class YahooFinanceScraper:
             clean_value = value.replace(",", "").replace("N/A", "").strip()
             if not clean_value:
                 return None
+
+            # Intentar extraer el número usando regex si hay caracteres extra
+            if not clean_value.replace("-", "").isdigit():
+                int_match = re.search(r"(-?\d+)", clean_value)
+                if int_match:
+                    clean_value = int_match.group(1)
+
             return int(clean_value)
         except:
             return None
@@ -1034,9 +1706,14 @@ class YahooFinanceScraper:
             str: Fecha normalizada en formato YYYY-MM-DD
         """
         try:
-            # Si ya está en formato ISO
+            # Si ya está en formato ISO o similar
             if re.match(r"\d{4}-\d{2}-\d{2}", date_str):
                 return date_str
+
+            # Para fechas ISO con timestamp (como las de DuckDuckGo)
+            iso_match = re.search(r"(\d{4}-\d{2}-\d{2})T", date_str)
+            if iso_match:
+                return iso_match.group(1)
 
             # Intentar varios formatos comunes
             for fmt in [
@@ -1048,6 +1725,7 @@ class YahooFinanceScraper:
                 "%Y/%m/%d",
                 "%d-%m-%Y",
                 "%m-%d-%Y",
+                "%b-%d-%y",
             ]:
                 try:
                     dt = datetime.strptime(date_str, fmt)
@@ -1169,10 +1847,12 @@ class YahooFinanceScraper:
             "financial times",
             "ft",
             "cnbc",
-            "marketwatch",
+            "finviz",
             "seeking alpha",
             "yahoo finance",
             "barrons",
+            "alpha vantage",
+            "investing.com",
         ]
 
         for cs in credible_sources:
@@ -1193,6 +1873,14 @@ class YahooFinanceScraper:
         Returns:
             float: Puntuación de sentimiento (-1 a 1, donde -1 es muy negativo, 0 es neutral, 1 es muy positivo)
         """
+        # Si ya tiene puntuación de sentimiento, usarla
+        if "sentiment" in news and isinstance(news["sentiment"], (int, float)):
+            sentiment = float(news["sentiment"])
+            # Normalizar entre -1 y 1 si es necesario
+            if 0 <= sentiment <= 1:
+                return (sentiment * 2) - 1
+            return max(min(sentiment, 1), -1)
+
         title = news.get("title", "").lower()
         summary = news.get("summary", "").lower()
 
@@ -1353,198 +2041,6 @@ class YahooFinanceScraper:
         else:
             return f"Noticia de {source}: '{title}'. El sentimiento es neutral (puntuación: {sentiment_score:.2f})."
 
-    def _get_news_from_google_finance(
-        self, symbol: str, max_news: int = 10
-    ) -> List[Dict[str, Any]]:
-        """
-        Obtiene noticias de un símbolo utilizando Google Finance
-
-        Args:
-            symbol (str): Símbolo del activo
-            max_news (int): Número máximo de noticias a obtener
-
-        Returns:
-            List[Dict[str, Any]]: Lista de noticias
-        """
-        try:
-            # Intentar primero con NASDAQ
-            url = f"https://www.google.com/finance/quote/{symbol}:NASDAQ"
-            response = requests.get(url, headers=self.headers, timeout=10)
-
-            if response.status_code != 200:
-                # Intentar con NYSE
-                url = f"https://www.google.com/finance/quote/{symbol}:NYSE"
-                response = requests.get(url, headers=self.headers, timeout=10)
-
-                if response.status_code != 200:
-                    # Intentar sin especificar el mercado
-                    url = f"https://www.google.com/finance/quote/{symbol}"
-                    response = requests.get(url, headers=self.headers, timeout=10)
-
-                    if response.status_code != 200:
-                        logger.warning(
-                            f"Error obteniendo datos de Google Finance para {symbol}: HTTP {response.status_code}"
-                        )
-                        return []
-
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Buscar sección de noticias
-            news_section = soup.select('div[role="feed"]')
-            if not news_section:
-                return []
-
-            news_items = news_section[0].select('div[role="article"]')
-
-            news = []
-            for item in news_items[:max_news]:  # Limitar a max_news noticias
-                # Extraer título
-                title_element = item.select_one('div[role="heading"]')
-                title = title_element.text.strip() if title_element else "Sin título"
-
-                # Extraer enlace
-                link_element = item.select_one("a[href]")
-                url = (
-                    link_element["href"]
-                    if link_element and "href" in link_element.attrs
-                    else "#"
-                )
-
-                # Convertir enlaces relativos a absolutos
-                if url.startswith("/"):
-                    url = f"https://www.google.com{url}"
-
-                # Extraer fuente y fecha
-                source_element = item.select_one("div:nth-child(2) > div:nth-child(1)")
-                source = (
-                    source_element.text.strip() if source_element else "Google Finance"
-                )
-
-                # Intentar extraer fecha
-                date_element = item.select_one("div:nth-child(2) > div:nth-child(2)")
-                date = datetime.now().strftime("%Y-%m-%d")  # Fecha por defecto
-
-                # Si hay fecha en el elemento, intentar procesarla
-                if date_element:
-                    # Aquí se podría implementar un parser de fechas relativas
-                    # Por ahora usamos la fecha actual
-                    pass
-
-                # Extraer resumen si está disponible
-                summary_element = item.select_one('div[role="heading"] + div')
-                summary = summary_element.text.strip() if summary_element else ""
-
-                news.append(
-                    {
-                        "title": title,
-                        "summary": summary,
-                        "url": url,
-                        "source": source,
-                        "date": date,
-                    }
-                )
-
-            return news
-
-        except Exception as e:
-            logger.error(
-                f"Error en _get_news_from_google_finance para {symbol}: {str(e)}"
-            )
-            return []
-
-    def _get_news_from_marketwatch(
-        self, symbol: str, max_news: int = 10
-    ) -> List[Dict[str, Any]]:
-        """
-        Obtiene noticias de un símbolo utilizando MarketWatch
-
-        Args:
-            symbol (str): Símbolo del activo
-            max_news (int): Número máximo de noticias a obtener
-
-        Returns:
-            List[Dict[str, Any]]: Lista de noticias
-        """
-        try:
-            url = f"https://www.marketwatch.com/investing/stock/{symbol.lower()}"
-            response = requests.get(url, headers=self.headers, timeout=10)
-
-            if response.status_code != 200:
-                logger.warning(
-                    f"Error obteniendo datos de MarketWatch para {symbol}: HTTP {response.status_code}"
-                )
-                return []
-
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            # Buscar sección de noticias
-            news_section = soup.select(".collection__elements")
-            if not news_section:
-                # Intentar con otro selector
-                news_section = soup.select(".article__content")
-                if not news_section:
-                    return []
-
-            # Buscar elementos de noticias
-            news_items = []
-            for section in news_section:
-                items = section.select(".element--article, .article__headline")
-                if items:
-                    news_items.extend(items)
-
-            if not news_items:
-                return []
-
-            news = []
-            for item in news_items[:max_news]:  # Limitar a max_news noticias
-                # Extraer título y enlace
-                title_element = item.select_one("a.link, h3.article__headline a")
-                if not title_element:
-                    continue
-
-                title = title_element.text.strip()
-                url = title_element["href"] if "href" in title_element.attrs else "#"
-
-                # Convertir enlaces relativos a absolutos
-                if url.startswith("/"):
-                    url = f"https://www.marketwatch.com{url}"
-
-                # Extraer resumen si está disponible
-                summary_element = item.select_one(".article__summary")
-                summary = summary_element.text.strip() if summary_element else ""
-
-                # Extraer fuente y fecha
-                source = "MarketWatch"
-                date = datetime.now().strftime("%Y-%m-%d")
-
-                # Intentar extraer fecha si está disponible
-                date_element = item.select_one(".article__timestamp")
-                if date_element:
-                    date_str = date_element.text.strip()
-                    try:
-                        # Intentar parsear la fecha
-                        if "ago" not in date_str.lower():
-                            parsed_date = datetime.strptime(date_str, "%b. %d, %Y")
-                            date = parsed_date.strftime("%Y-%m-%d")
-                    except:
-                        pass
-
-                news.append(
-                    {
-                        "title": title,
-                        "summary": summary,
-                        "url": url,
-                        "source": source,
-                        "date": date,
-                    }
-                )
-
-            return news
-
-        except Exception as e:
-            logger.error(f"Error en _get_news_from_marketwatch para {symbol}: {str(e)}")
-            return []
-
     def _get_company_name(self, symbol: str) -> str:
         """
         Obtiene el nombre de la empresa a partir del símbolo
@@ -1555,16 +2051,36 @@ class YahooFinanceScraper:
         Returns:
             str: Nombre de la empresa
         """
-        # Intentar obtener de yfinance
+        # Intentar obtener de yfinance (más confiable)
         if YFINANCE_AVAILABLE:
             try:
                 ticker = yf.Ticker(symbol)
                 info = ticker.info
-                return info.get("shortName", info.get("longName", symbol))
+                if info:
+                    return info.get("shortName", info.get("longName", symbol))
             except Exception as e:
                 logger.debug(
                     f"Error obteniendo nombre de empresa con yfinance: {str(e)}"
                 )
+
+        # Intentar obtener de la API de Yahoo Finance
+        try:
+            api_url = (
+                f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbol}"
+            )
+            response = requests.get(api_url, headers=self.headers, timeout=5)
+
+            if response.status_code == 200:
+                json_data = response.json()
+                quote_data = json_data.get("quoteResponse", {}).get("result", [])
+
+                if quote_data and len(quote_data) > 0:
+                    result = quote_data[0]
+                    name = result.get("shortName", result.get("longName", symbol))
+                    if name and name != symbol:
+                        return name
+        except Exception as e:
+            logger.debug(f"Error obteniendo nombre de empresa con la API: {str(e)}")
 
         # Intentar obtener de scraping
         try:
@@ -1573,7 +2089,14 @@ class YahooFinanceScraper:
 
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
-                name_elem = soup.select_one("h1")
+
+                # Buscar el nombre con varios selectores posibles
+                name_elem = None
+                for selector in ["h1", 'div[class*="title"]', 'div[class*="D(ib)"] h1']:
+                    name_elem = soup.select_one(selector)
+                    if name_elem:
+                        break
+
                 if name_elem:
                     return name_elem.text.strip()
         except Exception as e:
@@ -1583,17 +2106,67 @@ class YahooFinanceScraper:
         return symbol
 
 
-# Ejemplo de uso
+# Script de prueba
 if __name__ == "__main__":
-    # Configurar logging para ver mensajes en consola
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    # Intentar cargar claves API desde secrets.toml
+    try:
+        import toml
+        import os
 
-    scraper = YahooFinanceScraper()
+        # Buscar el archivo secrets.toml en diferentes ubicaciones
+        secrets_paths = [
+            "./.streamlit/secrets.toml",
+            "../.streamlit/secrets.toml",
+            os.path.expanduser("~/.streamlit/secrets.toml"),
+        ]
 
-    # Obtener datos para Microsoft
+        secrets = None
+        for path in secrets_paths:
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    secrets = toml.load(f)
+                print(f"Cargando secrets desde: {path}")
+                break
+
+        if secrets:
+            # Configurar keys de API desde secrets.toml
+            api_keys = {}
+
+            # Intentar obtener de la sección api_keys
+            if "api_keys" in secrets:
+                if "ALPHA_VANTAGE_API_KEY" in secrets["api_keys"]:
+                    api_keys["alpha_vantage"] = secrets["api_keys"][
+                        "ALPHA_VANTAGE_API_KEY"
+                    ]
+                if "FINNHUB_API_KEY" in secrets["api_keys"]:
+                    api_keys["finnhub"] = secrets["api_keys"]["FINNHUB_API_KEY"]
+
+            # Intentar obtener de la raíz
+            if "alpha_vantage_api_key" in secrets:
+                api_keys["alpha_vantage"] = secrets["alpha_vantage_api_key"]
+            if "finnhub_api_key" in secrets:
+                api_keys["finnhub"] = secrets["finnhub_api_key"]
+
+            print(f"API keys cargadas: {', '.join(api_keys.keys())}")
+        else:
+            print("No se encontró el archivo secrets.toml")
+            # Usar valores por defecto
+            api_keys = {
+                "alpha_vantage": "E93GT2T7VWQJIVY1",  # Clave de ejemplo
+                "finnhub": "cuv6cbhr01qpi6rtjdvgcuv6cbhr01qpi6rtje00",  # Clave de ejemplo
+            }
+    except Exception as e:
+        print(f"Error cargando secrets: {str(e)}")
+        # Usar valores por defecto
+        api_keys = {
+            "alpha_vantage": "E93GT2T7VWQJIVY1",  # Clave de ejemplo
+            "finnhub": "cuv6cbhr01qpi6rtjdvgcuv6cbhr01qpi6rtje00",  # Clave de ejemplo
+        }
+
+    # Crear instancia del scraper
+    scraper = YahooFinanceScraper(api_keys)
+
+    # Símbolo a analizar
     symbol = "MSFT"
     print(f"\nObteniendo datos para {symbol}...\n")
 
@@ -1602,7 +2175,7 @@ if __name__ == "__main__":
 
     # Imprimir información básica
     print(f"Datos para {symbol}:")
-    if quote_data["price"].get("current"):
+    if "price" in quote_data and quote_data["price"].get("current"):
         print(f"Precio actual: ${quote_data['price'].get('current')}")
         if quote_data["price"].get("change") and quote_data["price"].get(
             "change_percent"
@@ -1617,156 +2190,27 @@ if __name__ == "__main__":
     company_name = scraper._get_company_name(symbol)
     print(f"Nombre de la empresa: {company_name}")
 
-    # Probar todas las fuentes de noticias
-    print("\n=== PRUEBA DE TODAS LAS FUENTES DE NOTICIAS ===")
+    # Prueba de obtención de noticias
+    print("\n=== PRUEBA DE FUENTES DE NOTICIAS ===")
 
-    # 1. Probar yfinance
-    if YFINANCE_AVAILABLE:
-        print("\n1. Obteniendo noticias con yfinance:")
-        try:
-            ticker = yf.Ticker(symbol)
-            news_data = ticker.news
-
-            if news_data:
-                news = []
-                for item in news_data[:3]:  # Limitar a 3 noticias
-                    news_item = {
-                        "title": item.get("title", ""),
-                        "summary": item.get("summary", ""),
-                        "url": item.get("link", ""),
-                        "source": item.get("publisher", "Yahoo Finance"),
-                        "date": datetime.fromtimestamp(
-                            item.get("providerPublishTime", 0)
-                        ).strftime("%Y-%m-%d"),
-                    }
-                    news.append(news_item)
-                    print(f"- {news_item['title']}")
-                    print(
-                        f"  Fuente: {news_item['source']} - Fecha: {news_item['date']}"
-                    )
-                    print(f"  URL: {news_item['url']}")
-            else:
-                print("No se encontraron noticias con yfinance")
-        except Exception as e:
-            print(f"Error obteniendo noticias con yfinance: {str(e)}")
-    else:
-        print("yfinance no está disponible")
-
-    # 2. Probar scraping de Yahoo Finance
-    print("\n2. Obteniendo noticias con scraping de Yahoo Finance:")
-    try:
-        url = f"{scraper.base_url}/quote/{symbol}/news"
-        response = requests.get(url, headers=scraper.headers, timeout=10)
-
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "html.parser")
-            news_items = soup.select('div[data-test="story"]')
-
-            if not news_items:
-                news_items = soup.select('li[class*="js-stream-content"]')
-
-            if news_items:
-                for i, item in enumerate(news_items[:3]):
-                    title_element = item.select_one('h3, a[class*="headline"]')
-                    title = (
-                        title_element.text.strip() if title_element else "Sin título"
-                    )
-
-                    link_element = item.select_one("a[href]")
-                    url = (
-                        link_element["href"]
-                        if link_element and "href" in link_element.attrs
-                        else "#"
-                    )
-                    if url.startswith("/"):
-                        url = f"{scraper.base_url}{url}"
-
-                    summary_element = item.select_one('p, div[class*="summary"]')
-                    summary = summary_element.text.strip() if summary_element else ""
-
-                    print(f"- {title}")
-                    print(f"  URL: {url}")
-                    if summary:
-                        print(
-                            f"  Resumen: {summary[:100]}..."
-                            if len(summary) > 100
-                            else f"  Resumen: {summary}"
-                        )
-            else:
-                print("No se encontraron noticias con scraping de Yahoo Finance")
-        else:
-            print(
-                f"Error HTTP {response.status_code} al obtener noticias de Yahoo Finance"
-            )
-    except Exception as e:
-        print(f"Error obteniendo noticias con scraping de Yahoo Finance: {str(e)}")
-
-    # 3. Probar DuckDuckGo
-    if DDG_AVAILABLE and scraper.ddgs:
-        print("\n3. Obteniendo noticias con DuckDuckGo:")
-        try:
-            query = f"{company_name} {symbol} stock news"
-            results = scraper.ddgs.news(query, max_results=3)
-
-            if results:
-                for item in results:
-                    print(f"- {item.get('title', '')}")
-                    print(
-                        f"  Fuente: {item.get('source', '')} - Fecha: {item.get('date', '')}"
-                    )
-                    print(f"  URL: {item.get('url', '')}")
-            else:
-                print("No se encontraron noticias con DuckDuckGo")
-        except Exception as e:
-            print(f"Error obteniendo noticias con DuckDuckGo: {str(e)}")
-    else:
-        print("DuckDuckGo no está disponible")
-
-    # 4. Probar Google Finance
-    print("\n4. Obteniendo noticias con Google Finance:")
-    try:
-        google_news = scraper._get_news_from_google_finance(symbol, 3)
-        if google_news:
-            for news in google_news:
-                print(f"- {news['title']}")
-                print(f"  Fuente: {news['source']} - Fecha: {news['date']}")
-                print(f"  URL: {news['url']}")
-        else:
-            print("No se encontraron noticias con Google Finance")
-    except Exception as e:
-        print(f"Error obteniendo noticias con Google Finance: {str(e)}")
-
-    # 5. Probar MarketWatch
-    print("\n5. Obteniendo noticias con MarketWatch:")
-    try:
-        mw_news = scraper._get_news_from_marketwatch(symbol, 3)
-        if mw_news:
-            for news in mw_news:
-                print(f"- {news['title']}")
-                print(f"  Fuente: {news['source']} - Fecha: {news['date']}")
-                print(f"  URL: {news['url']}")
-        else:
-            print("No se encontraron noticias con MarketWatch")
-    except Exception as e:
-        print(f"Error obteniendo noticias con MarketWatch: {str(e)}")
-
-    # 6. Probar el método principal get_news
-    print("\n6. Probando el método principal get_news:")
+    # Obtener noticias
     news_data = scraper.get_news(symbol, max_news=3)
+
     if news_data:
-        print(f"Se obtuvieron {len(news_data)} noticias con el método principal")
+        print(f"\nSe obtuvieron {len(news_data)} noticias")
         for i, news in enumerate(news_data, 1):
             print(f"{i}. {news.get('title', 'Sin título')}")
             print(
                 f"   Fuente: {news.get('source', 'N/A')} - Fecha: {news.get('date', 'N/A')}"
             )
             print(f"   URL: {news.get('url', 'N/A')}")
-            print(f"   Método: {getattr(news, '_source_method', 'Desconocido')}")
+            print(f"   Método: {news.get('_source_method', 'Desconocido')}")
     else:
-        print("No se obtuvieron noticias con el método principal")
+        print("\nNo se obtuvieron noticias")
 
-    # 7. Probar el procesamiento de noticias
-    print("\n7. Probando el procesamiento de noticias:")
+    # Prueba de procesamiento de noticias
+    print("\n=== PROCESAMIENTO DE NOTICIAS ===")
+
     if news_data:
         processed_news = scraper.process_news_with_expert(
             news_data, symbol, company_name
@@ -1777,29 +2221,56 @@ if __name__ == "__main__":
             print(
                 f"   Fuente: {news.get('source', 'N/A')} - Fecha: {news.get('date', 'N/A')}"
             )
-            print(f"   URL: {news.get('url', 'N/A')}")
+            print(
+                f"   Relevancia: {news.get('relevance_score', 0):.2f} - Sentimiento: {news.get('sentiment_score', 0):.2f}"
+            )
+            if "trading_recommendation" in news:
+                rec = news["trading_recommendation"]
+                print(
+                    f"   Recomendación: {rec.get('direction', 'N/A')} (Confianza: {rec.get('confidence', 'N/A')})"
+                )
     else:
         print("No hay noticias para procesar")
 
-    print("\n=== FIN DE LA PRUEBA DE FUENTES DE NOTICIAS ===")
+    # Prueba de análisis
+    print("\n=== ANÁLISIS Y RECOMENDACIONES ===")
 
-    # Obtener y mostrar análisis
-    print("\nRecomendaciones de analistas:")
     analysis_data = scraper.get_analysis(symbol)
+
+    # Mostrar recomendaciones
+    print("Recomendaciones de analistas:")
     if "recommendations" in analysis_data and analysis_data["recommendations"]:
         print(f"Promedio: {analysis_data['recommendations'].get('average', 'N/A')}")
-        # Mostrar distribución de recomendaciones si está disponible
+        # Mostrar distribución si está disponible
         for key, value in analysis_data["recommendations"].items():
             if key != "average":
                 print(f"  {key}: {value}")
     else:
         print("No hay recomendaciones disponibles")
 
+    # Mostrar objetivos de precio
     print("\nObjetivos de precio:")
     if "price_targets" in analysis_data and analysis_data["price_targets"]:
         print(f"Promedio: ${analysis_data['price_targets'].get('average', 'N/A')}")
-        print(
-            f"Rango: ${analysis_data['price_targets'].get('low', 'N/A')} - ${analysis_data['price_targets'].get('high', 'N/A')}"
-        )
+        if (
+            "low" in analysis_data["price_targets"]
+            and "high" in analysis_data["price_targets"]
+        ):
+            print(
+                f"Rango: ${analysis_data['price_targets'].get('low', 'N/A')} - ${analysis_data['price_targets'].get('high', 'N/A')}"
+            )
     else:
         print("No hay objetivos de precio disponibles")
+
+    # Mostrar historial de calificaciones
+    if "ratings" in analysis_data and analysis_data["ratings"]:
+        print("\nÚltimas calificaciones de analistas:")
+        for i, rating in enumerate(
+            analysis_data["ratings"][:3], 1
+        ):  # Mostrar las primeras 3
+            print(f"{i}. Fecha: {rating.get('date', 'N/A')}")
+            print(f"   Firma: {rating.get('firm', 'N/A')}")
+            print(f"   Acción: {rating.get('action', 'N/A')}")
+            print(f"   Calificación: {rating.get('rating', 'N/A')}")
+            if "price_target" in rating:
+                print(f"   Objetivo de precio: ${rating['price_target']}")

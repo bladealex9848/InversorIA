@@ -8,7 +8,7 @@ import logging
 import mysql.connector
 from datetime import datetime
 import streamlit as st
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class DatabaseManager:
 
     def __init__(self):
         """Inicializa el gestor de base de datos"""
-        self.connection = None
+        self.connection: Optional[mysql.connector.MySQLConnection] = None
         self.config = self._get_db_config()
 
     def _get_db_config(self):
@@ -67,8 +67,12 @@ class DatabaseManager:
                 "database": "inversoria",
             }
 
-    def connect(self):
-        """Establece conexión con la base de datos"""
+    def connect(self) -> bool:
+        """Establece conexión con la base de datos
+
+        Returns:
+            bool: True si la conexión se estableció correctamente, False en caso contrario
+        """
         try:
             # Primero intentar conectar sin especificar la base de datos
             config_without_db = self.config.copy()
@@ -190,9 +194,161 @@ class DatabaseManager:
         """Cierra la conexión con la base de datos"""
         if self.connection and self.connection.is_connected():
             self.connection.close()
+            logger.debug("Conexión a la base de datos cerrada")
 
-    def execute_query(self, query, params=None, fetch=True):
-        """Ejecuta una consulta SQL y devuelve los resultados"""
+    def begin_transaction(self) -> bool:
+        """Inicia una transacción en la base de datos
+
+        Returns:
+            bool: True si se inició la transacción correctamente, False en caso contrario
+        """
+        try:
+            if self.connect():
+                # Desactivar autocommit para iniciar transacción
+                self.connection.autocommit = False
+                logger.info("Transacción iniciada")
+                return True
+            else:
+                logger.error("No se pudo iniciar la transacción: fallo en la conexión")
+                return False
+        except Exception as e:
+            logger.error(f"Error iniciando transacción: {str(e)}")
+            return False
+
+    def commit_transaction(self) -> bool:
+        """Confirma una transacción en la base de datos
+
+        Returns:
+            bool: True si se confirmó la transacción correctamente, False en caso contrario
+        """
+        try:
+            if self.connection and self.connection.is_connected():
+                self.connection.commit()
+                logger.info("Transacción confirmada")
+                self.disconnect()
+                return True
+            else:
+                logger.error(
+                    "No se pudo confirmar la transacción: no hay conexión activa"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"Error confirmando transacción: {str(e)}")
+            return False
+
+    def rollback_transaction(self) -> bool:
+        """Revierte una transacción en la base de datos
+
+        Returns:
+            bool: True si se revirtió la transacción correctamente, False en caso contrario
+        """
+        try:
+            if self.connection and self.connection.is_connected():
+                self.connection.rollback()
+                logger.info("Transacción revertida")
+                self.disconnect()
+                return True
+            else:
+                logger.error(
+                    "No se pudo revertir la transacción: no hay conexión activa"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"Error revirtiendo transacción: {str(e)}")
+            return False
+
+    def clean_text_data(self, text: Any) -> str:
+        """Limpia datos de texto para almacenarlos en la base de datos
+
+        Args:
+            text (Any): Texto a limpiar
+
+        Returns:
+            str: Texto limpio
+        """
+        if not text:
+            return ""
+
+        if not isinstance(text, str):
+            text = str(text)
+
+        # Eliminar caracteres especiales problemáticos para SQL
+        text = text.replace("'", "'")
+        text = text.replace('"', '"')
+        text = text.replace("\\n", " ")
+        text = text.replace("\\r", " ")
+        text = text.replace("\\t", " ")
+
+        # Eliminar espacios múltiples
+        import re
+
+        text = re.sub(r"\s+", " ", text)
+
+        # Limitar longitud para evitar problemas con campos TEXT
+        max_length = 65000  # Tamaño seguro para campos TEXT
+        if len(text) > max_length:
+            text = text[:max_length] + "..."
+
+        return text.strip()
+
+    def validate_url(self, url: Any) -> str:
+        """Valida una URL
+
+        Args:
+            url (Any): URL a validar
+
+        Returns:
+            str: URL validada o cadena vacía si no es válida
+        """
+        if not url:
+            return ""
+
+        if not isinstance(url, str):
+            url = str(url)
+
+        # Validar formato básico de URL
+        import re
+
+        url_pattern = re.compile(
+            r"^(?:http|https)://"
+            r"(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+"
+            r"(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|"
+            r"localhost|"
+            r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
+            r"(?::\d+)?"
+            r"(?:/?|[/?]\S+)$",
+            re.IGNORECASE,
+        )
+
+        if url_pattern.match(url):
+            # Limitar longitud para evitar problemas con campos VARCHAR
+            max_length = 255  # Tamaño típico para campos URL
+            if len(url) > max_length:
+                return url[:max_length]
+            return url
+        else:
+            logger.warning(f"URL no válida: {url}")
+            return ""
+
+    def execute_query(
+        self,
+        query: str,
+        params: Optional[List[Any]] = None,
+        fetch: bool = True,
+        in_transaction: bool = False,
+    ) -> Union[List[Dict[str, Any]], int, None]:
+        """Ejecuta una consulta SQL y devuelve los resultados
+
+        Args:
+            query (str): Consulta SQL a ejecutar
+            params (Optional[List[Any]], optional): Parámetros para la consulta. Defaults to None.
+            fetch (bool, optional): Si es True, devuelve resultados. Defaults to True.
+            in_transaction (bool, optional): Si es True, no hace commit ni cierra la conexión. Defaults to False.
+
+        Returns:
+            Union[List[Dict[str, Any]], int, None]: Resultados de la consulta como lista de diccionarios,
+                                                   ID de la última fila insertada, o None si hubo un error
+        """
         results = []
         try:
             if self.connect():
@@ -218,18 +374,34 @@ class DatabaseManager:
                             dict_results.append(row_dict)
                         results = dict_results
                 else:
-                    # Para operaciones de escritura, hacer commit
-                    self.connection.commit()
+                    # Para operaciones de escritura, hacer commit solo si no estamos en una transacción
+                    if not in_transaction:
+                        self.connection.commit()
                     results = cursor.lastrowid
 
                 cursor.close()
-                self.disconnect()
+
+                # Cerrar conexión solo si no estamos en una transacción
+                if not in_transaction:
+                    self.disconnect()
+
                 return results
             else:
                 logger.warning("No se pudo conectar a la base de datos")
                 return [] if fetch else None
         except Exception as e:
-            logger.error(f"Error ejecutando consulta: {str(e)}")
+            # Registrar detalles específicos del error
+            error_msg = f"Error ejecutando consulta: {str(e)}\nQuery: {query}\nParámetros: {params}"
+            logger.error(error_msg)
+
+            # Si estamos en una transacción, hacer rollback
+            if in_transaction and self.connection:
+                try:
+                    self.connection.rollback()
+                    logger.info("Rollback de transacción realizado")
+                except Exception as rollback_error:
+                    logger.error(f"Error haciendo rollback: {str(rollback_error)}")
+
             return [] if fetch else None
 
     def get_signals(self, days_back=7, categories=None, confidence_levels=None):
@@ -263,12 +435,38 @@ class DatabaseManager:
 
         return self.execute_query(query, params)
 
-    def save_signal(self, signal_data):
-        """Guarda una señal de trading en la base de datos con todos los campos disponibles"""
-        try:
-            if self.connect():
-                cursor = self.connection.cursor()
+    def save_signal(self, signal_data: Dict[str, Any]) -> Optional[int]:
+        """Guarda una señal de trading en la base de datos con todos los campos disponibles
 
+        Args:
+            signal_data (Dict[str, Any]): Datos de la señal a guardar
+
+        Returns:
+            Optional[int]: ID de la señal guardada o None si hubo un error
+        """
+        try:
+            # Validar datos mínimos requeridos
+            if not signal_data.get("symbol"):
+                logger.error("Error guardando señal: Falta el símbolo")
+                return None
+
+            # Limpiar datos de texto
+            cleaned_data = {}
+            for key, value in signal_data.items():
+                if isinstance(value, str):
+                    cleaned_data[key] = self.clean_text_data(value)
+                elif key == "news_source" and value and isinstance(value, str):
+                    # Validar URL si es un campo de URL
+                    cleaned_data[key] = self.validate_url(value)
+                else:
+                    cleaned_data[key] = value
+
+            # Iniciar transacción
+            if not self.begin_transaction():
+                logger.error("No se pudo iniciar la transacción para guardar la señal")
+                return None
+
+            try:
                 # Preparar consulta con todos los campos de la tabla
                 query = """INSERT INTO trading_signals
                           (symbol, price, entry_price, stop_loss, target_price, risk_reward,
@@ -285,125 +483,243 @@ class DatabaseManager:
 
                 # Preparar datos con todos los campos
                 params = (
-                    signal_data.get("symbol", ""),
-                    signal_data.get("price", 0.0),
-                    signal_data.get("entry_price", 0.0),
-                    signal_data.get("stop_loss", 0.0),
-                    signal_data.get("target_price", 0.0),
-                    signal_data.get("risk_reward", 0.0),
-                    signal_data.get("direction", "NEUTRAL"),
-                    signal_data.get("confidence_level", "Baja"),
-                    signal_data.get("timeframe", "Corto Plazo"),
-                    signal_data.get("strategy", "Análisis Técnico"),
-                    signal_data.get("setup_type", ""),
-                    signal_data.get("category", "General"),
-                    signal_data.get("analysis", ""),
-                    signal_data.get("technical_analysis", ""),
-                    signal_data.get("support_level", 0.0),
-                    signal_data.get("resistance_level", 0.0),
-                    signal_data.get("rsi", 0.0),
-                    signal_data.get("trend", ""),
-                    signal_data.get("trend_strength", ""),
-                    signal_data.get("volatility", 0.0),
-                    signal_data.get("options_signal", ""),
-                    signal_data.get("options_analysis", ""),
-                    signal_data.get("trading_specialist_signal", ""),
-                    signal_data.get("trading_specialist_confidence", ""),
-                    signal_data.get("sentiment", ""),
-                    signal_data.get("sentiment_score", 0.0),
-                    signal_data.get("latest_news", ""),
-                    signal_data.get("news_source", ""),
-                    signal_data.get("additional_news", ""),
-                    signal_data.get("expert_analysis", ""),
-                    signal_data.get("recommendation", ""),
-                    signal_data.get("mtf_analysis", ""),
-                    signal_data.get("daily_trend", ""),
-                    signal_data.get("weekly_trend", ""),
-                    signal_data.get("monthly_trend", ""),
-                    signal_data.get("bullish_indicators", ""),
-                    signal_data.get("bearish_indicators", ""),
-                    signal_data.get("is_high_confidence", False),
-                    signal_data.get("created_at", datetime.now()),
+                    cleaned_data.get("symbol", ""),
+                    cleaned_data.get("price", 0.0),
+                    cleaned_data.get("entry_price", 0.0),
+                    cleaned_data.get("stop_loss", 0.0),
+                    cleaned_data.get("target_price", 0.0),
+                    cleaned_data.get("risk_reward", 0.0),
+                    cleaned_data.get("direction", "NEUTRAL"),
+                    cleaned_data.get("confidence_level", "Baja"),
+                    cleaned_data.get("timeframe", "Corto Plazo"),
+                    cleaned_data.get("strategy", "Análisis Técnico"),
+                    cleaned_data.get("setup_type", ""),
+                    cleaned_data.get("category", "General"),
+                    cleaned_data.get("analysis", ""),
+                    cleaned_data.get("technical_analysis", ""),
+                    cleaned_data.get("support_level", 0.0),
+                    cleaned_data.get("resistance_level", 0.0),
+                    cleaned_data.get("rsi", 0.0),
+                    cleaned_data.get("trend", ""),
+                    cleaned_data.get("trend_strength", ""),
+                    cleaned_data.get("volatility", 0.0),
+                    cleaned_data.get("options_signal", ""),
+                    cleaned_data.get("options_analysis", ""),
+                    cleaned_data.get("trading_specialist_signal", ""),
+                    cleaned_data.get("trading_specialist_confidence", ""),
+                    cleaned_data.get("sentiment", ""),
+                    cleaned_data.get("sentiment_score", 0.0),
+                    cleaned_data.get("latest_news", ""),
+                    cleaned_data.get("news_source", ""),
+                    cleaned_data.get("additional_news", ""),
+                    cleaned_data.get("expert_analysis", ""),
+                    cleaned_data.get("recommendation", ""),
+                    cleaned_data.get("mtf_analysis", ""),
+                    cleaned_data.get("daily_trend", ""),
+                    cleaned_data.get("weekly_trend", ""),
+                    cleaned_data.get("monthly_trend", ""),
+                    cleaned_data.get("bullish_indicators", ""),
+                    cleaned_data.get("bearish_indicators", ""),
+                    cleaned_data.get("is_high_confidence", False),
+                    cleaned_data.get("created_at", datetime.now()),
                 )
 
-                # Ejecutar consulta
-                cursor.execute(query, params)
-                self.connection.commit()
-
-                # Obtener ID insertado
-                signal_id = cursor.lastrowid
-                cursor.close()
-                self.disconnect()
-
-                logger.info(
-                    f"Señal guardada con ID: {signal_id} para símbolo: {signal_data.get('symbol', '')}"
+                # Ejecutar consulta dentro de la transacción
+                signal_id = self.execute_query(
+                    query, params, fetch=False, in_transaction=True
                 )
-                return signal_id
-            else:
-                logger.warning(
-                    "No se pudo conectar a la base de datos para guardar la señal"
-                )
+
+                # Confirmar transacción
+                if self.commit_transaction():
+                    logger.info(
+                        f"Señal guardada con ID: {signal_id} para símbolo: {cleaned_data.get('symbol', '')}"
+                    )
+                    return signal_id
+                else:
+                    logger.error("Error confirmando transacción para guardar señal")
+                    return None
+            except Exception as inner_e:
+                # Revertir transacción en caso de error
+                self.rollback_transaction()
+                logger.error(f"Error en transacción guardando señal: {str(inner_e)}")
                 return None
         except Exception as e:
-            logger.error(f"Error guardando señal: {str(e)}")
+            logger.error(f"Error guardando señal: {str(e)}\nDatos: {signal_data}")
             return None
 
-    def log_email_sent(self, email_data):
-        """Registra el envío de un correo electrónico"""
-        query = """INSERT INTO email_logs
-                  (recipients, subject, content_summary, signals_included, status, error_message, sent_at)
-                  VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+    def log_email_sent(self, email_data: Dict[str, Any]) -> Optional[int]:
+        """Registra el envío de un correo electrónico en la base de datos
 
-        params = (
-            email_data.get("recipients", ""),
-            email_data.get("subject", ""),
-            email_data.get("content_summary", ""),
-            email_data.get("signals_included", ""),
-            email_data.get("status", "sent"),
-            email_data.get("error_message", ""),
-        )
+        Args:
+            email_data (Dict[str, Any]): Datos del correo enviado
 
-        return self.execute_query(query, params, fetch=False)
-
-    def save_market_sentiment(self, sentiment_data):
-        """Guarda datos de sentimiento de mercado"""
+        Returns:
+            Optional[int]: ID del registro o None si hubo un error
+        """
         try:
-            if self.connect():
-                cursor = self.connection.cursor()
+            # Limpiar datos de texto
+            cleaned_data = {}
+            for key, value in email_data.items():
+                if isinstance(value, str):
+                    cleaned_data[key] = self.clean_text_data(value)
+                else:
+                    cleaned_data[key] = value
 
+            # Iniciar transacción
+            if not self.begin_transaction():
+                logger.error(
+                    "No se pudo iniciar la transacción para registrar el envío de correo"
+                )
+                return None
+
+            try:
                 # Preparar consulta
-                query = """INSERT INTO market_sentiment
-                          (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+                query = """INSERT INTO email_logs
+                          (recipients, subject, content_summary, signals_included, status, error_message, sent_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
 
                 # Preparar datos
                 params = (
-                    sentiment_data.get("date", datetime.now().date()),
-                    sentiment_data.get("overall", "Neutral"),
-                    sentiment_data.get("vix", "N/A"),
-                    sentiment_data.get("sp500_trend", "N/A"),
-                    sentiment_data.get("technical_indicators", "N/A"),
-                    sentiment_data.get("volume", "N/A"),
-                    sentiment_data.get("notes", ""),
+                    cleaned_data.get("recipients", ""),
+                    cleaned_data.get("subject", ""),
+                    cleaned_data.get("content_summary", ""),
+                    cleaned_data.get("signals_included", ""),
+                    cleaned_data.get("status", "sent"),
+                    cleaned_data.get("error_message", ""),
                 )
 
-                # Ejecutar consulta
-                cursor.execute(query, params)
-                self.connection.commit()
+                # Ejecutar consulta dentro de la transacción
+                log_id = self.execute_query(
+                    query, params, fetch=False, in_transaction=True
+                )
 
-                # Obtener ID insertado
-                sentiment_id = cursor.lastrowid
-                cursor.close()
-                self.disconnect()
-
-                return sentiment_id
-            else:
-                logger.warning(
-                    "No se pudo conectar a la base de datos para guardar el sentimiento"
+                # Confirmar transacción
+                if self.commit_transaction():
+                    logger.info(f"Envío de correo registrado con ID: {log_id}")
+                    return log_id
+                else:
+                    logger.error(
+                        "Error confirmando transacción para registrar envío de correo"
+                    )
+                    return None
+            except Exception as inner_e:
+                # Revertir transacción en caso de error
+                self.rollback_transaction()
+                logger.error(
+                    f"Error en transacción registrando envío de correo: {str(inner_e)}"
                 )
                 return None
         except Exception as e:
-            logger.error(f"Error guardando sentimiento: {str(e)}")
+            logger.error(
+                f"Error registrando envío de correo: {str(e)}\nDatos: {email_data}"
+            )
+            return None
+
+    def save_market_sentiment(self, sentiment_data: Dict[str, Any]) -> Optional[int]:
+        """Guarda datos de sentimiento de mercado en la base de datos
+
+        Args:
+            sentiment_data (Dict[str, Any]): Datos de sentimiento a guardar
+
+        Returns:
+            Optional[int]: ID del sentimiento guardado o None si hubo un error
+        """
+        try:
+            # Limpiar datos de texto
+            cleaned_data = {}
+            for key, value in sentiment_data.items():
+                if isinstance(value, str):
+                    cleaned_data[key] = self.clean_text_data(value)
+                else:
+                    cleaned_data[key] = value
+
+            # Iniciar transacción
+            if not self.begin_transaction():
+                logger.error(
+                    "No se pudo iniciar la transacción para guardar el sentimiento de mercado"
+                )
+                return None
+
+            try:
+                # Verificar si ya existe un registro para la fecha especificada
+                check_query = """SELECT id FROM market_sentiment
+                                WHERE date = %s"""
+                check_params = [cleaned_data.get("date", datetime.now().date())]
+                existing_sentiment = self.execute_query(
+                    check_query, check_params, fetch=True, in_transaction=True
+                )
+
+                if existing_sentiment and len(existing_sentiment) > 0:
+                    # Actualizar registro existente
+                    update_query = """UPDATE market_sentiment
+                                    SET overall = %s,
+                                        vix = %s,
+                                        sp500_trend = %s,
+                                        technical_indicators = %s,
+                                        volume = %s,
+                                        notes = %s,
+                                        updated_at = NOW()
+                                    WHERE id = %s"""
+
+                    params = (
+                        cleaned_data.get("overall", "Neutral"),
+                        cleaned_data.get("vix", "N/A"),
+                        cleaned_data.get("sp500_trend", "N/A"),
+                        cleaned_data.get("technical_indicators", "N/A"),
+                        cleaned_data.get("volume", "N/A"),
+                        cleaned_data.get("notes", ""),
+                        existing_sentiment[0].get("id"),
+                    )
+
+                    self.execute_query(
+                        update_query, params, fetch=False, in_transaction=True
+                    )
+                    sentiment_id = existing_sentiment[0].get("id")
+                    logger.info(
+                        f"Sentimiento de mercado actualizado con ID: {sentiment_id} para fecha: {cleaned_data.get('date')}"
+                    )
+                else:
+                    # Insertar nuevo registro
+                    insert_query = """INSERT INTO market_sentiment
+                                    (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+
+                    params = (
+                        cleaned_data.get("date", datetime.now().date()),
+                        cleaned_data.get("overall", "Neutral"),
+                        cleaned_data.get("vix", "N/A"),
+                        cleaned_data.get("sp500_trend", "N/A"),
+                        cleaned_data.get("technical_indicators", "N/A"),
+                        cleaned_data.get("volume", "N/A"),
+                        cleaned_data.get("notes", ""),
+                    )
+
+                    sentiment_id = self.execute_query(
+                        insert_query, params, fetch=False, in_transaction=True
+                    )
+                    logger.info(
+                        f"Nuevo sentimiento de mercado guardado con ID: {sentiment_id} para fecha: {cleaned_data.get('date')}"
+                    )
+
+                # Confirmar transacción
+                if self.commit_transaction():
+                    return sentiment_id
+                else:
+                    logger.error(
+                        "Error confirmando transacción para guardar sentimiento de mercado"
+                    )
+                    return None
+            except Exception as inner_e:
+                # Revertir transacción en caso de error
+                self.rollback_transaction()
+                logger.error(
+                    f"Error en transacción guardando sentimiento de mercado: {str(inner_e)}"
+                )
+                return None
+        except Exception as e:
+            logger.error(
+                f"Error guardando sentimiento de mercado: {str(e)}\nDatos: {sentiment_data}"
+            )
             return None
 
     def get_market_sentiment(self, days_back=7):
@@ -415,44 +731,95 @@ class DatabaseManager:
 
         return self.execute_query(query, params)
 
-    def save_market_news(self, news_data):
-        """Guarda noticias de mercado"""
-        try:
-            if self.connect():
-                cursor = self.connection.cursor()
+    def save_market_news(self, news_data: Dict[str, Any]) -> Optional[int]:
+        """Guarda noticias de mercado en la base de datos
 
-                # Preparar consulta
+        Args:
+            news_data (Dict[str, Any]): Datos de la noticia a guardar
+
+        Returns:
+            Optional[int]: ID de la noticia guardada o None si hubo un error
+        """
+        try:
+            # Validar datos mínimos requeridos
+            if not news_data.get("title"):
+                logger.error("Error guardando noticia: Falta el título")
+                return None
+
+            # Limpiar datos de texto
+            cleaned_data = {}
+            for key, value in news_data.items():
+                if key == "url" and value:
+                    # Validar URL
+                    cleaned_data[key] = self.validate_url(value)
+                elif isinstance(value, str):
+                    cleaned_data[key] = self.clean_text_data(value)
+                else:
+                    cleaned_data[key] = value
+
+            # Iniciar transacción
+            if not self.begin_transaction():
+                logger.error(
+                    "No se pudo iniciar la transacción para guardar la noticia"
+                )
+                return None
+
+            try:
+                # Verificar si la noticia ya existe (por título y fecha)
+                check_query = """SELECT id FROM market_news
+                                WHERE title = %s AND DATE(news_date) = DATE(%s)"""
+                check_params = (
+                    cleaned_data.get("title", ""),
+                    cleaned_data.get("news_date", datetime.now()),
+                )
+
+                existing_news = self.execute_query(
+                    check_query, check_params, fetch=True, in_transaction=True
+                )
+
+                if existing_news and len(existing_news) > 0:
+                    logger.info(
+                        f"La noticia ya existe en la base de datos: {cleaned_data.get('title', '')}"
+                    )
+                    self.commit_transaction()
+                    return existing_news[0].get("id")  # Retornar ID existente
+
+                # Preparar consulta para insertar nueva noticia
                 query = """INSERT INTO market_news
                           (title, summary, source, url, news_date, impact, created_at)
                           VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
 
                 # Preparar datos
                 params = (
-                    news_data.get("title", ""),
-                    news_data.get("summary", ""),
-                    news_data.get("source", ""),
-                    news_data.get("url", ""),
-                    news_data.get("news_date", datetime.now()),
-                    news_data.get("impact", "Medio"),
+                    cleaned_data.get("title", ""),
+                    cleaned_data.get("summary", ""),
+                    cleaned_data.get("source", ""),
+                    cleaned_data.get("url", ""),
+                    cleaned_data.get("news_date", datetime.now()),
+                    cleaned_data.get("impact", "Medio"),
                 )
 
-                # Ejecutar consulta
-                cursor.execute(query, params)
-                self.connection.commit()
-
-                # Obtener ID insertado
-                news_id = cursor.lastrowid
-                cursor.close()
-                self.disconnect()
-
-                return news_id
-            else:
-                logger.warning(
-                    "No se pudo conectar a la base de datos para guardar la noticia"
+                # Ejecutar consulta dentro de la transacción
+                news_id = self.execute_query(
+                    query, params, fetch=False, in_transaction=True
                 )
+
+                # Confirmar transacción
+                if self.commit_transaction():
+                    logger.info(
+                        f"Noticia guardada con ID: {news_id} - {cleaned_data.get('title', '')}"
+                    )
+                    return news_id
+                else:
+                    logger.error("Error confirmando transacción para guardar noticia")
+                    return None
+            except Exception as inner_e:
+                # Revertir transacción en caso de error
+                self.rollback_transaction()
+                logger.error(f"Error en transacción guardando noticia: {str(inner_e)}")
                 return None
         except Exception as e:
-            logger.error(f"Error guardando noticia: {str(e)}")
+            logger.error(f"Error guardando noticia: {str(e)}\nDatos: {news_data}")
             return None
 
     def get_market_news(self, days_back=7):
@@ -463,3 +830,268 @@ class DatabaseManager:
         params = [days_back]
 
         return self.execute_query(query, params)
+
+    def save_multiple_records(
+        self, records_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Guarda múltiples registros en diferentes tablas en una sola transacción
+
+        Args:
+            records_data (Dict[str, Any]): Diccionario con los datos a guardar en cada tabla
+                Ejemplo: {
+                    'signals': [signal_data1, signal_data2, ...],
+                    'news': [news_data1, news_data2, ...],
+                    'sentiment': sentiment_data
+                }
+
+        Returns:
+            Optional[Dict[str, Any]]: Diccionario con los IDs de los registros guardados o None si hubo un error
+        """
+        try:
+            # Iniciar transacción
+            if not self.begin_transaction():
+                logger.error(
+                    "No se pudo iniciar la transacción para guardar múltiples registros"
+                )
+                return None
+
+            try:
+                result_ids = {}
+
+                # Guardar señales
+                if "signals" in records_data and records_data["signals"]:
+                    signal_ids = []
+                    for signal_data in records_data["signals"]:
+                        # Limpiar datos de texto
+                        cleaned_data = {}
+                        for key, value in signal_data.items():
+                            if isinstance(value, str):
+                                cleaned_data[key] = self.clean_text_data(value)
+                            elif (
+                                key == "news_source"
+                                and value
+                                and isinstance(value, str)
+                            ):
+                                cleaned_data[key] = self.validate_url(value)
+                            else:
+                                cleaned_data[key] = value
+
+                        # Preparar consulta para insertar señal
+                        query = """INSERT INTO trading_signals
+                                  (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                                   direction, confidence_level, timeframe, strategy, setup_type,
+                                   category, analysis, technical_analysis, support_level, resistance_level,
+                                   rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                                   trading_specialist_signal, trading_specialist_confidence, sentiment,
+                                   sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                                   recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                                   bullish_indicators, bearish_indicators, is_high_confidence, created_at)
+                                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                          %s, %s, %s, %s, %s, %s, %s)"""
+
+                        # Preparar datos
+                        params = (
+                            cleaned_data.get("symbol", ""),
+                            cleaned_data.get("price", 0.0),
+                            cleaned_data.get("entry_price", 0.0),
+                            cleaned_data.get("stop_loss", 0.0),
+                            cleaned_data.get("target_price", 0.0),
+                            cleaned_data.get("risk_reward", 0.0),
+                            cleaned_data.get("direction", "NEUTRAL"),
+                            cleaned_data.get("confidence_level", "Baja"),
+                            cleaned_data.get("timeframe", "Corto Plazo"),
+                            cleaned_data.get("strategy", "Análisis Técnico"),
+                            cleaned_data.get("setup_type", ""),
+                            cleaned_data.get("category", "General"),
+                            cleaned_data.get("analysis", ""),
+                            cleaned_data.get("technical_analysis", ""),
+                            cleaned_data.get("support_level", 0.0),
+                            cleaned_data.get("resistance_level", 0.0),
+                            cleaned_data.get("rsi", 0.0),
+                            cleaned_data.get("trend", ""),
+                            cleaned_data.get("trend_strength", ""),
+                            cleaned_data.get("volatility", 0.0),
+                            cleaned_data.get("options_signal", ""),
+                            cleaned_data.get("options_analysis", ""),
+                            cleaned_data.get("trading_specialist_signal", ""),
+                            cleaned_data.get("trading_specialist_confidence", ""),
+                            cleaned_data.get("sentiment", ""),
+                            cleaned_data.get("sentiment_score", 0.0),
+                            cleaned_data.get("latest_news", ""),
+                            cleaned_data.get("news_source", ""),
+                            cleaned_data.get("additional_news", ""),
+                            cleaned_data.get("expert_analysis", ""),
+                            cleaned_data.get("recommendation", ""),
+                            cleaned_data.get("mtf_analysis", ""),
+                            cleaned_data.get("daily_trend", ""),
+                            cleaned_data.get("weekly_trend", ""),
+                            cleaned_data.get("monthly_trend", ""),
+                            cleaned_data.get("bullish_indicators", ""),
+                            cleaned_data.get("bearish_indicators", ""),
+                            cleaned_data.get("is_high_confidence", False),
+                            cleaned_data.get("created_at", datetime.now()),
+                        )
+
+                        # Ejecutar consulta dentro de la transacción
+                        signal_id = self.execute_query(
+                            query, params, fetch=False, in_transaction=True
+                        )
+                        signal_ids.append(signal_id)
+
+                    result_ids["signals"] = signal_ids
+
+                # Guardar noticias
+                if "news" in records_data and records_data["news"]:
+                    news_ids = []
+                    for news_data in records_data["news"]:
+                        # Limpiar datos de texto
+                        cleaned_data = {}
+                        for key, value in news_data.items():
+                            if key == "url" and value:
+                                cleaned_data[key] = self.validate_url(value)
+                            elif isinstance(value, str):
+                                cleaned_data[key] = self.clean_text_data(value)
+                            else:
+                                cleaned_data[key] = value
+
+                        # Verificar si la noticia ya existe
+                        check_query = """SELECT id FROM market_news
+                                        WHERE title = %s AND DATE(news_date) = DATE(%s)"""
+                        check_params = (
+                            cleaned_data.get("title", ""),
+                            cleaned_data.get("news_date", datetime.now()),
+                        )
+
+                        existing_news = self.execute_query(
+                            check_query, check_params, fetch=True, in_transaction=True
+                        )
+
+                        if existing_news and len(existing_news) > 0:
+                            news_id = existing_news[0].get("id")
+                            logger.info(
+                                f"La noticia ya existe en la base de datos: {cleaned_data.get('title', '')}"
+                            )
+                        else:
+                            # Preparar consulta para insertar noticia
+                            query = """INSERT INTO market_news
+                                      (title, summary, source, url, news_date, impact, created_at)
+                                      VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+
+                            # Preparar datos
+                            params = (
+                                cleaned_data.get("title", ""),
+                                cleaned_data.get("summary", ""),
+                                cleaned_data.get("source", ""),
+                                cleaned_data.get("url", ""),
+                                cleaned_data.get("news_date", datetime.now()),
+                                cleaned_data.get("impact", "Medio"),
+                            )
+
+                            # Ejecutar consulta dentro de la transacción
+                            news_id = self.execute_query(
+                                query, params, fetch=False, in_transaction=True
+                            )
+                            logger.info(
+                                f"Noticia guardada con ID: {news_id} - {cleaned_data.get('title', '')}"
+                            )
+
+                        news_ids.append(news_id)
+
+                    result_ids["news"] = news_ids
+
+                # Guardar sentimiento
+                if "sentiment" in records_data and records_data["sentiment"]:
+                    sentiment_data = records_data["sentiment"]
+
+                    # Limpiar datos de texto
+                    cleaned_data = {}
+                    for key, value in sentiment_data.items():
+                        if isinstance(value, str):
+                            cleaned_data[key] = self.clean_text_data(value)
+                        else:
+                            cleaned_data[key] = value
+
+                    # Verificar si ya existe un registro para la fecha especificada
+                    check_query = """SELECT id FROM market_sentiment
+                                    WHERE date = %s"""
+                    check_params = [cleaned_data.get("date", datetime.now().date())]
+                    existing_sentiment = self.execute_query(
+                        check_query, check_params, fetch=True, in_transaction=True
+                    )
+
+                    if existing_sentiment and len(existing_sentiment) > 0:
+                        # Actualizar registro existente
+                        update_query = """UPDATE market_sentiment
+                                        SET overall = %s,
+                                            vix = %s,
+                                            sp500_trend = %s,
+                                            technical_indicators = %s,
+                                            volume = %s,
+                                            notes = %s,
+                                            updated_at = NOW()
+                                        WHERE id = %s"""
+
+                        params = (
+                            cleaned_data.get("overall", "Neutral"),
+                            cleaned_data.get("vix", "N/A"),
+                            cleaned_data.get("sp500_trend", "N/A"),
+                            cleaned_data.get("technical_indicators", "N/A"),
+                            cleaned_data.get("volume", "N/A"),
+                            cleaned_data.get("notes", ""),
+                            existing_sentiment[0].get("id"),
+                        )
+
+                        self.execute_query(
+                            update_query, params, fetch=False, in_transaction=True
+                        )
+                        sentiment_id = existing_sentiment[0].get("id")
+                        logger.info(
+                            f"Sentimiento de mercado actualizado con ID: {sentiment_id}"
+                        )
+                    else:
+                        # Insertar nuevo registro
+                        insert_query = """INSERT INTO market_sentiment
+                                        (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+
+                        params = (
+                            cleaned_data.get("date", datetime.now().date()),
+                            cleaned_data.get("overall", "Neutral"),
+                            cleaned_data.get("vix", "N/A"),
+                            cleaned_data.get("sp500_trend", "N/A"),
+                            cleaned_data.get("technical_indicators", "N/A"),
+                            cleaned_data.get("volume", "N/A"),
+                            cleaned_data.get("notes", ""),
+                        )
+
+                        sentiment_id = self.execute_query(
+                            insert_query, params, fetch=False, in_transaction=True
+                        )
+                        logger.info(
+                            f"Nuevo sentimiento de mercado guardado con ID: {sentiment_id}"
+                        )
+
+                    result_ids["sentiment"] = sentiment_id
+
+                # Confirmar transacción
+                if self.commit_transaction():
+                    logger.info(
+                        f"Transacción completada: {len(result_ids)} tipos de registros guardados"
+                    )
+                    return result_ids
+                else:
+                    logger.error(
+                        "Error confirmando transacción para guardar múltiples registros"
+                    )
+                    return None
+            except Exception as inner_e:
+                # Revertir transacción en caso de error
+                self.rollback_transaction()
+                logger.error(
+                    f"Error en transacción guardando múltiples registros: {str(inner_e)}"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error guardando múltiples registros: {str(e)}")
+            return None
