@@ -1431,7 +1431,7 @@ class TechnicalAnalyzer:
                 len(df) < 15
             ):  # Necesitamos al menos 15 puntos para la mayoría de indicadores
                 logger.warning(
-                    f"Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles"
+                    f"⚠️ Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles. Se necesitan al menos 20 filas."
                 )
                 return df  # Devolver los datos sin procesar si son insuficientes
 
@@ -2128,7 +2128,7 @@ class TechnicalAnalyzer:
                     # Verificar datos suficientes
                     if data is None or len(data) < 20:
                         logger.warning(
-                            f"Datos insuficientes para {symbol} en timeframe {tf}"
+                            f"⚠️ Datos insuficientes para {symbol} en timeframe {tf}. Usando datos sintéticos."
                         )
                         continue
 

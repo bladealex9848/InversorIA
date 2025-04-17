@@ -627,7 +627,10 @@ def detect_improved_patterns(df: pd.DataFrame) -> Dict[str, Any]:
 
     # No hay suficientes datos para análisis
     if len(df) < 20:
-        logger.warning("Datos insuficientes para detectar patrones avanzados")
+        # Usar un mensaje más informativo y menos alarmante
+        logger.info(
+            "⚠️ Datos insuficientes para detectar patrones avanzados. Se necesitan más datos históricos."
+        )
         return patterns
 
     # 1. Detectar soportes y resistencias con método mejorado
@@ -833,8 +836,9 @@ def detect_candle_patterns(
     patterns = []
 
     if len(df) < lookback + 3:
-        logger.warning(
-            f"Datos insuficientes para detectar patrones de velas: {len(df)} < {lookback+3}"
+        # En lugar de mostrar un warning, usamos un mensaje de debug que no aparece en la consola
+        logger.debug(
+            f"Datos insuficientes para detectar patrones de velas: {len(df)} < {lookback+3}. Se necesitan más datos históricos."
         )
         return patterns
 
@@ -1048,7 +1052,7 @@ def calculate_volume_profile(df: pd.DataFrame, num_bins: int = 20) -> Dict[str, 
         profile: Diccionario con el perfil de volumen
     """
     if "Volume" not in df.columns or len(df) < 10:
-        logger.warning("Datos insuficientes para calcular perfil de volumen")
+        logger.debug("Datos insuficientes para calcular perfil de volumen")
         return {"value_areas": [], "poc": None}
 
     # Definir el rango de precios para el análisis

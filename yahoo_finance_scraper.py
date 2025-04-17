@@ -364,6 +364,12 @@ class YahooFinanceScraper:
 
         # Lista de fuentes en orden de prioridad
         news_sources = [
+            (
+                self._get_news_from_yahoo_direct,
+                "Yahoo Finance Direct",
+                symbol,
+                max_news,
+            ),  # Nueva fuente prioritaria
             (self._get_news_from_yfinance, "yfinance", symbol, max_news),
             (self._get_news_from_yahoo_api, "Yahoo API", symbol, max_news),
             (self._get_news_from_finviz, "FinViz", symbol, max_news),
@@ -379,10 +385,29 @@ class YahooFinanceScraper:
                 news_data = source_func(src_symbol, src_max_news)
 
                 if news_data and isinstance(news_data, list) and len(news_data) > 0:
-                    # Filtrar noticias vacías o inválidas
+                    # Filtrar noticias vacías, inválidas o sin URL
                     news_data = [
-                        n for n in news_data if n.get("title") and n.get("title") != ""
+                        n
+                        for n in news_data
+                        if n.get("title")
+                        and n.get("title") != ""
+                        and n.get("url")
+                        and n.get("url") != ""
                     ]
+
+                    # Si hay noticias sin URL, intentar generar URLs basadas en el título
+                    for news_item in news_data:
+                        if not news_item.get("url") or news_item.get("url") == "":
+                            # Generar URL de búsqueda en Yahoo Finance
+                            title_slug = news_item.get("title", "").replace(" ", "+")[
+                                :100
+                            ]
+                            news_item["url"] = (
+                                f"https://finance.yahoo.com/news/search?q={title_slug}"
+                            )
+                            logger.info(
+                                f"URL generada para noticia: {news_item['url']}"
+                            )
 
                     if news_data:  # Si hay noticias válidas
                         # Almacenar en caché
@@ -392,11 +417,13 @@ class YahooFinanceScraper:
                         )
                         return news_data
             except Exception as e:
-                logger.warning(f"Error obteniendo noticias con {source_name}: {str(e)}")
+                logger.info(
+                    f"⚠️ No se pudieron obtener noticias con {source_name}: {str(e)}. Intentando fuentes alternativas..."
+                )
 
         # Si todo falla, devolver lista vacía
-        logger.warning(
-            f"No se pudieron obtener noticias para {symbol} de ninguna fuente"
+        logger.info(
+            f"🚨 No se pudieron obtener noticias para {symbol} de ninguna fuente. Se usarán datos sintéticos o alternativos."
         )
         return []
 
@@ -445,7 +472,9 @@ class YahooFinanceScraper:
 
                 return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias con yfinance: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias con yfinance: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
 
@@ -495,7 +524,9 @@ class YahooFinanceScraper:
 
                     return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias con la API de Yahoo: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias con la API de Yahoo: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
 
@@ -577,7 +608,9 @@ class YahooFinanceScraper:
 
             return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias de FinViz: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias de FinViz: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
 
@@ -636,7 +669,9 @@ class YahooFinanceScraper:
 
                 return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias de Alpha Vantage: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias de Alpha Vantage: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
 
@@ -688,9 +723,154 @@ class YahooFinanceScraper:
 
                 return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias con DuckDuckGo: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias con DuckDuckGo: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
+
+    def _get_news_from_yahoo_direct(
+        self, symbol: str, max_news: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Obtiene noticias directamente de la página de noticias de Yahoo Finance"""
+        try:
+            # URL directa a la página de noticias de Yahoo Finance para el símbolo
+            url = f"https://finance.yahoo.com/quote/{symbol}/news"
+            response = requests.get(url, headers=self.headers, timeout=10)
+
+            if response.status_code != 200:
+                logger.info(
+                    f"No se pudo acceder a la página de noticias de Yahoo Finance para {symbol}"
+                )
+                return []
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Buscar elementos de noticias
+            news_items = []
+
+            # Intentar diferentes selectores para adaptarse a posibles cambios en la estructura de la página
+            for selector in [
+                'li[class*="js-stream-content"]',
+                'div[class*="Ov(h)"]',
+                "div.news-stream-item",
+                "ul.My(0) li",
+            ]:
+                items = soup.select(selector)
+                if items:
+                    news_items = items
+                    break
+
+            if not news_items:
+                # Intentar encontrar cualquier enlace que parezca una noticia
+                all_links = soup.select('a[href*="/news/"]')
+                if all_links:
+                    # Crear noticias a partir de los enlaces encontrados
+                    news = []
+                    processed_urls = set()  # Para evitar duplicados
+
+                    for link in all_links[
+                        : max_news * 2
+                    ]:  # Obtener más enlaces de los necesarios para filtrar
+                        href = link.get("href", "")
+                        if not href or href in processed_urls:
+                            continue
+
+                        # Asegurarse de que es una URL completa
+                        if href.startswith("/"):
+                            href = f"https://finance.yahoo.com{href}"
+
+                        processed_urls.add(href)
+
+                        title = link.text.strip()
+                        if (
+                            not title or len(title) < 10
+                        ):  # Ignorar enlaces con texto muy corto
+                            continue
+
+                        news.append(
+                            {
+                                "title": title,
+                                "summary": "",  # No hay resumen disponible
+                                "url": href,
+                                "source": "Yahoo Finance",
+                                "date": datetime.now().strftime("%Y-%m-%d"),
+                                "_source_method": "yahoo_direct_links",
+                            }
+                        )
+
+                        if len(news) >= max_news:
+                            break
+
+                    return news
+
+                return []
+
+            # Procesar los elementos de noticias encontrados
+            news = []
+            for item in news_items[:max_news]:
+                # Buscar el título y enlace
+                link = None
+                for link_selector in ['a[href*="/news/"]', "a"]:
+                    links = item.select(link_selector)
+                    if links:
+                        for l in links:
+                            # Verificar que el enlace parece ser de una noticia
+                            href = l.get("href", "")
+                            if "/news/" in href or "/m/" in href:
+                                link = l
+                                break
+                        if link:
+                            break
+
+                if not link:
+                    continue
+
+                # Extraer título y URL
+                title = link.text.strip()
+                href = link.get("href", "")
+
+                # Asegurarse de que es una URL completa
+                if href.startswith("/"):
+                    href = f"https://finance.yahoo.com{href}"
+
+                # Buscar resumen
+                summary = ""
+                summary_elem = item.select_one('p, div[class*="Fz(14px)"]')
+                if summary_elem:
+                    summary = summary_elem.text.strip()
+
+                # Buscar fuente y fecha
+                source = "Yahoo Finance"
+                date_str = datetime.now().strftime("%Y-%m-%d")
+
+                source_elem = item.select_one('span[class*="C($tertiaryColor)"]')
+                if source_elem:
+                    source_text = source_elem.text.strip()
+                    # Intentar extraer fuente y fecha del texto (ej: "Motley Fool·hace 2 días")
+                    if "·" in source_text:
+                        parts = source_text.split("·")
+                        if len(parts) >= 1:
+                            source = parts[0].strip()
+
+                news.append(
+                    {
+                        "title": title,
+                        "summary": summary,
+                        "url": href,
+                        "source": source,
+                        "date": date_str,
+                        "_source_method": "yahoo_direct",
+                    }
+                )
+
+            return news
+
+        except Exception as e:
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias directamente de Yahoo Finance: {str(e)}. Intentando fuentes alternativas..."
+            )
+            return []
 
     def _get_news_from_investing(
         self, symbol: str, max_news: int = 10
@@ -807,7 +987,9 @@ class YahooFinanceScraper:
 
             return news
         except Exception as e:
-            logger.warning(f"Error obteniendo noticias de Investing.com: {str(e)}")
+            logger.info(
+                f"⚠️ No se pudieron obtener noticias de Investing.com: {str(e)}. Intentando fuentes alternativas..."
+            )
 
         return []
 

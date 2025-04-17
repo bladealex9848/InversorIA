@@ -142,6 +142,22 @@ class NumpyEncoder(json.JSONEncoder):
 # Importar información de símbolos y nombres completos desde company_data.py
 from company_data import COMPANY_INFO, SYMBOLS, get_company_info
 
+# Importar gestor de datos de mercado
+try:
+    from market_data_manager import MarketDataManager
+
+    # Crear instancia del gestor de datos de mercado
+    market_data_mgr = MarketDataManager()
+    logger.info("Gestor de datos de mercado inicializado correctamente")
+except ImportError:
+    logger.warning(
+        "No se pudo importar MarketDataManager. Se usarán funciones alternativas."
+    )
+    market_data_mgr = None
+except Exception as e:
+    logger.error(f"Error inicializando MarketDataManager: {str(e)}")
+    market_data_mgr = None
+
 # Estilos personalizados
 st.markdown(
     """
@@ -7624,15 +7640,15 @@ def main():
 
                                                 # Guardar noticias y sentimiento de mercado
                                                 try:
-                                                    from market_data_manager import (
-                                                        MarketDataManager,
-                                                    )
-
-                                                    market_data_mgr = MarketDataManager(
-                                                        signal_manager.db_manager
+                                                    # Usar database_utils en lugar de market_data_manager (que se movió a legacy_code)
+                                                    from database_utils import (
+                                                        save_market_news,
+                                                        save_market_sentiment,
+                                                        save_trading_signal,
                                                     )
 
                                                     # Procesar noticias con IA para mejorar calidad y asegurar fuentes confiables
+                                                    news_ids = []
                                                     if (
                                                         signal.get("news")
                                                         and client
@@ -7749,9 +7765,101 @@ def main():
                                                         signal["news"] = processed_news
 
                                                     # Guardar noticias
-                                                    news_ids = market_data_mgr.save_news_from_signal(
-                                                        signal
-                                                    )
+                                                    news_ids = []
+                                                    if market_data_mgr:
+                                                        news_ids = market_data_mgr.save_news_from_signal(
+                                                            signal
+                                                        )
+                                                    else:
+                                                        # Alternativa usando database_utils directamente
+                                                        try:
+                                                            from database_utils import (
+                                                                save_market_news,
+                                                            )
+
+                                                            # Guardar noticias si están disponibles
+                                                            if signal.get(
+                                                                "news"
+                                                            ) and isinstance(
+                                                                signal.get("news"), list
+                                                            ):
+                                                                for (
+                                                                    news_item
+                                                                ) in signal.get(
+                                                                    "news", []
+                                                                ):
+                                                                    if isinstance(
+                                                                        news_item, dict
+                                                                    ) and news_item.get(
+                                                                        "title"
+                                                                    ):
+                                                                        news_data = {
+                                                                            "title": news_item.get(
+                                                                                "title",
+                                                                                "",
+                                                                            ),
+                                                                            "summary": news_item.get(
+                                                                                "summary",
+                                                                                news_item.get(
+                                                                                    "description",
+                                                                                    "",
+                                                                                ),
+                                                                            ),
+                                                                            "source": news_item.get(
+                                                                                "source",
+                                                                                "Fuente Financiera",
+                                                                            ),
+                                                                            "url": news_item.get(
+                                                                                "url",
+                                                                                "",
+                                                                            ),
+                                                                            "news_date": datetime.now(),
+                                                                            "impact": "Medio",
+                                                                        }
+                                                                        news_id = save_market_news(
+                                                                            news_data
+                                                                        )
+                                                                        if news_id:
+                                                                            news_ids.append(
+                                                                                news_id
+                                                                            )
+
+                                                            # Si no hay noticias en la lista, intentar con latest_news
+                                                            if (
+                                                                not news_ids
+                                                                and signal.get(
+                                                                    "latest_news"
+                                                                )
+                                                            ):
+                                                                news_data = {
+                                                                    "title": signal.get(
+                                                                        "latest_news",
+                                                                        "",
+                                                                    ),
+                                                                    "summary": signal.get(
+                                                                        "analysis", ""
+                                                                    ),
+                                                                    "source": signal.get(
+                                                                        "news_source",
+                                                                        "InversorIA Analytics",
+                                                                    ),
+                                                                    "url": "",
+                                                                    "news_date": datetime.now(),
+                                                                    "impact": "Medio",
+                                                                }
+                                                                news_id = (
+                                                                    save_market_news(
+                                                                        news_data
+                                                                    )
+                                                                )
+                                                                if news_id:
+                                                                    news_ids.append(
+                                                                        news_id
+                                                                    )
+                                                        except Exception as news_error:
+                                                            logger.warning(
+                                                                f"No se pudieron guardar noticias para {signal.get('symbol', '')}: {str(news_error)}"
+                                                            )
                                                     if news_ids:
                                                         logger.info(
                                                             f"Noticias guardadas para {signal['symbol']}: {len(news_ids)} registros"
@@ -7881,9 +7989,51 @@ def main():
                                                                     f"Error procesando JSON de sentimiento: {str(json_error)}"
                                                                 )
 
-                                                        sentiment_id = market_data_mgr.save_sentiment_from_signal(
-                                                            signal
-                                                        )
+                                                        sentiment_id = None
+                                                        if market_data_mgr:
+                                                            sentiment_id = market_data_mgr.save_sentiment_from_signal(
+                                                                signal
+                                                            )
+                                                        else:
+                                                            # Alternativa usando database_utils directamente
+                                                            try:
+                                                                from database_utils import (
+                                                                    save_market_sentiment,
+                                                                )
+
+                                                                # Extraer datos de sentimiento de la señal
+                                                                sentiment_data = {
+                                                                    "symbol": signal.get(
+                                                                        "symbol", ""
+                                                                    ),
+                                                                    "sentiment": signal.get(
+                                                                        "sentiment",
+                                                                        "neutral",
+                                                                    ),
+                                                                    "score": signal.get(
+                                                                        "sentiment_score",
+                                                                        0.5,
+                                                                    ),
+                                                                    "source": "InversorIA Analytics",
+                                                                    "analysis": signal.get(
+                                                                        "sentiment_analysis",
+                                                                        signal.get(
+                                                                            "analysis",
+                                                                            "",
+                                                                        ),
+                                                                    ),
+                                                                    "sentiment_date": datetime.now(),
+                                                                }
+
+                                                                sentiment_id = save_market_sentiment(
+                                                                    sentiment_data
+                                                                )
+                                                            except (
+                                                                Exception
+                                                            ) as sentiment_error:
+                                                                logger.warning(
+                                                                    f"No se pudo guardar sentimiento para {signal.get('symbol', '')}: {str(sentiment_error)}"
+                                                                )
                                                         if sentiment_id:
                                                             logger.info(
                                                                 f"Sentimiento de mercado guardado con ID: {sentiment_id}"
@@ -7943,20 +8093,49 @@ def main():
                                     "saved_signals_info" in st.session_state
                                     and st.session_state.saved_signals_info
                                 ):
-                                    # Crear un mensaje de resumen más detallado
-                                    summary_msg = f"<h4>Se guardaron {signals_saved} señales en la base de datos</h4>"
-                                    summary_msg += "<ul>"
+                                    # Crear un mensaje de resumen más detallado y atractivo
+                                    summary_msg = f"""<div style='background-color: #e6f7e6; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
+                                        <h4 style='color: #28a745; margin-top: 0;'>✅ Se guardaron {signals_saved} señales en la base de datos</h4>
+                                        <div style='margin-top: 10px;'>"""
+
+                                    # Añadir detalles de cada señal guardada en una tabla estilizada
+                                    summary_msg += """<table style='width: 100%; border-collapse: collapse; margin-top: 10px;'>
+                                        <tr style='background-color: #f2f2f2;'>
+                                            <th style='padding: 8px; text-align: left; border-bottom: 1px solid #ddd;'>Símbolo</th>
+                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>ID</th>
+                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>Noticias</th>
+                                        </tr>"""
 
                                     total_news = 0
                                     for info in st.session_state.saved_signals_info:
-                                        summary_msg += f"<li><b>{info['symbol']}</b> - ID: {info['id']}, Noticias: {info['news_count']}</li>"
+                                        # Alternar colores de fila para mejor legibilidad
+                                        row_style = (
+                                            "background-color: #f9f9f9;"
+                                            if total_news % 2 == 0
+                                            else ""
+                                        )
+                                        summary_msg += f"""<tr style='{row_style}'>
+                                            <td style='padding: 8px; text-align: left; border-bottom: 1px solid #ddd;'><b>{info['symbol']}</b></td>
+                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>{info['id']}</td>
+                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>{info['news_count']}</td>
+                                        </tr>"""
                                         total_news += info["news_count"]
 
-                                    summary_msg += "</ul>"
+                                    summary_msg += "</table>"
 
-                                    # Añadir resumen de noticias y sentimiento
+                                    # Añadir resumen de noticias y sentimiento con mejor formato
                                     if total_news > 0:
-                                        summary_msg += f"<p>Total de noticias guardadas: {total_news}</p>"
+                                        summary_msg += f"""<div style='margin-top: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px; border-left: 5px solid #007bff;'>
+                                            <p style='margin: 0;'><b>📰 Total de noticias guardadas:</b> {total_news}</p>
+                                        </div>"""
+
+                                    # Añadir mensaje de cierre
+                                    summary_msg += """<div style='margin-top: 15px; font-size: 0.9em; color: #666;'>
+                                        <p>Los datos han sido almacenados correctamente en la base de datos y estarán disponibles para consultas futuras.</p>
+                                    </div>"""
+
+                                    # Cerrar el div principal
+                                    summary_msg += "</div>"
 
                                     # Mostrar el resumen con formato HTML
                                     st.markdown(summary_msg, unsafe_allow_html=True)
@@ -7964,9 +8143,12 @@ def main():
                                     # Limpiar la información de señales guardadas
                                     st.session_state.saved_signals_info = []
                                 else:
-                                    st.success(
-                                        f"Se guardaron {signals_saved} señales en la base de datos"
-                                    )
+                                    # Crear un mensaje de éxito más atractivo cuando no hay detalles disponibles
+                                    success_msg = f"""<div style='background-color: #e6f7e6; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
+                                        <h4 style='color: #28a745; margin-top: 0;'>✅ Se guardaron {signals_saved} señales en la base de datos</h4>
+                                        <p>Los datos han sido almacenados correctamente y estarán disponibles para consultas futuras.</p>
+                                    </div>"""
+                                    st.markdown(success_msg, unsafe_allow_html=True)
 
                                 st.session_state.signals_saved = True
             except Exception as e:

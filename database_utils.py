@@ -467,62 +467,128 @@ class DatabaseManager:
                 return None
 
             try:
+                # Verificar si la columna signal_date existe
+                check_column_query = (
+                    """SHOW COLUMNS FROM trading_signals LIKE 'signal_date'"""
+                )
+                column_exists = self.execute_query(
+                    check_column_query, fetch=True, in_transaction=True
+                )
+
                 # Preparar consulta con todos los campos de la tabla
-                query = """INSERT INTO trading_signals
-                          (symbol, price, entry_price, stop_loss, target_price, risk_reward,
-                           direction, confidence_level, timeframe, strategy, setup_type,
-                           category, analysis, technical_analysis, support_level, resistance_level,
-                           rsi, trend, trend_strength, volatility, options_signal, options_analysis,
-                           trading_specialist_signal, trading_specialist_confidence, sentiment,
-                           sentiment_score, latest_news, news_source, additional_news, expert_analysis,
-                           recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
-                           bullish_indicators, bearish_indicators, is_high_confidence, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                  %s, %s, %s, %s, %s, %s, %s)"""
+                if column_exists and len(column_exists) > 0:
+                    query = """INSERT INTO trading_signals
+                              (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                               direction, confidence_level, timeframe, strategy, setup_type,
+                               category, analysis, technical_analysis, support_level, resistance_level,
+                               rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                               trading_specialist_signal, trading_specialist_confidence, sentiment,
+                               sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                               recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                               bullish_indicators, bearish_indicators, is_high_confidence, signal_date, created_at)
+                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                      %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                      %s, %s, %s, %s, %s, %s, %s, %s)"""
+                else:
+                    query = """INSERT INTO trading_signals
+                              (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                               direction, confidence_level, timeframe, strategy, setup_type,
+                               category, analysis, technical_analysis, support_level, resistance_level,
+                               rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                               trading_specialist_signal, trading_specialist_confidence, sentiment,
+                               sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                               recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                               bullish_indicators, bearish_indicators, is_high_confidence, created_at)
+                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                      %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                      %s, %s, %s, %s, %s, %s, %s)"""
 
                 # Preparar datos con todos los campos
-                params = (
-                    cleaned_data.get("symbol", ""),
-                    cleaned_data.get("price", 0.0),
-                    cleaned_data.get("entry_price", 0.0),
-                    cleaned_data.get("stop_loss", 0.0),
-                    cleaned_data.get("target_price", 0.0),
-                    cleaned_data.get("risk_reward", 0.0),
-                    cleaned_data.get("direction", "NEUTRAL"),
-                    cleaned_data.get("confidence_level", "Baja"),
-                    cleaned_data.get("timeframe", "Corto Plazo"),
-                    cleaned_data.get("strategy", "Análisis Técnico"),
-                    cleaned_data.get("setup_type", ""),
-                    cleaned_data.get("category", "General"),
-                    cleaned_data.get("analysis", ""),
-                    cleaned_data.get("technical_analysis", ""),
-                    cleaned_data.get("support_level", 0.0),
-                    cleaned_data.get("resistance_level", 0.0),
-                    cleaned_data.get("rsi", 0.0),
-                    cleaned_data.get("trend", ""),
-                    cleaned_data.get("trend_strength", ""),
-                    cleaned_data.get("volatility", 0.0),
-                    cleaned_data.get("options_signal", ""),
-                    cleaned_data.get("options_analysis", ""),
-                    cleaned_data.get("trading_specialist_signal", ""),
-                    cleaned_data.get("trading_specialist_confidence", ""),
-                    cleaned_data.get("sentiment", ""),
-                    cleaned_data.get("sentiment_score", 0.0),
-                    cleaned_data.get("latest_news", ""),
-                    cleaned_data.get("news_source", ""),
-                    cleaned_data.get("additional_news", ""),
-                    cleaned_data.get("expert_analysis", ""),
-                    cleaned_data.get("recommendation", ""),
-                    cleaned_data.get("mtf_analysis", ""),
-                    cleaned_data.get("daily_trend", ""),
-                    cleaned_data.get("weekly_trend", ""),
-                    cleaned_data.get("monthly_trend", ""),
-                    cleaned_data.get("bullish_indicators", ""),
-                    cleaned_data.get("bearish_indicators", ""),
-                    cleaned_data.get("is_high_confidence", False),
-                    cleaned_data.get("created_at", datetime.now()),
-                )
+                if column_exists and len(column_exists) > 0:
+                    params = (
+                        cleaned_data.get("symbol", ""),
+                        cleaned_data.get("price", 0.0),
+                        cleaned_data.get("entry_price", 0.0),
+                        cleaned_data.get("stop_loss", 0.0),
+                        cleaned_data.get("target_price", 0.0),
+                        cleaned_data.get("risk_reward", 0.0),
+                        cleaned_data.get("direction", "NEUTRAL"),
+                        cleaned_data.get("confidence_level", "Baja"),
+                        cleaned_data.get("timeframe", "Corto Plazo"),
+                        cleaned_data.get("strategy", "Análisis Técnico"),
+                        cleaned_data.get("setup_type", ""),
+                        cleaned_data.get("category", "General"),
+                        cleaned_data.get("analysis", ""),
+                        cleaned_data.get("technical_analysis", ""),
+                        cleaned_data.get("support_level", 0.0),
+                        cleaned_data.get("resistance_level", 0.0),
+                        cleaned_data.get("rsi", 0.0),
+                        cleaned_data.get("trend", ""),
+                        cleaned_data.get("trend_strength", ""),
+                        cleaned_data.get("volatility", 0.0),
+                        cleaned_data.get("options_signal", ""),
+                        cleaned_data.get("options_analysis", ""),
+                        cleaned_data.get("trading_specialist_signal", ""),
+                        cleaned_data.get("trading_specialist_confidence", ""),
+                        cleaned_data.get("sentiment", ""),
+                        cleaned_data.get("sentiment_score", 0.0),
+                        cleaned_data.get("latest_news", ""),
+                        cleaned_data.get("news_source", ""),
+                        cleaned_data.get("additional_news", ""),
+                        cleaned_data.get("expert_analysis", ""),
+                        cleaned_data.get("recommendation", ""),
+                        cleaned_data.get("mtf_analysis", ""),
+                        cleaned_data.get("daily_trend", ""),
+                        cleaned_data.get("weekly_trend", ""),
+                        cleaned_data.get("monthly_trend", ""),
+                        cleaned_data.get("bullish_indicators", ""),
+                        cleaned_data.get("bearish_indicators", ""),
+                        cleaned_data.get("is_high_confidence", False),
+                        cleaned_data.get("signal_date", datetime.now().date()),
+                        cleaned_data.get("created_at", datetime.now()),
+                    )
+                else:
+                    params = (
+                        cleaned_data.get("symbol", ""),
+                        cleaned_data.get("price", 0.0),
+                        cleaned_data.get("entry_price", 0.0),
+                        cleaned_data.get("stop_loss", 0.0),
+                        cleaned_data.get("target_price", 0.0),
+                        cleaned_data.get("risk_reward", 0.0),
+                        cleaned_data.get("direction", "NEUTRAL"),
+                        cleaned_data.get("confidence_level", "Baja"),
+                        cleaned_data.get("timeframe", "Corto Plazo"),
+                        cleaned_data.get("strategy", "Análisis Técnico"),
+                        cleaned_data.get("setup_type", ""),
+                        cleaned_data.get("category", "General"),
+                        cleaned_data.get("analysis", ""),
+                        cleaned_data.get("technical_analysis", ""),
+                        cleaned_data.get("support_level", 0.0),
+                        cleaned_data.get("resistance_level", 0.0),
+                        cleaned_data.get("rsi", 0.0),
+                        cleaned_data.get("trend", ""),
+                        cleaned_data.get("trend_strength", ""),
+                        cleaned_data.get("volatility", 0.0),
+                        cleaned_data.get("options_signal", ""),
+                        cleaned_data.get("options_analysis", ""),
+                        cleaned_data.get("trading_specialist_signal", ""),
+                        cleaned_data.get("trading_specialist_confidence", ""),
+                        cleaned_data.get("sentiment", ""),
+                        cleaned_data.get("sentiment_score", 0.0),
+                        cleaned_data.get("latest_news", ""),
+                        cleaned_data.get("news_source", ""),
+                        cleaned_data.get("additional_news", ""),
+                        cleaned_data.get("expert_analysis", ""),
+                        cleaned_data.get("recommendation", ""),
+                        cleaned_data.get("mtf_analysis", ""),
+                        cleaned_data.get("daily_trend", ""),
+                        cleaned_data.get("weekly_trend", ""),
+                        cleaned_data.get("monthly_trend", ""),
+                        cleaned_data.get("bullish_indicators", ""),
+                        cleaned_data.get("bearish_indicators", ""),
+                        cleaned_data.get("is_high_confidence", False),
+                        cleaned_data.get("created_at", datetime.now()),
+                    )
 
                 # Ejecutar consulta dentro de la transacción
                 signal_id = self.execute_query(
@@ -876,62 +942,128 @@ class DatabaseManager:
                             else:
                                 cleaned_data[key] = value
 
+                        # Verificar si la columna signal_date existe
+                        check_column_query = (
+                            """SHOW COLUMNS FROM trading_signals LIKE 'signal_date'"""
+                        )
+                        column_exists = self.execute_query(
+                            check_column_query, fetch=True, in_transaction=True
+                        )
+
                         # Preparar consulta para insertar señal
-                        query = """INSERT INTO trading_signals
-                                  (symbol, price, entry_price, stop_loss, target_price, risk_reward,
-                                   direction, confidence_level, timeframe, strategy, setup_type,
-                                   category, analysis, technical_analysis, support_level, resistance_level,
-                                   rsi, trend, trend_strength, volatility, options_signal, options_analysis,
-                                   trading_specialist_signal, trading_specialist_confidence, sentiment,
-                                   sentiment_score, latest_news, news_source, additional_news, expert_analysis,
-                                   recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
-                                   bullish_indicators, bearish_indicators, is_high_confidence, created_at)
-                                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                          %s, %s, %s, %s, %s, %s, %s)"""
+                        if column_exists and len(column_exists) > 0:
+                            query = """INSERT INTO trading_signals
+                                      (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                                       direction, confidence_level, timeframe, strategy, setup_type,
+                                       category, analysis, technical_analysis, support_level, resistance_level,
+                                       rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                                       trading_specialist_signal, trading_specialist_confidence, sentiment,
+                                       sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                                       recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                                       bullish_indicators, bearish_indicators, is_high_confidence, signal_date, created_at)
+                                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                              %s, %s, %s, %s, %s, %s, %s, %s)"""
+                        else:
+                            query = """INSERT INTO trading_signals
+                                      (symbol, price, entry_price, stop_loss, target_price, risk_reward,
+                                       direction, confidence_level, timeframe, strategy, setup_type,
+                                       category, analysis, technical_analysis, support_level, resistance_level,
+                                       rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+                                       trading_specialist_signal, trading_specialist_confidence, sentiment,
+                                       sentiment_score, latest_news, news_source, additional_news, expert_analysis,
+                                       recommendation, mtf_analysis, daily_trend, weekly_trend, monthly_trend,
+                                       bullish_indicators, bearish_indicators, is_high_confidence, created_at)
+                                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                              %s, %s, %s, %s, %s, %s, %s)"""
 
                         # Preparar datos
-                        params = (
-                            cleaned_data.get("symbol", ""),
-                            cleaned_data.get("price", 0.0),
-                            cleaned_data.get("entry_price", 0.0),
-                            cleaned_data.get("stop_loss", 0.0),
-                            cleaned_data.get("target_price", 0.0),
-                            cleaned_data.get("risk_reward", 0.0),
-                            cleaned_data.get("direction", "NEUTRAL"),
-                            cleaned_data.get("confidence_level", "Baja"),
-                            cleaned_data.get("timeframe", "Corto Plazo"),
-                            cleaned_data.get("strategy", "Análisis Técnico"),
-                            cleaned_data.get("setup_type", ""),
-                            cleaned_data.get("category", "General"),
-                            cleaned_data.get("analysis", ""),
-                            cleaned_data.get("technical_analysis", ""),
-                            cleaned_data.get("support_level", 0.0),
-                            cleaned_data.get("resistance_level", 0.0),
-                            cleaned_data.get("rsi", 0.0),
-                            cleaned_data.get("trend", ""),
-                            cleaned_data.get("trend_strength", ""),
-                            cleaned_data.get("volatility", 0.0),
-                            cleaned_data.get("options_signal", ""),
-                            cleaned_data.get("options_analysis", ""),
-                            cleaned_data.get("trading_specialist_signal", ""),
-                            cleaned_data.get("trading_specialist_confidence", ""),
-                            cleaned_data.get("sentiment", ""),
-                            cleaned_data.get("sentiment_score", 0.0),
-                            cleaned_data.get("latest_news", ""),
-                            cleaned_data.get("news_source", ""),
-                            cleaned_data.get("additional_news", ""),
-                            cleaned_data.get("expert_analysis", ""),
-                            cleaned_data.get("recommendation", ""),
-                            cleaned_data.get("mtf_analysis", ""),
-                            cleaned_data.get("daily_trend", ""),
-                            cleaned_data.get("weekly_trend", ""),
-                            cleaned_data.get("monthly_trend", ""),
-                            cleaned_data.get("bullish_indicators", ""),
-                            cleaned_data.get("bearish_indicators", ""),
-                            cleaned_data.get("is_high_confidence", False),
-                            cleaned_data.get("created_at", datetime.now()),
-                        )
+                        if column_exists and len(column_exists) > 0:
+                            params = (
+                                cleaned_data.get("symbol", ""),
+                                cleaned_data.get("price", 0.0),
+                                cleaned_data.get("entry_price", 0.0),
+                                cleaned_data.get("stop_loss", 0.0),
+                                cleaned_data.get("target_price", 0.0),
+                                cleaned_data.get("risk_reward", 0.0),
+                                cleaned_data.get("direction", "NEUTRAL"),
+                                cleaned_data.get("confidence_level", "Baja"),
+                                cleaned_data.get("timeframe", "Corto Plazo"),
+                                cleaned_data.get("strategy", "Análisis Técnico"),
+                                cleaned_data.get("setup_type", ""),
+                                cleaned_data.get("category", "General"),
+                                cleaned_data.get("analysis", ""),
+                                cleaned_data.get("technical_analysis", ""),
+                                cleaned_data.get("support_level", 0.0),
+                                cleaned_data.get("resistance_level", 0.0),
+                                cleaned_data.get("rsi", 0.0),
+                                cleaned_data.get("trend", ""),
+                                cleaned_data.get("trend_strength", ""),
+                                cleaned_data.get("volatility", 0.0),
+                                cleaned_data.get("options_signal", ""),
+                                cleaned_data.get("options_analysis", ""),
+                                cleaned_data.get("trading_specialist_signal", ""),
+                                cleaned_data.get("trading_specialist_confidence", ""),
+                                cleaned_data.get("sentiment", ""),
+                                cleaned_data.get("sentiment_score", 0.0),
+                                cleaned_data.get("latest_news", ""),
+                                cleaned_data.get("news_source", ""),
+                                cleaned_data.get("additional_news", ""),
+                                cleaned_data.get("expert_analysis", ""),
+                                cleaned_data.get("recommendation", ""),
+                                cleaned_data.get("mtf_analysis", ""),
+                                cleaned_data.get("daily_trend", ""),
+                                cleaned_data.get("weekly_trend", ""),
+                                cleaned_data.get("monthly_trend", ""),
+                                cleaned_data.get("bullish_indicators", ""),
+                                cleaned_data.get("bearish_indicators", ""),
+                                cleaned_data.get("is_high_confidence", False),
+                                cleaned_data.get("signal_date", datetime.now().date()),
+                                cleaned_data.get("created_at", datetime.now()),
+                            )
+                        else:
+                            params = (
+                                cleaned_data.get("symbol", ""),
+                                cleaned_data.get("price", 0.0),
+                                cleaned_data.get("entry_price", 0.0),
+                                cleaned_data.get("stop_loss", 0.0),
+                                cleaned_data.get("target_price", 0.0),
+                                cleaned_data.get("risk_reward", 0.0),
+                                cleaned_data.get("direction", "NEUTRAL"),
+                                cleaned_data.get("confidence_level", "Baja"),
+                                cleaned_data.get("timeframe", "Corto Plazo"),
+                                cleaned_data.get("strategy", "Análisis Técnico"),
+                                cleaned_data.get("setup_type", ""),
+                                cleaned_data.get("category", "General"),
+                                cleaned_data.get("analysis", ""),
+                                cleaned_data.get("technical_analysis", ""),
+                                cleaned_data.get("support_level", 0.0),
+                                cleaned_data.get("resistance_level", 0.0),
+                                cleaned_data.get("rsi", 0.0),
+                                cleaned_data.get("trend", ""),
+                                cleaned_data.get("trend_strength", ""),
+                                cleaned_data.get("volatility", 0.0),
+                                cleaned_data.get("options_signal", ""),
+                                cleaned_data.get("options_analysis", ""),
+                                cleaned_data.get("trading_specialist_signal", ""),
+                                cleaned_data.get("trading_specialist_confidence", ""),
+                                cleaned_data.get("sentiment", ""),
+                                cleaned_data.get("sentiment_score", 0.0),
+                                cleaned_data.get("latest_news", ""),
+                                cleaned_data.get("news_source", ""),
+                                cleaned_data.get("additional_news", ""),
+                                cleaned_data.get("expert_analysis", ""),
+                                cleaned_data.get("recommendation", ""),
+                                cleaned_data.get("mtf_analysis", ""),
+                                cleaned_data.get("daily_trend", ""),
+                                cleaned_data.get("weekly_trend", ""),
+                                cleaned_data.get("monthly_trend", ""),
+                                cleaned_data.get("bullish_indicators", ""),
+                                cleaned_data.get("bearish_indicators", ""),
+                                cleaned_data.get("is_high_confidence", False),
+                                cleaned_data.get("created_at", datetime.now()),
+                            )
 
                         # Ejecutar consulta dentro de la transacción
                         signal_id = self.execute_query(
@@ -1022,15 +1154,33 @@ class DatabaseManager:
 
                     if existing_sentiment and len(existing_sentiment) > 0:
                         # Actualizar registro existente
-                        update_query = """UPDATE market_sentiment
-                                        SET overall = %s,
-                                            vix = %s,
-                                            sp500_trend = %s,
-                                            technical_indicators = %s,
-                                            volume = %s,
-                                            notes = %s,
-                                            updated_at = NOW()
-                                        WHERE id = %s"""
+                        # Verificar si la columna updated_at existe
+                        check_column_query = (
+                            """SHOW COLUMNS FROM market_sentiment LIKE 'updated_at'"""
+                        )
+                        column_exists = self.execute_query(
+                            check_column_query, fetch=True, in_transaction=True
+                        )
+
+                        if column_exists and len(column_exists) > 0:
+                            update_query = """UPDATE market_sentiment
+                                            SET overall = %s,
+                                                vix = %s,
+                                                sp500_trend = %s,
+                                                technical_indicators = %s,
+                                                volume = %s,
+                                                notes = %s,
+                                                updated_at = NOW()
+                                            WHERE id = %s"""
+                        else:
+                            update_query = """UPDATE market_sentiment
+                                            SET overall = %s,
+                                                vix = %s,
+                                                sp500_trend = %s,
+                                                technical_indicators = %s,
+                                                volume = %s,
+                                                notes = %s
+                                            WHERE id = %s"""
 
                         params = (
                             cleaned_data.get("overall", "Neutral"),
@@ -1095,3 +1245,190 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error guardando múltiples registros: {str(e)}")
             return None
+
+
+def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
+    """Guarda una noticia de mercado en la base de datos
+
+    Args:
+        news_data (Dict[str, Any]): Datos de la noticia a guardar
+
+    Returns:
+        Optional[int]: ID de la noticia guardada o None si hubo un error
+    """
+    try:
+        db_manager = DatabaseManager()
+
+        # Validar datos mínimos requeridos
+        if not news_data.get("title"):
+            logger.error("Error guardando noticia: Falta el título")
+            return None
+
+        # Asegurar que la fecha de la noticia esté presente
+        if not news_data.get("news_date"):
+            news_data["news_date"] = datetime.now()
+
+        # Limpiar datos de texto
+        cleaned_data = {}
+        for key, value in news_data.items():
+            if isinstance(value, str):
+                cleaned_data[key] = db_manager.clean_text_data(value)
+            elif key == "url" and value and isinstance(value, str):
+                # Validar URL
+                cleaned_data[key] = db_manager.validate_url(value)
+            else:
+                cleaned_data[key] = value
+
+        # Preparar consulta
+        query = """INSERT INTO market_news
+                  (title, summary, source, url, news_date, impact, created_at)
+                  VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
+
+        params = (
+            cleaned_data.get("title", ""),
+            cleaned_data.get("summary", ""),
+            cleaned_data.get("source", "InversorIA Analytics"),
+            cleaned_data.get("url", ""),
+            cleaned_data.get("news_date", datetime.now()),
+            cleaned_data.get("impact", "Medio"),
+        )
+
+        # Ejecutar consulta
+        news_id = db_manager.execute_query(query, params, fetch=False)
+        if news_id:
+            logger.info(f"Noticia guardada con ID: {news_id}")
+            return news_id
+        else:
+            logger.error("Error guardando noticia: No se obtuvo ID")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error guardando noticia: {str(e)}")
+        return None
+
+
+def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
+    """Guarda datos de sentimiento de mercado en la base de datos
+
+    Args:
+        sentiment_data (Dict[str, Any]): Datos de sentimiento a guardar
+
+    Returns:
+        Optional[int]: ID del sentimiento guardado o None si hubo un error
+    """
+    try:
+        db_manager = DatabaseManager()
+
+        # Validar datos mínimos requeridos
+        if not sentiment_data.get("overall"):
+            logger.error("Error guardando sentimiento: Falta el sentimiento general")
+            return None
+
+        # Asegurar que la fecha esté presente
+        if not sentiment_data.get("date"):
+            sentiment_data["date"] = datetime.now().date()
+
+        # Limpiar datos de texto
+        cleaned_data = {}
+        for key, value in sentiment_data.items():
+            if isinstance(value, str):
+                cleaned_data[key] = db_manager.clean_text_data(value)
+            else:
+                cleaned_data[key] = value
+
+        # Verificar si ya existe un registro para la fecha especificada
+        check_query = """SELECT id FROM market_sentiment
+                      WHERE date = %s"""
+        check_params = [cleaned_data.get("date", datetime.now().date())]
+        existing_sentiment = db_manager.execute_query(check_query, check_params)
+
+        if existing_sentiment and len(existing_sentiment) > 0:
+            # Actualizar registro existente
+            # Verificar si la columna updated_at existe
+            check_column_query = (
+                """SHOW COLUMNS FROM market_sentiment LIKE 'updated_at'"""
+            )
+            column_exists = db_manager.execute_query(check_column_query)
+
+            if column_exists and len(column_exists) > 0:
+                update_query = """UPDATE market_sentiment
+                              SET overall = %s,
+                                  vix = %s,
+                                  sp500_trend = %s,
+                                  technical_indicators = %s,
+                                  volume = %s,
+                                  notes = %s,
+                                  updated_at = NOW()
+                              WHERE id = %s"""
+            else:
+                update_query = """UPDATE market_sentiment
+                              SET overall = %s,
+                                  vix = %s,
+                                  sp500_trend = %s,
+                                  technical_indicators = %s,
+                                  volume = %s,
+                                  notes = %s
+                              WHERE id = %s"""
+
+            params = (
+                cleaned_data.get("overall", "Neutral"),
+                cleaned_data.get("vix", "N/A"),
+                cleaned_data.get("sp500_trend", "N/A"),
+                cleaned_data.get("technical_indicators", "N/A"),
+                cleaned_data.get("volume", "N/A"),
+                cleaned_data.get("notes", ""),
+                existing_sentiment[0].get("id"),
+            )
+
+            db_manager.execute_query(update_query, params, fetch=False)
+            sentiment_id = existing_sentiment[0].get("id")
+            logger.info(f"Sentimiento de mercado actualizado con ID: {sentiment_id}")
+            return sentiment_id
+        else:
+            # Insertar nuevo registro
+            insert_query = """INSERT INTO market_sentiment
+                          (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+
+            params = (
+                cleaned_data.get("date", datetime.now().date()),
+                cleaned_data.get("overall", "Neutral"),
+                cleaned_data.get("vix", "N/A"),
+                cleaned_data.get("sp500_trend", "N/A"),
+                cleaned_data.get("technical_indicators", "N/A"),
+                cleaned_data.get("volume", "N/A"),
+                cleaned_data.get("notes", ""),
+            )
+
+            sentiment_id = db_manager.execute_query(insert_query, params, fetch=False)
+            logger.info(f"Nuevo sentimiento de mercado guardado con ID: {sentiment_id}")
+            return sentiment_id
+
+    except Exception as e:
+        logger.error(f"Error guardando sentimiento de mercado: {str(e)}")
+        return None
+
+
+def save_trading_signal(signal_data: Dict[str, Any]) -> Optional[int]:
+    """Guarda una señal de trading en la base de datos
+
+    Args:
+        signal_data (Dict[str, Any]): Datos de la señal a guardar
+
+    Returns:
+        Optional[int]: ID de la señal guardada o None si hubo un error
+    """
+    try:
+        db_manager = DatabaseManager()
+
+        # Validar datos mínimos requeridos
+        if not signal_data.get("symbol"):
+            logger.error("Error guardando señal: Falta el símbolo")
+            return None
+
+        # Usar el método save_signal del DatabaseManager
+        return db_manager.save_signal(signal_data)
+
+    except Exception as e:
+        logger.error(f"Error guardando señal de trading: {str(e)}")
+        return None
