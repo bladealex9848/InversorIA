@@ -740,7 +740,7 @@ class EmailManager:
             """
 
             for signal in signals:
-                confidence_class = ""
+                # Determinar color de fondo según nivel de confianza
                 if signal.get("confidence_level") == "Alta":
                     bg_color = "#d4edda"
                 elif signal.get("confidence_level") == "Media":
@@ -758,9 +758,29 @@ class EmailManager:
                     direction_color = "#6c757d"
                     direction_text = "Neutral"
 
+                # Obtener nombre completo de la empresa
+                symbol = signal.get("symbol", "")
+                company_name = ""
+                if symbol:
+                    # Importar función para obtener información de la empresa
+                    try:
+                        from company_data import get_company_info
+
+                        company_info = get_company_info(symbol)
+                        company_name = company_info.get("name", "")
+                    except Exception as e:
+                        logger.warning(
+                            f"No se pudo obtener información de la empresa para {symbol}: {str(e)}"
+                        )
+
+                # Mostrar símbolo y nombre completo
+                symbol_display = symbol
+                if company_name:
+                    symbol_display = f"{symbol}<br/><span style='font-size: 11px; font-weight: normal; color: #666;'>{company_name}</span>"
+
                 html += f"""
                 <tr style="background-color: {bg_color};">
-                    <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; font-weight: bold;">{signal.get('symbol', '')}</td>
+                    <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; font-weight: bold;">{symbol_display}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; color: {direction_color}; font-weight: bold;">{direction_text}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2;">${signal.get('price', '0.00')}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2;">{signal.get('confidence_level', 'Baja')}</td>
@@ -801,21 +821,37 @@ class EmailManager:
                         direction_text = "Neutral"
                         direction_color = "#6c757d"
 
-                    # Datos básicos
-                    price = signal.get("price", 0)
+                    # Obtener datos básicos para la visualización
                     entry_price = signal.get("entry_price")
                     stop_loss = signal.get("stop_loss")
                     target_price = signal.get("target_price")
                     risk_reward = signal.get("risk_reward")
+
+                    # Obtener nombre completo de la empresa para la señal detallada
+                    company_name = ""
+                    company_description = ""
+                    if symbol:
+                        try:
+                            from company_data import get_company_info
+
+                            company_info = get_company_info(symbol)
+                            company_name = company_info.get("name", "")
+                            company_description = company_info.get("description", "")
+                        except Exception as e:
+                            logger.warning(
+                                f"No se pudo obtener información detallada de la empresa para {symbol}: {str(e)}"
+                            )
 
                     html += f"""
                     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 30px; border-left: 4px solid {border_color}; background-color: #ffffff; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <tr>
                             <td style="padding: 20px;">
                                 <!-- Encabezado de la señal -->
-                                <h3 style="margin-top: 0; color: {direction_color}; font-size: 18px; font-weight: bold; margin-bottom: 15px;">
+                                <h3 style="margin-top: 0; color: {direction_color}; font-size: 18px; font-weight: bold; margin-bottom: 5px;">
                                     {symbol} - {direction_text}
                                 </h3>
+                                <p style="margin: 0 0 15px; color: #444; font-size: 15px;">{company_name}</p>
+                                {f'<p style="margin: 0 0 15px; color: #666; font-size: 13px; font-style: italic;">{company_description}</p>' if company_description else ''}
 
                                 <!-- Información básica -->
                                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 15px;">
@@ -1037,9 +1073,7 @@ class EmailManager:
 
         # Sección de sentimiento de mercado
         if market_sentiment:
-            sentiment_class = ""
-            sentiment_border = ""
-
+            # Determinar colores según el sentimiento
             if market_sentiment.get("overall") == "Alcista":
                 sentiment_border = "#28a745"
                 sentiment_bg = "#e8f5e9"
@@ -1096,11 +1130,32 @@ class EmailManager:
                 else:
                     impact_color = "#6c757d"
 
+                # Obtener información de la empresa para la noticia
+                symbol = item.get("symbol", "")
+                company_name = ""
+                if symbol:
+                    try:
+                        from company_data import get_company_info
+
+                        company_info = get_company_info(symbol)
+                        company_name = company_info.get("name", "")
+                    except Exception as e:
+                        logger.warning(
+                            f"No se pudo obtener información de la empresa para noticia de {symbol}: {str(e)}"
+                        )
+
+                # Preparar enlace si hay URL
+                title_display = item.get("title", "")
+                url = item.get("url", "")
+                if url and len(url) > 5:
+                    title_display = f"<a href='{url}' target='_blank' style='color: #0275d8; text-decoration: none;'>{item.get('title', '')} <span style='font-size: 12px;'>&#128279;</span></a>"
+
                 html += f"""
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 20px; background-color: #ffffff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <tr>
                         <td style="padding: 20px;">
-                            <h3 style="margin-top: 0; margin-bottom: 10px; color: #0275d8; font-size: 18px;">{item.get('title', '')}</h3>
+                            <h3 style="margin-top: 0; margin-bottom: 10px; color: #0275d8; font-size: 18px;">{title_display}</h3>
+                            {f'<p style="margin: 0 0 10px; font-size: 13px; color: #444;"><strong>{symbol}</strong> - {company_name}</p>' if symbol and company_name else ''}
                             <p style="margin: 0 0 15px; line-height: 1.6;">{item.get('summary', '')}</p>
                             <p style="margin: 0; font-size: 12px; color: #6c757d;">
                                 {f'<span style="color: {impact_color}; font-weight: bold;">Impacto: {impact}</span> &bull; ' if impact else ''}
@@ -1544,6 +1599,10 @@ if "market_signals" in st.session_state and st.session_state.market_signals:
 # Inicializar el gestor de señales
 signal_manager = SignalManager()
 
+# Importar información de compañías
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from company_data import get_company_info
+
 # Contenido de la pestaña "Señales Activas"
 with tab1:
     st.header("📋 Señales de Trading Activas")
@@ -1570,6 +1629,17 @@ with tab1:
         high_confidence_only=alta_confianza_only,
         refresh=refresh,  # Forzar actualización si se presiona el botón
     )
+
+    # Enriquecer señales con información completa de compañías
+    for signal in signals:
+        symbol = signal.get("symbol", "")
+        if symbol:
+            company_info = get_company_info(symbol)
+            signal["company_name"] = company_info.get("name", symbol)
+            signal["company_sector"] = company_info.get(
+                "sector", signal.get("category", "N/A")
+            )
+            signal["company_description"] = company_info.get("description", "")
 
     # Mostrar mensaje de actualización si se presionó el botón
     if refresh:
@@ -1629,7 +1699,13 @@ with tab1:
                     </div>
                     """
 
-                # Header con símbolo y dirección
+                # Header con símbolo, nombre completo y dirección
+                company_name = signal.get("company_name", signal.get("symbol", ""))
+                company_sector = signal.get(
+                    "company_sector", signal.get("category", "N/A")
+                )
+                company_description = signal.get("company_description", "")
+
                 html += f"""
                 <div style="display: flex; align-items: center; margin-bottom: 15px;">
                     <div style="width: 50px; height: 50px; background-color: {text_color}; color: white;
@@ -1637,16 +1713,28 @@ with tab1:
                             font-size: 24px; margin-right: 15px; font-weight: bold;">
                         {signal.get('symbol', '')[0]}
                     </div>
-                    <div>
+                    <div style="flex: 1;">
                         <h3 style="margin: 0; color: {text_color}; font-size: 22px; font-weight: 600;">
                             {signal.get('symbol', '')} - {direction_text}
                         </h3>
+                        <div style="font-size: 15px; color: #444; margin-top: 3px; font-weight: 500;">
+                            {company_name}
+                        </div>
                         <div style="font-size: 13px; color: #666; margin-top: 3px;">
-                            {signal.get('category', 'N/A')} • {fecha}
+                            {company_sector} • {fecha}
                         </div>
                     </div>
                 </div>
                 """
+
+                # Descripción de la empresa si está disponible
+                if company_description:
+                    html += f"""
+                    <div style="margin-bottom: 15px; font-size: 14px; color: #555; font-style: italic;
+                            background-color: rgba(0,0,0,0.02); padding: 10px; border-radius: 5px;">
+                        {company_description}
+                    </div>
+                    """
 
                 # Setup type como badge
                 if signal.get("setup_type"):
@@ -2336,13 +2424,22 @@ with tab1:
             if url and len(url) > 5:  # Verificar que la URL sea válida
                 title_with_link = f"<a href='{url}' target='_blank' style='text-decoration: none; color: #0275d8;'>{item.get('title', '')} <span style='font-size: 14px;'>&#128279;</span></a>"
 
-            # Preparar símbolo si existe
+            # Preparar símbolo y nombre de empresa si existe
             symbol = item.get("symbol", "")
-            symbol_badge = (
-                f"<span style='background-color: rgba(2, 117, 216, 0.1); color: #0275d8; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-right: 10px;'>{symbol}</span>"
-                if symbol
-                else ""
-            )
+            company_name = ""
+            if symbol:
+                # Obtener información completa de la empresa
+                company_info = get_company_info(symbol)
+                company_name = company_info.get("name", "")
+
+                # Crear badge con símbolo y nombre
+                badge_text = f"{symbol}"
+                if company_name:
+                    badge_text = f"{symbol} - {company_name}"
+
+                symbol_badge = f"<span style='background-color: rgba(2, 117, 216, 0.1); color: #0275d8; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-right: 10px;'>{badge_text}</span>"
+            else:
+                symbol_badge = ""
 
             st.markdown(
                 f"""
@@ -2748,9 +2845,8 @@ with tab3:
                 )
 
             # Mostrar tabla con estilo
-            st.dataframe(
-                styled_df.astype(str), use_container_width=True, hide_index=True
-            )
+            # Corregido: Styler object no tiene método astype
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Opción para exportar datos
             if st.button("📥 Exportar a CSV", key="export_signals"):
@@ -2844,9 +2940,8 @@ with tab3:
                 )
 
             # Mostrar tabla
-            st.dataframe(
-                styled_df.astype(str), use_container_width=True, hide_index=True
-            )
+            # Corregido: Styler object no tiene método astype
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
             # Añadir explicación detallada del significado de "Señales Incluidas"
             st.info(
