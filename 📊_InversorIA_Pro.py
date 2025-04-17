@@ -7408,7 +7408,10 @@ def main():
                                     # Procesar la señal con ai_utils para mejorar la calidad de la información
                                     try:
                                         # Importar utilidades de IA
-                                        from ai_utils import process_expert_analysis
+                                        from ai_utils import (
+                                            process_expert_analysis,
+                                            process_content_with_ai,
+                                        )
                                         from company_data import get_company_info
 
                                         # Obtener información completa de la empresa
@@ -7427,6 +7430,43 @@ def main():
                                         signal["company_description"] = (
                                             company_description
                                         )
+
+                                        # Obtener parámetros de opciones si están disponibles
+                                        try:
+                                            from market_utils import (
+                                                OptionsParameterManager,
+                                            )
+
+                                            options_manager = OptionsParameterManager()
+                                            options_params = (
+                                                options_manager.get_symbol_params(
+                                                    signal["symbol"]
+                                                )
+                                            )
+
+                                            if options_params:
+                                                signal["options_params"] = (
+                                                    options_params
+                                                )
+                                                signal["costo_strike"] = (
+                                                    options_params.get(
+                                                        "costo_strike", "N/A"
+                                                    )
+                                                )
+                                                signal["volumen_min"] = (
+                                                    options_params.get(
+                                                        "volumen_min", "N/A"
+                                                    )
+                                                )
+                                                signal["distance_spot_strike"] = (
+                                                    options_params.get(
+                                                        "distance_spot_strike", "N/A"
+                                                    )
+                                                )
+                                        except Exception as options_error:
+                                            logger.warning(
+                                                f"Error obteniendo parámetros de opciones: {str(options_error)}"
+                                            )
 
                                         # Obtener contexto de mercado para el símbolo
                                         try:
@@ -7487,6 +7527,33 @@ def main():
                                                     signal["expert_analysis"] = (
                                                         expert_analysis
                                                     )
+
+                                                    # Mejorar otros campos de texto con IA si están disponibles
+                                                    if signal.get("analysis"):
+                                                        signal["analysis"] = (
+                                                            process_content_with_ai(
+                                                                client,
+                                                                assistant_id,
+                                                                "analysis",
+                                                                signal["analysis"],
+                                                                signal["symbol"],
+                                                                f"Precio: ${signal.get('price', 0)}, Tendencia: {signal.get('trend', 'NEUTRAL')}",
+                                                            )
+                                                        )
+
+                                                    if signal.get("technical_analysis"):
+                                                        signal["technical_analysis"] = (
+                                                            process_content_with_ai(
+                                                                client,
+                                                                assistant_id,
+                                                                "technical_analysis",
+                                                                signal[
+                                                                    "technical_analysis"
+                                                                ],
+                                                                signal["symbol"],
+                                                                f"RSI: {signal.get('rsi', 'N/A')}, MACD: {signal.get('macd', 'N/A')}, Soporte: {signal.get('support', 'N/A')}, Resistencia: {signal.get('resistance', 'N/A')}",
+                                                            )
+                                                        )
 
                                                     # Extraer recomendación final
                                                     if (
@@ -7565,6 +7632,122 @@ def main():
                                                         signal_manager.db_manager
                                                     )
 
+                                                    # Procesar noticias con IA para mejorar calidad y asegurar fuentes confiables
+                                                    if (
+                                                        signal.get("news")
+                                                        and client
+                                                        and assistant_id
+                                                    ):
+                                                        processed_news = []
+                                                        for news_item in signal.get(
+                                                            "news", []
+                                                        ):
+                                                            # Verificar si la noticia tiene URL y fuente
+                                                            if (
+                                                                not news_item.get("url")
+                                                                or news_item.get("url")
+                                                                == "#"
+                                                            ):
+                                                                # Buscar URL para la noticia
+                                                                try:
+                                                                    from news_sentiment_analyzer import (
+                                                                        NewsSentimentAnalyzer,
+                                                                    )
+
+                                                                    news_analyzer = (
+                                                                        NewsSentimentAnalyzer()
+                                                                    )
+                                                                    search_query = f"{signal['symbol']} {news_item.get('title', '')}"
+                                                                    search_results = news_analyzer.get_news_from_web_search(
+                                                                        search_query,
+                                                                        signal.get(
+                                                                            "company_name",
+                                                                            "",
+                                                                        ),
+                                                                    )
+
+                                                                    if (
+                                                                        search_results
+                                                                        and len(
+                                                                            search_results
+                                                                        )
+                                                                        > 0
+                                                                    ):
+                                                                        # Encontrar la noticia más similar
+                                                                        for (
+                                                                            result
+                                                                        ) in search_results:
+                                                                            if (
+                                                                                news_item.get(
+                                                                                    "title",
+                                                                                    "",
+                                                                                ).lower()
+                                                                                in result.get(
+                                                                                    "title",
+                                                                                    "",
+                                                                                ).lower()
+                                                                                or result.get(
+                                                                                    "title",
+                                                                                    "",
+                                                                                ).lower()
+                                                                                in news_item.get(
+                                                                                    "title",
+                                                                                    "",
+                                                                                ).lower()
+                                                                            ):
+                                                                                news_item[
+                                                                                    "url"
+                                                                                ] = result.get(
+                                                                                    "url",
+                                                                                    news_item.get(
+                                                                                        "url",
+                                                                                        "#",
+                                                                                    ),
+                                                                                )
+                                                                                news_item[
+                                                                                    "source"
+                                                                                ] = result.get(
+                                                                                    "source",
+                                                                                    news_item.get(
+                                                                                        "source",
+                                                                                        "Desconocida",
+                                                                                    ),
+                                                                                )
+                                                                                break
+                                                                except (
+                                                                    Exception
+                                                                ) as search_error:
+                                                                    logger.warning(
+                                                                        f"Error buscando URL para noticia: {str(search_error)}"
+                                                                    )
+
+                                                            # Mejorar contenido de la noticia con IA
+                                                            if news_item.get(
+                                                                "title"
+                                                            ) and news_item.get(
+                                                                "summary"
+                                                            ):
+                                                                improved_summary = process_content_with_ai(
+                                                                    client,
+                                                                    assistant_id,
+                                                                    "news",
+                                                                    news_item.get(
+                                                                        "summary", ""
+                                                                    ),
+                                                                    signal["symbol"],
+                                                                    f"Título: {news_item.get('title', '')}, Fuente: {news_item.get('source', 'Desconocida')}",
+                                                                )
+                                                                news_item["summary"] = (
+                                                                    improved_summary
+                                                                )
+
+                                                            processed_news.append(
+                                                                news_item
+                                                            )
+
+                                                        # Actualizar noticias en la señal
+                                                        signal["news"] = processed_news
+
                                                     # Guardar noticias
                                                     news_ids = market_data_mgr.save_news_from_signal(
                                                         signal
@@ -7597,17 +7780,113 @@ def main():
                                                                     )
                                                                     break
 
-                                                    # Guardar sentimiento si es una señal de alta confianza
-                                                    if signal.get("is_high_confidence"):
+                                                    # Guardar sentimiento si es una señal de alta confianza o si tiene sentimiento
+                                                    if signal.get(
+                                                        "is_high_confidence"
+                                                    ) or signal.get("sentiment"):
+                                                        # Mejorar el sentimiento con IA si está disponible
+                                                        if (
+                                                            signal.get("sentiment")
+                                                            and client
+                                                            and assistant_id
+                                                        ):
+                                                            sentiment_context = f"Símbolo: {signal['symbol']}, Precio: ${signal.get('price', 0)}, Tendencia: {signal.get('trend', 'NEUTRAL')}"
+                                                            sentiment_data = {
+                                                                "sentiment": signal.get(
+                                                                    "sentiment",
+                                                                    "neutral",
+                                                                ),
+                                                                "score": signal.get(
+                                                                    "sentiment_score",
+                                                                    0.5,
+                                                                ),
+                                                                "positive_mentions": signal.get(
+                                                                    "positive_mentions",
+                                                                    0,
+                                                                ),
+                                                                "negative_mentions": signal.get(
+                                                                    "negative_mentions",
+                                                                    0,
+                                                                ),
+                                                            }
+
+                                                            # Convertir a JSON para procesamiento
+                                                            sentiment_json = json.dumps(
+                                                                sentiment_data
+                                                            )
+                                                            improved_sentiment = (
+                                                                process_content_with_ai(
+                                                                    client,
+                                                                    assistant_id,
+                                                                    "sentiment",
+                                                                    sentiment_json,
+                                                                    signal["symbol"],
+                                                                    sentiment_context,
+                                                                )
+                                                            )
+
+                                                            # Intentar parsear el resultado mejorado
+                                                            try:
+                                                                improved_data = json.loads(
+                                                                    improved_sentiment
+                                                                )
+                                                                if (
+                                                                    isinstance(
+                                                                        improved_data,
+                                                                        dict,
+                                                                    )
+                                                                    and "sentiment"
+                                                                    in improved_data
+                                                                ):
+                                                                    signal[
+                                                                        "sentiment"
+                                                                    ] = improved_data.get(
+                                                                        "sentiment",
+                                                                        signal.get(
+                                                                            "sentiment",
+                                                                            "neutral",
+                                                                        ),
+                                                                    )
+                                                                    signal[
+                                                                        "sentiment_score"
+                                                                    ] = improved_data.get(
+                                                                        "score",
+                                                                        signal.get(
+                                                                            "sentiment_score",
+                                                                            0.5,
+                                                                        ),
+                                                                    )
+                                                                    signal[
+                                                                        "positive_mentions"
+                                                                    ] = improved_data.get(
+                                                                        "positive_mentions",
+                                                                        signal.get(
+                                                                            "positive_mentions",
+                                                                            0,
+                                                                        ),
+                                                                    )
+                                                                    signal[
+                                                                        "negative_mentions"
+                                                                    ] = improved_data.get(
+                                                                        "negative_mentions",
+                                                                        signal.get(
+                                                                            "negative_mentions",
+                                                                            0,
+                                                                        ),
+                                                                    )
+                                                            except (
+                                                                Exception
+                                                            ) as json_error:
+                                                                logger.warning(
+                                                                    f"Error procesando JSON de sentimiento: {str(json_error)}"
+                                                                )
+
                                                         sentiment_id = market_data_mgr.save_sentiment_from_signal(
                                                             signal
                                                         )
                                                         if sentiment_id:
                                                             logger.info(
                                                                 f"Sentimiento de mercado guardado con ID: {sentiment_id}"
-                                                            )
-                                                            st.success(
-                                                                f"Sentimiento de mercado actualizado"
                                                             )
                                                 except Exception as data_error:
                                                     logger.error(

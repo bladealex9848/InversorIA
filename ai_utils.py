@@ -16,7 +16,11 @@ from typing import Dict, List, Any, Optional
 # Importar componentes personalizados
 try:
     from market_utils import get_market_context
-    from technical_analysis import detect_support_resistance, detect_trend_lines, detect_candle_patterns
+    from technical_analysis import (
+        detect_support_resistance,
+        detect_trend_lines,
+        detect_candle_patterns,
+    )
 except Exception as e:
     logging.error(f"Error importando componentes: {str(e)}")
 
@@ -24,9 +28,12 @@ except Exception as e:
 try:
     import openai
 except ImportError:
-    logging.warning("OpenAI no está instalado. Algunas funciones no estarán disponibles.")
+    logging.warning(
+        "OpenAI no está instalado. Algunas funciones no estarán disponibles."
+    )
 
 logger = logging.getLogger(__name__)
+
 
 def format_patterns_for_prompt(patterns, symbol, price=None):
     """Formatea los patrones técnicos para incluirlos en el prompt del asistente IA"""
@@ -74,14 +81,19 @@ def format_patterns_for_prompt(patterns, symbol, price=None):
             pattern_name = pattern.get("pattern", "Desconocido")
             pattern_type = pattern.get("type", "neutral")
             confidence = pattern.get("confidence", "media")
-            
+
             # Determinar emoji según tipo de patrón
-            emoji = "🟢" if pattern_type == "bullish" else "🔴" if pattern_type == "bearish" else "⚪"
-            
+            emoji = (
+                "🟢"
+                if pattern_type == "bullish"
+                else "🔴" if pattern_type == "bearish" else "⚪"
+            )
+
             formatted_text += f"{emoji} {pattern_name} (Confianza: {confidence})\n"
         formatted_text += "\n"
 
     return formatted_text
+
 
 def process_message_with_citations(message):
     """Extrae y devuelve el texto del mensaje del asistente con manejo mejorado de errores"""
@@ -100,6 +112,7 @@ def process_message_with_citations(message):
         logger.error(f"Error procesando mensaje: {str(e)}")
 
     return "No se pudo procesar el mensaje del asistente"
+
 
 def process_expert_analysis(client, assistant_id, symbol, context):
     """Procesa análisis experto con OpenAI asegurando una sección de análisis fundamental"""
@@ -149,7 +162,9 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             if sentiment_score > 0.6
             else "Negativo" if sentiment_score < 0.4 else "Neutral"
         )
-        sentiment_text = f"SENTIMIENTO DE MERCADO: {sentiment_label} ({sentiment_score*100:.1f}%)\n"
+        sentiment_text = (
+            f"SENTIMIENTO DE MERCADO: {sentiment_label} ({sentiment_score*100:.1f}%)\n"
+        )
         if "sources" in sentiment:
             sentiment_text += "Fuentes de sentimiento:\n"
             for source in sentiment["sources"][:3]:  # Limitar a 3 fuentes
@@ -181,7 +196,9 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             web_insights_text += f"{i+1}. {insight.get('title', 'Sin título')}\n"
             if insight.get("content"):
                 web_insights_text += f"   {insight.get('content')[:200]}...\n"
-            web_insights_text += f"   Fuente: {insight.get('source', 'Desconocida')}\n\n"
+            web_insights_text += (
+                f"   Fuente: {insight.get('source', 'Desconocida')}\n\n"
+            )
 
     # Detectar patrones técnicos
     patterns = {}
@@ -349,6 +366,7 @@ def process_expert_analysis(client, assistant_id, symbol, context):
         logger.error(f"Error al consultar al experto: {str(e)}")
         return f"Error al consultar al experto: {str(e)}"
 
+
 def process_chat_input_with_openai(
     prompt, symbol=None, api_key=None, assistant_id=None, context=None
 ):
@@ -384,6 +402,7 @@ def process_chat_input_with_openai(
     except Exception as e:
         logger.error(f"Error procesando consulta: {str(e)}")
         return f"Error procesando consulta: {str(e)}"
+
 
 def process_with_assistant(prompt, symbol, context, assistant_id):
     """Procesa el mensaje utilizando la API de Asistentes de OpenAI con manejo mejorado"""
@@ -506,6 +525,7 @@ def process_with_assistant(prompt, symbol, context, assistant_id):
         # En caso de error, caer en el modo fallback
         return fallback_analyze_symbol(symbol, prompt)
 
+
 def process_with_chat_completion(prompt, symbol, context, api_key):
     """Procesa el mensaje utilizando la API de Chat Completion de OpenAI"""
     try:
@@ -534,36 +554,36 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         # Crear prompt del sistema
         system_prompt = """
         Eres un Especialista en Trading y Análisis Técnico, experto en mercados financieros.
-        
+
         Proporciona análisis precisos, concisos y útiles sobre activos financieros.
         Utiliza el contexto de mercado proporcionado para dar respuestas informadas.
-        
+
         Cuando sea apropiado, incluye:
         - Análisis técnico relevante
         - Niveles de soporte y resistencia
         - Interpretación de indicadores
         - Patrones de precio
         - Estrategias potenciales
-        
+
         Mantén un tono profesional y objetivo. Evita predicciones exageradas.
         """
 
         # Crear mensaje de contexto
         context_message = f"""
         Contexto actual para {symbol}:
-        
+
         Precio: ${price:.2f} ({change:+.2f}%)
         VIX: {vix_level}
-        
+
         Señales técnicas:
         - Tendencia general: {signals.get('overall', {}).get('signal', 'neutral')}
         - Momentum: {signals.get('momentum', {}).get('signal', 'neutral')}
         - Tendencia: {signals.get('trend', {}).get('signal', 'neutral')}
-        
+
         Principales niveles:
         - Resistencias: {', '.join([f"${r:.2f}" for r in support_resistance.get('resistances', [])[:2]])}
         - Soportes: {', '.join([f"${s:.2f}" for s in support_resistance.get('supports', [])[:2]])}
-        
+
         {sentiment_text}
         {news_text}
         """
@@ -596,23 +616,187 @@ def process_with_chat_completion(prompt, symbol, context, api_key):
         # En caso de error, caer en el modo fallback
         return fallback_analyze_symbol(symbol, prompt)
 
+
+def process_content_with_ai(
+    client, assistant_id, content_type, content, symbol, additional_context=None
+):
+    """
+    Procesa cualquier tipo de contenido con IA para mejorar su calidad y coherencia
+
+    Args:
+        client: Cliente de OpenAI
+        assistant_id: ID del asistente de OpenAI
+        content_type: Tipo de contenido a procesar ('analysis', 'technical_analysis', 'news', etc.)
+        content: Contenido original a mejorar
+        symbol: Símbolo del activo
+        additional_context: Contexto adicional para mejorar el procesamiento
+
+    Returns:
+        str: Contenido procesado y mejorado
+    """
+    if not client or not assistant_id:
+        return content
+
+    try:
+        # Crear un prompt específico según el tipo de contenido
+        if content_type == "analysis":
+            prompt = f"""
+            Como analista financiero experto, mejora el siguiente análisis para el símbolo {symbol}.
+            Haz que sea más coherente, informativo y profesional, manteniendo los puntos clave pero mejorando
+            la redacción y estructura. El análisis debe estar en español y ser fácil de entender.
+
+            Análisis original:
+            {content}
+
+            Contexto adicional:
+            {additional_context or ''}
+            """
+        elif content_type == "technical_analysis":
+            prompt = f"""
+            Como especialista en análisis técnico, mejora el siguiente análisis técnico para {symbol}.
+            Haz que sea más preciso, detallado y profesional, incluyendo referencias a indicadores clave,
+            patrones y niveles importantes. El análisis debe estar en español y ser técnicamente sólido.
+
+            Análisis técnico original:
+            {content}
+
+            Contexto adicional:
+            {additional_context or ''}
+            """
+        elif content_type == "news":
+            prompt = f"""
+            Como periodista financiero, mejora la siguiente noticia relacionada con {symbol}.
+            Haz que sea más informativa, precisa y profesional. La noticia debe estar en español,
+            ser objetiva y proporcionar información relevante para inversores.
+
+            Noticia original:
+            {content}
+
+            Contexto adicional:
+            {additional_context or ''}
+
+            Asegúrate de incluir una fuente confiable y una URL si está disponible.
+            """
+        elif content_type == "expert_analysis":
+            prompt = f"""
+            Como experto en mercados financieros, proporciona un análisis completo y detallado para {symbol}.
+            El análisis debe incluir evaluación técnica, fundamental, de sentimiento y de riesgo.
+            Debe estar en español, ser profesional y proporcionar una recomendación clara.
+
+            Información disponible:
+            {content}
+
+            Contexto adicional:
+            {additional_context or ''}
+
+            Estructura tu respuesta con las siguientes secciones:
+            1. Evaluación General
+            2. Análisis Técnico
+            3. Niveles Clave
+            4. Análisis Fundamental
+            5. Estrategias Recomendadas
+            6. Gestión de Riesgo
+            7. Proyección de Movimiento
+            8. Recomendación Final (CALL/PUT/NEUTRAL)
+            """
+        else:
+            # Caso genérico para otros tipos de contenido
+            prompt = f"""
+            Como experto financiero, mejora el siguiente contenido relacionado con {symbol}.
+            Haz que sea más coherente, informativo y profesional. El contenido debe estar en español
+            y ser fácil de entender para inversores.
+
+            Contenido original:
+            {content}
+
+            Contexto adicional:
+            {additional_context or ''}
+            """
+
+        # Verificar si existe un thread en la sesión
+        thread_id = None
+        if hasattr(st, "session_state") and "content_thread_id" in st.session_state:
+            thread_id = st.session_state.content_thread_id
+
+        if not thread_id:
+            # Crear un nuevo thread
+            thread = client.beta.threads.create()
+            thread_id = thread.id
+            if hasattr(st, "session_state"):
+                st.session_state.content_thread_id = thread_id
+            logger.info(f"Nuevo thread creado para procesar contenido: {thread_id}")
+
+        # Enviar mensaje al thread
+        client.beta.threads.messages.create(
+            thread_id=thread_id, role="user", content=prompt
+        )
+
+        # Crear una ejecución para el thread
+        run = client.beta.threads.runs.create(
+            thread_id=thread_id, assistant_id=assistant_id
+        )
+
+        # Esperar a que se complete la ejecución con timeout
+        start_time = time.time()
+        timeout = 30  # 30 segundos máximo
+        while run.status in ["queued", "in_progress"]:
+            # Verificar timeout
+            if time.time() - start_time > timeout:
+                logger.warning(
+                    f"Timeout esperando respuesta del asistente para procesar contenido"
+                )
+                return content  # Devolver contenido original si hay timeout
+
+            # Esperar un momento antes de verificar de nuevo
+            time.sleep(1)
+
+            # Actualizar estado de la ejecución
+            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+
+        if run.status != "completed":
+            logger.warning(
+                f"La ejecución para procesar contenido falló con estado {run.status}"
+            )
+            return content  # Devolver contenido original si hay error
+
+        # Recuperar mensajes
+        messages = client.beta.threads.messages.list(thread_id=thread_id)
+
+        # Obtener respuesta
+        for message in messages:
+            if message.run_id == run.id and message.role == "assistant":
+                # Extraer texto del mensaje
+                processed_content = process_message_with_citations(message)
+                if (
+                    processed_content and len(processed_content) > len(content) * 0.5
+                ):  # Verificar que la respuesta sea sustancial
+                    return processed_content
+
+        # Si no se pudo procesar, devolver el contenido original
+        return content
+
+    except Exception as e:
+        logger.error(f"Error procesando contenido con IA: {str(e)}")
+        return content  # Devolver contenido original si hay error
+
+
 def fallback_analyze_symbol(symbol, prompt):
     """Función de respaldo para analizar símbolos cuando OpenAI no está disponible"""
     try:
         # Obtener contexto de mercado
         context = get_market_context(symbol)
-        
+
         # Extraer información básica
         if context and "error" not in context:
             price = context.get("last_price", 0)
             change = context.get("change_percent", 0)
             signals = context.get("signals", {})
-            
+
             # Obtener información de la empresa
             company_info = context.get("company_info", {})
             name = company_info.get("name", symbol)
             sector = company_info.get("sector", "No especificado")
-            
+
             # Determinar tendencia general
             trend = "neutral"
             if "overall" in signals:
@@ -621,15 +805,15 @@ def fallback_analyze_symbol(symbol, prompt):
                     trend = "alcista"
                 elif signal in ["venta", "venta_fuerte"]:
                     trend = "bajista"
-            
+
             # Generar respuesta básica basada en la consulta
             if "tendencia" in prompt.lower() or "dirección" in prompt.lower():
                 return f"""
                 La tendencia actual de {name} ({symbol}) es {trend.upper()}.
-                
+
                 Precio actual: ${price:.2f} ({change:+.2f}%)
                 Sector: {sector}
-                
+
                 Análisis técnico básico:
                 - RSI: {signals.get('momentum', {}).get('rsi', 'N/A')}
                 - MACD: {signals.get('momentum', {}).get('macd', 'N/A')}
@@ -639,57 +823,59 @@ def fallback_analyze_symbol(symbol, prompt):
                 support_resistance = context.get("support_resistance", {})
                 supports = support_resistance.get("supports", [])
                 resistances = support_resistance.get("resistances", [])
-                
+
                 return f"""
                 Niveles clave para {name} ({symbol}):
-                
+
                 Soportes:
                 {', '.join([f"${s:.2f}" for s in supports[:3]])}
-                
+
                 Resistencias:
                 {', '.join([f"${r:.2f}" for r in resistances[:3]])}
-                
+
                 Precio actual: ${price:.2f}
                 """
             else:
                 # Respuesta general
                 return f"""
                 Análisis básico de {name} ({symbol}):
-                
+
                 Precio actual: ${price:.2f} ({change:+.2f}%)
                 Sector: {sector}
                 Tendencia: {trend.upper()}
-                
+
                 Indicadores técnicos:
                 - RSI: {signals.get('momentum', {}).get('rsi', 'N/A')}
                 - MACD: {signals.get('momentum', {}).get('macd', 'N/A')}
                 - Media móvil 50: {signals.get('trend', {}).get('sma50', 'N/A')}
-                
+
                 Para un análisis más detallado, considera configurar la API de OpenAI en la aplicación.
                 """
         else:
             # Si no hay contexto, dar una respuesta genérica
-            error_msg = context.get("error", "No se pudo obtener información de mercado.")
-            
+            error_msg = context.get(
+                "error", "No se pudo obtener información de mercado."
+            )
+
             response = f"""
             ## Información sobre {symbol}
-            
+
             Lo siento, no se pudieron obtener datos actuales de mercado para {symbol}. {error_msg}
-            
+
             Algunas posibles razones:
-            
+
             - El símbolo puede no estar disponible en nuestras fuentes de datos
             - Puede haber una interrupción temporal en los servicios de datos
             - El mercado puede estar cerrado actualmente
-            
+
             Recomendaciones:
-            
+
             - Intenta con otro símbolo
             - Verifica que el símbolo esté escrito correctamente
             - Intenta nuevamente más tarde
             """
             return response
-            
+
     except Exception as e:
         logger.error(f"Error analizando símbolo {symbol}: {str(e)}")
         return f"❌ Error analizando {symbol}: {str(e)}"

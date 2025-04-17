@@ -104,7 +104,32 @@ def render_enhanced_market_scanner(
             total_puts = len(opportunities[opportunities["Estrategia"] == "PUT"])
             st.metric("Setups PUT", total_puts)
         with col3:
-            high_conf = len(opportunities[opportunities["Confianza"] == "ALTA"])
+            # Mejorar el conteo de señales de alta confianza considerando diferentes capitalizaciones
+            high_conf = len(
+                opportunities[opportunities["Confianza"].str.upper() == "ALTA"]
+            )
+
+            # Si existe la columna Trading_Specialist, añadir los que tienen señal FUERTE
+            if (
+                "Trading_Specialist" in opportunities.columns
+                and "TS_Confianza" in opportunities.columns
+            ):
+                strong_signals = opportunities[
+                    (opportunities["Trading_Specialist"].isin(["COMPRA", "VENTA"]))
+                    & (opportunities["TS_Confianza"].str.upper() == "ALTA")
+                ]
+
+                # Combinar con los de alta confianza, evitando duplicados
+                if not strong_signals.empty:
+                    # Contar señales únicas (sin duplicados)
+                    high_conf_symbols = set(
+                        opportunities[opportunities["Confianza"].str.upper() == "ALTA"][
+                            "Symbol"
+                        ]
+                    )
+                    strong_signals_symbols = set(strong_signals["Symbol"])
+                    high_conf = len(high_conf_symbols.union(strong_signals_symbols))
+
             st.metric("Alta Confianza", high_conf)
         with col4:
             # Verificar si la columna Trading_Specialist existe
