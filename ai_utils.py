@@ -13,6 +13,30 @@ import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
+# Importar gestor de progreso si está disponible
+try:
+    from utils.progress_manager import progress_manager
+
+    PROGRESS_MANAGER_AVAILABLE = True
+except ImportError:
+    PROGRESS_MANAGER_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "No se pudo importar ProgressManager. Se usará el sistema de progreso estándar."
+    )
+
+# Importar procesador de noticias si está disponible
+try:
+    from news_processor import NewsProcessor
+
+    NEWS_PROCESSOR_AVAILABLE = True
+except ImportError:
+    NEWS_PROCESSOR_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "No se pudo importar NewsProcessor. No se podrán obtener noticias reales."
+    )
+
 # Importar componentes personalizados
 try:
     from market_utils import get_market_context
@@ -317,11 +341,6 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             thread_id=st.session_state.thread_id, assistant_id=assistant_id
         )
 
-        # Mostrar progreso con información más detallada
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        status_details = st.empty()
-
         # Fases del análisis para mostrar al usuario
         analysis_phases = [
             "Recopilando datos de mercado...",
@@ -337,6 +356,25 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             "Finalizando análisis...",
         ]
 
+        # Usar el gestor de progreso si está disponible
+        progress_key = f"expert_analysis_{symbol}_{int(time.time())}"
+
+        if PROGRESS_MANAGER_AVAILABLE:
+            # Crear barra de progreso con el gestor
+            progress_manager.create_progress_bar(
+                progress_key, f"Analizando {symbol}..."
+            )
+            progress_manager.update_progress(
+                progress_key, 0.05, f"Analizando {symbol}... (5%)", analysis_phases[0]
+            )
+        else:
+            # Usar el sistema estándar de barras de progreso
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            status_details = st.empty()
+            status_text.text(f"Analizando {symbol}... (0%)")
+            status_details.text(analysis_phases[0])
+
         # Esperar a que se complete la ejecución con timeout
         start_time = time.time()
         timeout = 45  # 45 segundos máximo
@@ -347,20 +385,35 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             # Calcular progreso basado en tiempo transcurrido
             elapsed = time.time() - start_time
             progress = min(elapsed / timeout, 0.95)  # Máximo 95% hasta completar
-            progress_bar.progress(progress)
 
             # Actualizar fase actual basado en el tiempo transcurrido
             new_phase = min(int(elapsed / phase_duration), len(analysis_phases) - 1)
             if new_phase > current_phase:
                 current_phase = new_phase
 
-            # Actualizar mensajes de estado
-            status_text.text(f"Analizando {symbol}... ({int(progress*100)}%)")
-            status_details.text(analysis_phases[current_phase])
+            # Actualizar progreso
+            if PROGRESS_MANAGER_AVAILABLE:
+                progress_manager.update_progress(
+                    progress_key,
+                    progress,
+                    f"Analizando {symbol}... ({int(progress*100)}%)",
+                    analysis_phases[current_phase],
+                )
+            else:
+                progress_bar.progress(progress)
+                status_text.text(f"Analizando {symbol}... ({int(progress*100)}%)")
+                status_details.text(analysis_phases[current_phase])
 
             # Verificar timeout
             if elapsed > timeout:
-                status_text.text(f"Tiempo de espera excedido, finalizando análisis...")
+                if PROGRESS_MANAGER_AVAILABLE:
+                    progress_manager.error_progress(
+                        progress_key, f"Tiempo de espera excedido para {symbol}"
+                    )
+                else:
+                    status_text.text(
+                        f"Tiempo de espera excedido, finalizando análisis..."
+                    )
                 break
 
             # Esperar un momento antes de verificar de nuevo
@@ -372,11 +425,16 @@ def process_expert_analysis(client, assistant_id, symbol, context):
             )
 
         # Completar barra de progreso
-        progress_bar.progress(1.0)
-        status_text.text("¡Análisis completado!")
-        status_details.empty()
-        time.sleep(1)  # Mostrar el mensaje de completado por un segundo
-        status_text.empty()
+        if PROGRESS_MANAGER_AVAILABLE:
+            progress_manager.complete_progress(
+                progress_key, f"¡Análisis de {symbol} completado!"
+            )
+        else:
+            progress_bar.progress(1.0)
+            status_text.text("¡Análisis completado!")
+            status_details.empty()
+            time.sleep(1)  # Mostrar el mensaje de completado por un segundo
+            status_text.empty()
 
         if run.status != "completed":
             return f"Error: La consulta al experto falló con estado {run.status}"
@@ -721,6 +779,41 @@ def process_content_with_ai(
             Contexto adicional:
             {additional_context or ''}
             """
+        elif content_type == "latest_news":
+            prompt = f"""
+            Como editor financiero, mejora el siguiente titular de noticia para {symbol}.
+            Crea un titular impactante, informativo y profesional que capture la esencia de la información.
+
+            IMPORTANTE:
+            1. El titular debe ser conciso (máximo 100 caracteres)
+            2. Debe incluir datos específicos (precio, porcentaje, indicador) cuando sea relevante
+            3. Debe ser objetivo y basado en hechos, no especulativo
+            4. Debe estar en español y usar terminología financiera correcta
+
+            Titular original:
+            {content}
+
+            Contexto adicional (precio, tendencia, indicadores):
+            {additional_context or ''}
+            """
+        elif content_type == "additional_news":
+            prompt = f"""
+            Como analista financiero, mejora el siguiente resumen de mercado para {symbol}.
+            Crea un texto informativo y profesional que proporcione contexto valioso para inversores.
+
+            IMPORTANTE:
+            1. El texto debe ser conciso pero completo (máximo 200 caracteres)
+            2. Debe incluir datos específicos sobre el activo y el mercado
+            3. Debe mencionar factores relevantes como tendencia, volumen, o eventos importantes
+            4. Debe estar en español y usar terminología financiera correcta
+            5. NO uses frases genéricas como "Las condiciones de mercado son favorables"
+
+            Texto original:
+            {content}
+
+            Contexto adicional (precio, tendencia, indicadores):
+            {additional_context or ''}
+            """
         elif content_type == "expert_analysis":
             prompt = f"""
             Como experto en mercados financieros, proporciona un análisis completo y detallado para {symbol}.
@@ -834,6 +927,134 @@ def process_content_with_ai(
     except Exception as e:
         logger.error(f"Error procesando contenido con IA: {str(e)}")
         return content  # Devolver contenido original si hay error
+
+
+def get_real_news(
+    symbol: str, company_name: str = None, max_news: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Obtiene noticias reales para un símbolo utilizando el procesador de noticias
+
+    Args:
+        symbol (str): Símbolo del activo
+        company_name (str, optional): Nombre de la empresa
+        max_news (int): Número máximo de noticias a obtener
+
+    Returns:
+        List[Dict[str, Any]]: Lista de noticias procesadas
+    """
+    if not NEWS_PROCESSOR_AVAILABLE:
+        logger.warning(
+            f"No se pueden obtener noticias reales para {symbol}: NewsProcessor no está disponible"
+        )
+        return []
+
+    try:
+        # Crear instancia del procesador de noticias con el experto en IA
+        news_processor = NewsProcessor(ai_expert=AIExpert())
+
+        # Mostrar progreso
+        if PROGRESS_MANAGER_AVAILABLE:
+            progress_key = f"news_progress_{symbol}_{int(time.time())}"
+            progress_manager.create_progress_bar(
+                progress_key, f"Obteniendo noticias para {symbol}..."
+            )
+            progress_manager.update_progress(
+                progress_key, 0.1, f"Buscando noticias para {symbol}..."
+            )
+
+        # Obtener noticias
+        news = news_processor.get_news_for_symbol(symbol, company_name, max_news)
+
+        # Actualizar progreso
+        if PROGRESS_MANAGER_AVAILABLE:
+            if news:
+                progress_manager.complete_progress(
+                    progress_key, f"Se obtuvieron {len(news)} noticias para {symbol}"
+                )
+            else:
+                progress_manager.error_progress(
+                    progress_key, f"No se encontraron noticias para {symbol}"
+                )
+
+        return news
+
+    except Exception as e:
+        logger.error(f"Error obteniendo noticias reales para {symbol}: {str(e)}")
+        if PROGRESS_MANAGER_AVAILABLE:
+            progress_manager.error_progress(
+                f"news_progress_{symbol}_{int(time.time())}", f"Error: {str(e)}"
+            )
+        return []
+
+
+class AIExpert:
+    """
+    Clase para procesar texto con IA utilizando OpenAI
+    """
+
+    def __init__(self):
+        """
+        Inicializa el experto en IA
+        """
+        self.client = None
+        try:
+            if "openai_client" in st.session_state:
+                self.client = st.session_state.openai_client
+        except:
+            pass
+
+    def process_text(self, prompt: str, max_tokens: int = 250) -> str:
+        """
+        Procesa texto con IA
+
+        Args:
+            prompt (str): Texto a procesar
+            max_tokens (int): Número máximo de tokens en la respuesta
+
+        Returns:
+            str: Texto procesado
+        """
+        try:
+            # Si no tenemos cliente, intentar usar process_expert_analysis
+            if not self.client:
+                return self._fallback_process(prompt)
+
+            # Enviar solicitud
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Eres un experto en análisis financiero y trading.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=max_tokens,
+            )
+
+            # Extraer respuesta
+            return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error(f"Error en process_text: {str(e)}")
+            return self._fallback_process(prompt)
+
+    def _fallback_process(self, prompt: str) -> str:
+        """
+        Método de respaldo para procesar texto
+
+        Args:
+            prompt (str): Texto a procesar
+
+        Returns:
+            str: Texto procesado
+        """
+        # Simplemente devolver un resumen del prompt
+        if len(prompt) > 100:
+            return f"{prompt[:97]}..."
+        return prompt
 
 
 def fallback_analyze_symbol(symbol, prompt):

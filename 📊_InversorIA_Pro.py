@@ -7975,7 +7975,7 @@ def main():
 
                 # Mostrar mensaje de error y sugerencia
                 st.warning(
-                    "No se pudo cargar el scanner mejorado. Por favor, asegúrate de que el archivo enhanced_market_scanner.py está disponible."
+                    "No se pudo cargar el scanner mejorado. Por favor, asegúrate de que el archivo enhanced_market_scanner_fixed.py está disponible."
                 )
 
     except Exception as e:

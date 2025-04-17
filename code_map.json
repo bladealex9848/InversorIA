@@ -4,197 +4,631 @@
       "classes": [
         {
           "name": "NumpyEncoder",
-          "description": "Codificador JSON personalizado para manejar tipos de NumPy",
-          "start_line": 110,
-          "end_line": 132
+          "description": "Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas",
+          "start_line": 117,
+          "end_line": 605,
+          "methods": [
+            {
+              "name": "default",
+              "description": "Sin descripción disponible",
+              "start_line": 120,
+              "end_line": 139
+            }
+          ]
         },
         {
           "name": "DataCache",
-          "description": "Gestiona el caché de datos de mercado con invalidación por tiempo",
-          "start_line": 1176,
-          "end_line": 1232
+          "description": "Sistema de caché con invalidación por tiempo",
+          "start_line": 607,
+          "end_line": 663,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 610,
+              "end_line": 615
+            },
+            {
+              "name": "get",
+              "description": "Obtiene dato del caché si es válido",
+              "start_line": 617,
+              "end_line": 625
+            },
+            {
+              "name": "set",
+              "description": "Almacena dato en caché con timestamp",
+              "start_line": 627,
+              "end_line": 629
+            },
+            {
+              "name": "clear",
+              "description": "Limpia caché completo",
+              "start_line": 631,
+              "end_line": 636
+            },
+            {
+              "name": "can_request",
+              "description": "Controla frecuencia de solicitudes por símbolo",
+              "start_line": 638,
+              "end_line": 648
+            },
+            {
+              "name": "get_stats",
+              "description": "Retorna estadísticas del caché",
+              "start_line": 650,
+              "end_line": 662
+            }
+          ]
         },
         {
           "name": "MarketScanner",
-          "description": "Escanea el mercado en busca de oportunidades de trading",
-          "start_line": 1234,
-          "end_line": 1376
+          "description": "Escáner de mercado con detección de estrategias",
+          "start_line": 665,
+          "end_line": 813,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 668,
+              "end_line": 672
+            },
+            {
+              "name": "get_cached_analysis",
+              "description": "Obtiene análisis cacheado si existe",
+              "start_line": 674,
+              "end_line": 678
+            },
+            {
+              "name": "scan_market",
+              "description": "Ejecuta escaneo de mercado enfocado en sectores seleccionados",
+              "start_line": 680,
+              "end_line": 807
+            }
+          ]
         },
         {
           "name": "DatabaseManager",
           "description": "Gestiona la conexión y operaciones con la base de datos",
-          "start_line": 2800,
-          "end_line": 3200
+          "start_line": 815,
+          "end_line": 1269,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de base de datos",
+              "start_line": 818,
+              "end_line": 821
+            },
+            {
+              "name": "_get_db_config",
+              "description": "Obtiene la configuración de la base de datos desde secrets.toml",
+              "start_line": 823,
+              "end_line": 867
+            },
+            {
+              "name": "connect",
+              "description": "Establece conexión con la base de datos",
+              "start_line": 869,
+              "end_line": 988
+            },
+            {
+              "name": "disconnect",
+              "description": "Cierra la conexión con la base de datos",
+              "start_line": 990,
+              "end_line": 993
+            },
+            {
+              "name": "execute_query",
+              "description": "Ejecuta una consulta SQL y devuelve los resultados",
+              "start_line": 995,
+              "end_line": 1029
+            },
+            {
+              "name": "get_signals",
+              "description": "Obtiene señales de trading filtradas",
+              "start_line": 1031,
+              "end_line": 1050
+            },
+            {
+              "name": "save_signal",
+              "description": "Guarda una señal de trading en la base de datos con información detallada",
+              "start_line": 1052,
+              "end_line": 1142
+            },
+            {
+              "name": "log_email_sent",
+              "description": "Registra el envío de un correo electrónico",
+              "start_line": 1144,
+              "end_line": 1183
+            },
+            {
+              "name": "save_market_sentiment",
+              "description": "Guarda datos de sentimiento de mercado",
+              "start_line": 1185,
+              "end_line": 1224
+            },
+            {
+              "name": "save_market_news",
+              "description": "Guarda noticias de mercado",
+              "start_line": 1226,
+              "end_line": 1264
+            }
+          ]
         },
         {
           "name": "RealTimeSignalAnalyzer",
-          "description": "Analiza señales de trading en tiempo real",
-          "start_line": 3300,
-          "end_line": 3800
+          "description": "Analiza el mercado en tiempo real para generar señales de trading",
+          "start_line": 1271,
+          "end_line": 1844,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el analizador de señales en tiempo real",
+              "start_line": 1274,
+              "end_line": 1288
+            },
+            {
+              "name": "scan_market_by_sector",
+              "description": "Escanea el mercado por sector para encontrar señales de trading en tiempo real",
+              "start_line": 1290,
+              "end_line": 1601
+            },
+            {
+              "name": "get_real_time_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
+              "start_line": 1603,
+              "end_line": 1739
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias relevantes del mercado en tiempo real",
+              "start_line": 1741,
+              "end_line": 1843
+            }
+          ]
         },
         {
           "name": "SignalManager",
           "description": "Gestiona las señales de trading y su procesamiento",
-          "start_line": 4000,
-          "end_line": 4200
+          "start_line": 1846,
+          "end_line": 2076,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de señales",
+              "start_line": 1849,
+              "end_line": 1852
+            },
+            {
+              "name": "get_active_signals",
+              "description": "Obtiene las señales activas filtradas",
+              "start_line": 1854,
+              "end_line": 2059
+            },
+            {
+              "name": "get_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
+              "start_line": 2061,
+              "end_line": 2063
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias relevantes del mercado",
+              "start_line": 2065,
+              "end_line": 2067
+            }
+          ]
         }
       ],
       "functions": [
         {
           "name": "create_technical_chart",
-          "description": "Crea gráficos técnicos avanzados con indicadores y patrones",
-          "start_line": 1384,
-          "end_line": 1864
+          "description": "Crea gráfico técnico avanzado con indicadores y patrones técnicos",
+          "start_line": 2078,
+          "end_line": 2556
         },
         {
           "name": "format_patterns_for_prompt",
-          "description": "Formatea patrones técnicos para incluirlos en prompts de IA",
-          "start_line": 1865,
-          "end_line": 1928
+          "description": "Formatea los patrones técnicos para incluirlos en el prompt del asistente IA",
+          "start_line": 2559,
+          "end_line": 2621
         },
         {
           "name": "process_message_with_citations",
-          "description": "Extrae y devuelve el texto del mensaje del asistente",
-          "start_line": 1930,
-          "end_line": 1947
+          "description": "Extrae y devuelve el texto del mensaje del asistente con manejo mejorado de errores",
+          "start_line": 2624,
+          "end_line": 2640
         },
         {
           "name": "process_expert_analysis",
-          "description": "Procesa análisis experto con OpenAI y contexto de mercado",
-          "start_line": 1949,
-          "end_line": 2219
+          "description": "Procesa análisis experto con OpenAI asegurando una sección de análisis fundamental",
+          "start_line": 2643,
+          "end_line": 2912
         },
         {
           "name": "display_expert_opinion",
-          "description": "Muestra la opinión del experto IA con formato mejorado",
-          "start_line": 2221,
-          "end_line": 2364
+          "description": "Muestra la opinión del experto IA con formato mejorado y opción de exportar a MD",
+          "start_line": 2915,
+          "end_line": 3157
         },
         {
           "name": "display_sentiment_analysis",
-          "description": "Muestra análisis de sentimiento en la interfaz",
-          "start_line": 2471,
-          "end_line": 2600
+          "description": "Muestra análisis de sentimiento integrado desde MarketIntel",
+          "start_line": 3165,
+          "end_line": 3292
         },
         {
           "name": "display_news_feed",
-          "description": "Muestra noticias relevantes en la interfaz",
-          "start_line": 2601,
-          "end_line": 2634
+          "description": "Muestra feed de noticias integrado desde MarketIntel",
+          "start_line": 3295,
+          "end_line": 3326
         },
         {
           "name": "display_web_insights",
-          "description": "Muestra insights web en la interfaz",
-          "start_line": 2635,
-          "end_line": 2667
-        },
-        {
-          "name": "get_company_info",
-          "description": "Obtiene información detallada de la empresa",
-          "start_line": 2668,
-          "end_line": 2692
+          "description": "Muestra insights de búsqueda web integrado desde MarketIntel",
+          "start_line": 3329,
+          "end_line": 3354
         },
         {
           "name": "display_technical_summary",
-          "description": "Muestra resumen técnico en la interfaz",
-          "start_line": 2693,
-          "end_line": 2750
+          "description": "Muestra resumen técnico en un formato mejorado",
+          "start_line": 3364,
+          "end_line": 3443
+        },
+        {
+          "name": "display_options_analysis",
+          "description": "Muestra análisis de opciones en formato mejorado",
+          "start_line": 3446,
+          "end_line": 3548
+        },
+        {
+          "name": "display_asset_info",
+          "description": "Muestra información básica del activo compatible con modo claro y oscuro",
+          "start_line": 3551,
+          "end_line": 3601
         },
         {
           "name": "process_chat_input_with_openai",
-          "description": "Procesa la entrada del chat utilizando OpenAI",
-          "start_line": 4300,
-          "end_line": 4400
+          "description": "Procesa la entrada del chat utilizando OpenAI para respuestas más naturales y variadas.",
+          "start_line": 3609,
+          "end_line": 3650
         },
         {
           "name": "process_with_assistant",
-          "description": "Procesa el mensaje utilizando la API de Asistentes de OpenAI",
-          "start_line": 4401,
-          "end_line": 4500
+          "description": "Procesa el mensaje utilizando la API de Asistentes de OpenAI con manejo mejorado",
+          "start_line": 3653,
+          "end_line": 3796
         },
         {
           "name": "process_with_chat_completion",
-          "description": "Procesa el mensaje utilizando la API de Chat Completion",
-          "start_line": 4501,
-          "end_line": 4600
+          "description": "Procesa el mensaje utilizando la API de Chat Completion de OpenAI",
+          "start_line": 3799,
+          "end_line": 3900
         },
         {
           "name": "fallback_analyze_symbol",
-          "description": "Función de respaldo para analizar símbolos",
-          "start_line": 4601,
-          "end_line": 4700
-        },
-        {
-          "name": "render_enhanced_dashboard",
-          "description": "Renderiza un dashboard mejorado con análisis técnico avanzado",
-          "start_line": 4701,
-          "end_line": 4800
+          "description": "Función de respaldo para analizar símbolos cuando OpenAI no está disponible",
+          "start_line": 3903,
+          "end_line": 4267
         },
         {
           "name": "initialize_session_state",
           "description": "Inicializa el estado de la sesión",
-          "start_line": 4801,
-          "end_line": 4900
+          "start_line": 4275,
+          "end_line": 4339
         },
         {
           "name": "render_sidebar",
-          "description": "Renderiza la barra lateral de la aplicación",
-          "start_line": 4901,
-          "end_line": 5000
+          "description": "Renderiza el panel lateral con información profesional y estado del mercado",
+          "start_line": 4342,
+          "end_line": 4629
+        },
+        {
+          "name": "analyze_market_data",
+          "description": "Analiza datos de mercado con indicadores técnicos avanzados",
+          "start_line": 4637,
+          "end_line": 4734
+        },
+        {
+          "name": "render_enhanced_dashboard",
+          "description": "Renderiza un dashboard mejorado con análisis técnico avanzado y manejo de fallos",
+          "start_line": 4737,
+          "end_line": 5863
+        },
+        {
+          "name": "setup_openai",
+          "description": "Configura credenciales de OpenAI con manejo mejorado de errores",
+          "start_line": 5871,
+          "end_line": 5972
+        },
+        {
+          "name": "check_api_keys",
+          "description": "Verifica las API keys disponibles en secret.toml o env vars",
+          "start_line": 5980,
+          "end_line": 6055
+        },
+        {
+          "name": "check_libraries",
+          "description": "Verifica la disponibilidad de las bibliotecas necesarias",
+          "start_line": 6058,
+          "end_line": 6110
         },
         {
           "name": "display_system_status",
-          "description": "Muestra el estado del sistema",
-          "start_line": 5001,
-          "end_line": 5100
+          "description": "Muestra el estado del sistema, APIs y librerías con diseño mejorado",
+          "start_line": 6113,
+          "end_line": 6290
         },
         {
           "name": "check_authentication",
-          "description": "Verifica autenticación del usuario",
-          "start_line": 5101,
-          "end_line": 5200
+          "description": "Verifica autenticación del usuario con interfaz mejorada",
+          "start_line": 6298,
+          "end_line": 6376
         },
         {
           "name": "main",
           "description": "Función principal de la aplicación",
-          "start_line": 7114,
-          "end_line": 7848
+          "start_line": 6384,
+          "end_line": 7983
         }
       ]
     }
   },
   "auxiliary_files": {
+    "legacy_code/old_versions/market_scanner.py": {
+      "note": "Versión antigua del escáner de mercado, reemplazada por enhanced_market_scanner_fixed.py"
+    },
+    "legacy_code/old_versions/enhanced_market_scanner.py": {
+      "note": "Versión anterior del escáner de mercado mejorado, reemplazada por enhanced_market_scanner_fixed.py"
+    },
+    "legacy_code/old_versions/market_data_engine.py": {
+      "note": "Motor de datos de mercado antiguo, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/old_versions/market_data_manager.py": {
+      "note": "Gestor de datos de mercado antiguo, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/old_versions/market_data_processor.py": {
+      "note": "Procesador de datos de mercado antiguo, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/old_versions/market_data_throttling.py": {
+      "note": "Control de limitación de datos de mercado antiguo, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/old_versions/enhanced_market_data.py": {
+      "note": "Datos de mercado mejorados antiguos, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/old_versions/trading_analyzer.py": {
+      "note": "Analizador de trading antiguo, funcionalidad integrada en otros archivos"
+    },
+    "legacy_code/tests/analyze_db_tables.py": {
+      "note": "Script de prueba para analizar tablas de base de datos"
+    },
+    "legacy_code/tests/check_db.py": {
+      "note": "Script de prueba para verificar conexión a base de datos"
+    },
+    "legacy_code/tests/check_market_news.py": {
+      "note": "Script de prueba para verificar noticias de mercado"
+    },
+    "legacy_code/tests/check_market_sentiment.py": {
+      "note": "Script de prueba para verificar sentimiento de mercado"
+    },
+    "legacy_code/tests/check_trading_signals.py": {
+      "note": "Script de prueba para verificar señales de trading"
+    },
+    "legacy_code/tests/test_connection.py": {
+      "note": "Script de prueba para verificar conexiones"
+    },
+    "legacy_code/tests/test_enhanced_scanner.py": {
+      "note": "Script de prueba para el escáner mejorado"
+    },
+    "legacy_code/tests/test_enhanced_scanner_fixed.py": {
+      "note": "Script de prueba para el escáner mejorado corregido"
+    },
+    "legacy_code/tests/test_news_scraper.py": {
+      "note": "Script de prueba para el scraper de noticias"
+    },
+    "legacy_code/tests/test_signal_generation.py": {
+      "note": "Script de prueba para la generación de señales"
+    },
+    "legacy_code/dev_utils/generate_function_inventory.py": {
+      "note": "Utilidad para generar inventario de funciones"
+    },
+    "legacy_code/dev_utils/update_code_map.py": {
+      "note": "Utilidad para actualizar el mapa de código"
+    },
+    "legacy_code/dev_utils/test_connections.py": {
+      "note": "Script para probar conexiones a bases de datos y servicios"
+    },
+    "legacy_code/dev_utils/update_database.py": {
+      "note": "Script para actualizar la estructura de la base de datos"
+    },
+    "legacy_code/sql/create_tables.sql": {
+      "note": "Script SQL para crear las tablas de la base de datos"
+    },
+    "legacy_code/docs/README_NOTIFICACIONES.md": {
+      "note": "Documentación original del sistema de notificaciones (integrada en README.md)"
+    },
     "market_utils.py": {
       "classes": [
         {
           "name": "MarketDataError",
           "description": "Excepción personalizada para errores de datos de mercado",
           "start_line": 33,
-          "end_line": 36
+          "end_line": 42
         },
         {
           "name": "DataCache",
-          "description": "Gestiona el caché de datos de mercado con invalidación por tiempo",
+          "description": "Sistema avanzado de caché con invalidación por tiempo",
           "start_line": 44,
-          "end_line": 99
+          "end_line": 108,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 47,
+              "end_line": 52
+            },
+            {
+              "name": "get",
+              "description": "Obtiene dato del caché si es válido",
+              "start_line": 54,
+              "end_line": 62
+            },
+            {
+              "name": "set",
+              "description": "Almacena dato en caché con timestamp",
+              "start_line": 64,
+              "end_line": 66
+            },
+            {
+              "name": "clear",
+              "description": "Limpia caché completo",
+              "start_line": 68,
+              "end_line": 73
+            },
+            {
+              "name": "can_request",
+              "description": "Controla frecuencia de solicitudes por símbolo",
+              "start_line": 75,
+              "end_line": 85
+            },
+            {
+              "name": "get_stats",
+              "description": "Retorna estadísticas del caché",
+              "start_line": 87,
+              "end_line": 99
+            }
+          ]
         },
         {
           "name": "OptionsParameterManager",
-          "description": "Gestiona parámetros para análisis de opciones",
+          "description": "Gestiona parámetros para trading de opciones basados en categoría de activo",
           "start_line": 607,
-          "end_line": 1409
+          "end_line": 1408,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 610,
+              "end_line": 1352
+            },
+            {
+              "name": "get_symbol_params",
+              "description": "Obtiene parámetros específicos para un símbolo",
+              "start_line": 1354,
+              "end_line": 1356
+            },
+            {
+              "name": "get_strategy_recommendations",
+              "description": "Obtiene estrategias recomendadas según tendencia",
+              "start_line": 1358,
+              "end_line": 1369
+            },
+            {
+              "name": "get_volatility_adjustments",
+              "description": "Obtiene ajustes recomendados según nivel de VIX",
+              "start_line": 1371,
+              "end_line": 1402
+            }
+          ]
         },
         {
           "name": "TechnicalAnalyzer",
-          "description": "Realiza análisis técnico avanzado de datos de mercado",
+          "description": "Analizador técnico avanzado con manejo profesional de indicadores",
           "start_line": 1410,
-          "end_line": 3617
+          "end_line": 2528,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el analizador con validación de datos",
+              "start_line": 1413,
+              "end_line": 1418
+            },
+            {
+              "name": "calculate_indicators",
+              "description": "Calcula indicadores técnicos con validación avanzada",
+              "start_line": 1420,
+              "end_line": 1624
+            },
+            {
+              "name": "get_current_signals",
+              "description": "Obtiene señales actuales con validación robusta",
+              "start_line": 1626,
+              "end_line": 1864
+            },
+            {
+              "name": "_analyze_options_strategy",
+              "description": "Recomienda estrategia de opciones basada en señales",
+              "start_line": 1866,
+              "end_line": 1977
+            },
+            {
+              "name": "_get_rsi_condition",
+              "description": "Determina la condición del RSI",
+              "start_line": 1979,
+              "end_line": 1986
+            },
+            {
+              "name": "_get_price_position",
+              "description": "Determina la posición del precio respecto a las bandas",
+              "start_line": 1988,
+              "end_line": 2002
+            },
+            {
+              "name": "_get_volatility_state",
+              "description": "Evalúa el estado de la volatilidad",
+              "start_line": 2004,
+              "end_line": 2026
+            },
+            {
+              "name": "_calculate_overall_signal",
+              "description": "Calcula la señal general basada en todos los indicadores",
+              "start_line": 2028,
+              "end_line": 2113
+            },
+            {
+              "name": "analyze_multi_timeframe",
+              "description": "Analiza múltiples timeframes para un símbolo",
+              "start_line": 2115,
+              "end_line": 2238
+            },
+            {
+              "name": "get_candle_patterns",
+              "description": "Identifica patrones de velas comunes en los datos",
+              "start_line": 2240,
+              "end_line": 2428
+            },
+            {
+              "name": "get_support_resistance",
+              "description": "Calcula niveles de soporte y resistencia relevantes",
+              "start_line": 2430,
+              "end_line": 2522
+            }
+          ]
         },
         {
           "name": "TechnicalAnalyzer_Legacy",
-          "description": "Versión anterior del analizador técnico",
-          "start_line": 3618,
-          "end_line": 3640
+          "description": "Versión legada de TechnicalAnalyzer para compatibilidad",
+          "start_line": 3624,
+          "end_line": 3625,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 3627,
+              "end_line": 3630
+            },
+            {
+              "name": "calculate_indicators",
+              "description": "Versión legada compatible con TechnicalAnalyzer original",
+              "start_line": 3632,
+              "end_line": 3636
+            },
+            {
+              "name": "get_current_signals",
+              "description": "Versión legada compatible con TechnicalAnalyzer original",
+              "start_line": 3638,
+              "end_line": 3645
+            }
+          ]
         }
       ],
       "functions": [
@@ -202,17 +636,17 @@
           "name": "validate_market_data",
           "description": "Valida la integridad de los datos de mercado",
           "start_line": 110,
-          "end_line": 149
+          "end_line": 148
         },
         {
           "name": "validate_and_fix_data",
           "description": "Valida y corrige problemas en datos de mercado",
           "start_line": 151,
-          "end_line": 199
+          "end_line": 198
         },
         {
           "name": "_get_api_key",
-          "description": "Obtiene claves API desde secrets o variables de entorno",
+          "description": "Obtiene clave de API desde secrets o variables de entorno",
           "start_line": 206,
           "end_line": 217
         },
@@ -220,107 +654,144 @@
           "name": "_generate_synthetic_data",
           "description": "Genera datos sintéticos robustos para fallback de interfaz",
           "start_line": 220,
-          "end_line": 324
+          "end_line": 323
         },
         {
           "name": "_get_alpha_vantage_data",
           "description": "Obtiene datos desde Alpha Vantage como respaldo",
           "start_line": 326,
-          "end_line": 391
+          "end_line": 390
         },
         {
           "name": "_get_finnhub_data",
           "description": "Obtiene datos desde Finnhub como respaldo adicional",
           "start_line": 393,
-          "end_line": 449
+          "end_line": 448
         },
         {
           "name": "_get_marketstack_data",
           "description": "Obtiene datos desde MarketStack como otra fuente alternativa",
           "start_line": 451,
-          "end_line": 499
+          "end_line": 502
         },
         {
           "name": "fetch_market_data",
-          "description": "Función principal para obtener datos de mercado de múltiples fuentes",
+          "description": "Obtiene datos de mercado con múltiples fallbacks y validación.",
           "start_line": 505,
-          "end_line": 606
+          "end_line": 599
+        },
+        {
+          "name": "get_vix_level",
+          "description": "Obtiene el nivel actual del VIX con manejo de errores",
+          "start_line": 2530,
+          "end_line": 2539
+        },
+        {
+          "name": "get_api_keys_from_secrets",
+          "description": "Obtiene claves API de secrets.toml con manejo mejorado",
+          "start_line": 2542,
+          "end_line": 2635
         },
         {
           "name": "get_market_context",
           "description": "Obtiene contexto completo de mercado para un símbolo",
-          "start_line": 2000,
-          "end_line": 2529
+          "start_line": 2638,
+          "end_line": 2719
         },
         {
-          "name": "get_vix_level",
-          "description": "Obtiene el nivel actual del VIX y su interpretación",
-          "start_line": 2530,
-          "end_line": 2541
+          "name": "fetch_news_data",
+          "description": "Obtiene noticias recientes para un símbolo usando múltiples fuentes con respaldo de Yahoo Finance",
+          "start_line": 2722,
+          "end_line": 3003
         },
         {
-          "name": "get_api_keys_from_secrets",
-          "description": "Obtiene claves API desde secrets.toml",
-          "start_line": 2542,
-          "end_line": 2560
+          "name": "analyze_sentiment",
+          "description": "Analiza el sentimiento para un símbolo basado en noticias",
+          "start_line": 3006,
+          "end_line": 3060
+        },
+        {
+          "name": "get_web_insights",
+          "description": "Obtiene análisis de fuentes web sobre un símbolo mediante consultas a múltiples APIs con respaldo de Yahoo Finance",
+          "start_line": 3063,
+          "end_line": 3601
+        },
+        {
+          "name": "clear_cache",
+          "description": "Limpia el caché global",
+          "start_line": 3604,
+          "end_line": 3606
+        },
+        {
+          "name": "validate_market_data_legacy",
+          "description": "Versión legada de validate_market_data para compatibilidad",
+          "start_line": 3614,
+          "end_line": 3616
+        },
+        {
+          "name": "fetch_market_data_legacy",
+          "description": "Versión legada de fetch_market_data para compatibilidad",
+          "start_line": 3619,
+          "end_line": 3621
         }
       ]
     },
     "technical_analysis.py": {
+      "classes": [],
       "functions": [
         {
           "name": "detect_support_resistance",
-          "description": "Detecta niveles de soporte y resistencia con análisis multi-timeframe",
+          "description": "Detecta niveles de soporte y resistencia en un DataFrame de precios",
           "start_line": 15,
-          "end_line": 112
+          "end_line": 111
         },
         {
           "name": "detect_trend_lines",
-          "description": "Detecta líneas de tendencia alcistas y bajistas con algoritmo adaptativo",
+          "description": "Detecta líneas de tendencia alcistas y bajistas en un DataFrame de precios",
           "start_line": 114,
-          "end_line": 236
+          "end_line": 235
         },
         {
           "name": "detect_channels",
           "description": "Detecta canales de precio basados en líneas de tendencia",
           "start_line": 238,
-          "end_line": 324
+          "end_line": 323
         },
         {
           "name": "improve_technical_analysis",
-          "description": "Mejora indicadores técnicos y corrige valores N/A",
+          "description": "Mejora los indicadores técnicos y corrige valores N/A",
           "start_line": 326,
-          "end_line": 448
+          "end_line": 447
         },
         {
           "name": "improve_sentiment_analysis",
           "description": "Mejora el análisis de sentimiento y muestra fuentes",
           "start_line": 450,
-          "end_line": 608
+          "end_line": 606
         },
         {
           "name": "detect_improved_patterns",
-          "description": "Detecta patrones mejorados en los datos con algoritmos avanzados",
+          "description": "Detección mejorada de patrones técnicos (tendencias, canales, soportes, resistencias)",
           "start_line": 609,
-          "end_line": 709
+          "end_line": 707
         },
         {
           "name": "detect_classic_chart_patterns",
-          "description": "Detecta patrones clásicos de gráficos (cabeza y hombros, triángulos, etc.)",
+          "description": "Detecta patrones clásicos de chartismo como cabeza y hombros, doble techo/suelo, etc.",
           "start_line": 710,
-          "end_line": 818
+          "end_line": 816
         },
         {
           "name": "detect_candle_patterns",
-          "description": "Detecta patrones de velas japonesas con clasificación de fuerza",
+          "description": "Detecta patrones de velas japonesas en los datos de precios",
           "start_line": 819,
-          "end_line": 1037
+          "end_line": 1035
         },
         {
           "name": "calculate_volume_profile",
-          "description": "Calcula el perfil de volumen para análisis de liquidez",
+          "description": "Calcula el perfil de volumen para identificar zonas de soporte/resistencia basadas en volumen",
           "start_line": 1038,
-          "end_line": 1138
+          "end_line": 1137
         }
       ]
     },
@@ -328,417 +799,2366 @@
       "classes": [
         {
           "name": "MarketScanner",
-          "description": "Escanea el mercado en busca de oportunidades de trading",
-          "start_line": 11,
-          "end_line": 92
+          "description": "Sin descripción disponible",
+          "start_line": 12,
+          "end_line": 395,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 13,
+              "end_line": 20
+            },
+            {
+              "name": "_analyze_symbol",
+              "description": "Sin descripción disponible",
+              "start_line": 22,
+              "end_line": 136
+            },
+            {
+              "name": "_analyze_symbol_with_details",
+              "description": "Analiza un símbolo con detalles completos para el scanner de mercado mejorado.",
+              "start_line": 138,
+              "end_line": 265
+            },
+            {
+              "name": "get_cached_analysis",
+              "description": "Obtiene el último análisis cacheado para un símbolo",
+              "start_line": 267,
+              "end_line": 269
+            },
+            {
+              "name": "scan_market",
+              "description": "Escanea el mercado, opcionalmente filtrando por sectores.",
+              "start_line": 271,
+              "end_line": 394
+            }
+          ]
         }
       ],
       "functions": [
         {
           "name": "display_opportunities",
-          "description": "Muestra oportunidades de trading en Streamlit",
-          "start_line": 93,
-          "end_line": 175
+          "description": "Muestra oportunidades de trading en Streamlit con análisis detallado.",
+          "start_line": 397,
+          "end_line": 764
         },
         {
           "name": "run_scanner",
-          "description": "Ejecuta el escáner de mercado con interfaz visual",
-          "start_line": 176,
-          "end_line": 184
+          "description": "Ejecuta el scanner de mercado.",
+          "start_line": 767,
+          "end_line": 775
+        }
+      ]
+    },
+    "ai_utils.py": {
+      "classes": [
+        {
+          "name": "AIExpert",
+          "description": "Clase para procesar texto con IA utilizando OpenAI",
+          "start_line": 991,
+          "end_line": 1058,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el experto en IA",
+              "start_line": 996,
+              "end_line": 1005
+            },
+            {
+              "name": "process_text",
+              "description": "Procesa texto con IA",
+              "start_line": 1007,
+              "end_line": 1042
+            },
+            {
+              "name": "_fallback_process",
+              "description": "Método de respaldo para procesar texto",
+              "start_line": 1044,
+              "end_line": 1057
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "format_patterns_for_prompt",
+          "description": "Formatea los patrones técnicos para incluirlos en el prompt del asistente IA",
+          "start_line": 62,
+          "end_line": 119
+        },
+        {
+          "name": "process_message_with_citations",
+          "description": "Extrae y devuelve el texto del mensaje del asistente con manejo mejorado de errores",
+          "start_line": 122,
+          "end_line": 138
+        },
+        {
+          "name": "process_expert_analysis",
+          "description": "Procesa análisis experto con OpenAI asegurando una sección de análisis fundamental",
+          "start_line": 141,
+          "end_line": 457
+        },
+        {
+          "name": "process_chat_input_with_openai",
+          "description": "Procesa la entrada del chat utilizando OpenAI para respuestas más naturales y variadas.",
+          "start_line": 460,
+          "end_line": 494
+        },
+        {
+          "name": "process_with_assistant",
+          "description": "Procesa el mensaje utilizando la API de Asistentes de OpenAI con manejo mejorado",
+          "start_line": 497,
+          "end_line": 616
+        },
+        {
+          "name": "process_with_chat_completion",
+          "description": "Procesa el mensaje utilizando la API de Chat Completion de OpenAI",
+          "start_line": 619,
+          "end_line": 707
+        },
+        {
+          "name": "process_content_with_ai",
+          "description": "Procesa cualquier tipo de contenido con IA para mejorar su calidad y coherencia",
+          "start_line": 710,
+          "end_line": 929
+        },
+        {
+          "name": "get_real_news",
+          "description": "Obtiene noticias reales para un símbolo utilizando el procesador de noticias",
+          "start_line": 932,
+          "end_line": 988
+        },
+        {
+          "name": "fallback_analyze_symbol",
+          "description": "Función de respaldo para analizar símbolos cuando OpenAI no está disponible",
+          "start_line": 1060,
+          "end_line": 1158
+        }
+      ]
+    },
+    "database_utils.py": {
+      "classes": [
+        {
+          "name": "DatabaseManager",
+          "description": "Gestiona la conexión y operaciones con la base de datos",
+          "start_line": 16,
+          "end_line": 17,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de base de datos",
+              "start_line": 19,
+              "end_line": 22
+            },
+            {
+              "name": "_get_db_config",
+              "description": "Obtiene la configuración de la base de datos desde secrets.toml",
+              "start_line": 24,
+              "end_line": 68
+            },
+            {
+              "name": "connect",
+              "description": "Establece conexión con la base de datos",
+              "start_line": 70,
+              "end_line": 187
+            },
+            {
+              "name": "disconnect",
+              "description": "Cierra la conexión con la base de datos",
+              "start_line": 189,
+              "end_line": 192
+            },
+            {
+              "name": "execute_query",
+              "description": "Ejecuta una consulta SQL y devuelve los resultados",
+              "start_line": 194,
+              "end_line": 233
+            },
+            {
+              "name": "get_signals",
+              "description": "Obtiene señales de trading filtradas",
+              "start_line": 235,
+              "end_line": 254
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Obtiene análisis detallado para un símbolo específico",
+              "start_line": 256,
+              "end_line": 264
+            },
+            {
+              "name": "save_signal",
+              "description": "Guarda una señal de trading en la base de datos con todos los campos disponibles",
+              "start_line": 266,
+              "end_line": 349
+            },
+            {
+              "name": "log_email_sent",
+              "description": "Registra el envío de un correo electrónico",
+              "start_line": 351,
+              "end_line": 366
+            },
+            {
+              "name": "save_market_sentiment",
+              "description": "Guarda datos de sentimiento de mercado",
+              "start_line": 368,
+              "end_line": 407
+            },
+            {
+              "name": "get_market_sentiment",
+              "description": "Obtiene datos de sentimiento de mercado",
+              "start_line": 409,
+              "end_line": 416
+            },
+            {
+              "name": "save_market_news",
+              "description": "Guarda noticias de mercado",
+              "start_line": 418,
+              "end_line": 456
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias de mercado",
+              "start_line": 458,
+              "end_line": 465
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "trading_analyzer.py": {
+      "classes": [
+        {
+          "name": "TradingAnalyzer",
+          "description": "Analizador de trading que proporciona análisis técnico y detección de estrategias",
+          "start_line": 11,
+          "end_line": 12,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el analizador de trading",
+              "start_line": 14,
+              "end_line": 16
+            },
+            {
+              "name": "get_market_data",
+              "description": "Obtiene datos de mercado para un símbolo",
+              "start_line": 18,
+              "end_line": 78
+            },
+            {
+              "name": "_create_synthetic_data",
+              "description": "Crea datos sintéticos para pruebas cuando no se pueden obtener datos reales",
+              "start_line": 80,
+              "end_line": 115
+            },
+            {
+              "name": "_calculate_indicators",
+              "description": "Calcula indicadores técnicos para un DataFrame",
+              "start_line": 117,
+              "end_line": 213
+            },
+            {
+              "name": "analyze_trend",
+              "description": "Analiza la tendencia de un símbolo",
+              "start_line": 215,
+              "end_line": 341
+            },
+            {
+              "name": "_find_support_resistance",
+              "description": "Encuentra niveles de soporte y resistencia",
+              "start_line": 343,
+              "end_line": 424
+            },
+            {
+              "name": "identify_strategy",
+              "description": "Identifica estrategias de trading basadas en el análisis técnico",
+              "start_line": 426,
+              "end_line": 570
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "yahoo_finance_scraper.py": {
+      "classes": [
+        {
+          "name": "YahooFinanceScraper",
+          "description": "Clase para obtener datos y noticias de Yahoo Finance con múltiples fuentes",
+          "start_line": 46,
+          "end_line": 47,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el scraper con headers para simular un navegador",
+              "start_line": 49,
+              "end_line": 70
+            },
+            {
+              "name": "_get_cached_data",
+              "description": "Obtiene datos de la caché si están disponibles y no han expirado",
+              "start_line": 72,
+              "end_line": 77
+            },
+            {
+              "name": "_cache_data",
+              "description": "Almacena datos en la caché con tiempo de expiración",
+              "start_line": 79,
+              "end_line": 82
+            },
+            {
+              "name": "get_quote_data",
+              "description": "Obtiene datos básicos de cotización para un símbolo",
+              "start_line": 84,
+              "end_line": 165
+            },
+            {
+              "name": "get_news",
+              "description": "Obtiene noticias para un símbolo desde múltiples fuentes",
+              "start_line": 167,
+              "end_line": 418
+            },
+            {
+              "name": "get_analysis",
+              "description": "Obtiene análisis y recomendaciones para un símbolo",
+              "start_line": 420,
+              "end_line": 551
+            },
+            {
+              "name": "get_options_data",
+              "description": "Obtiene datos de opciones para un símbolo",
+              "start_line": 553,
+              "end_line": 686
+            },
+            {
+              "name": "get_all_data",
+              "description": "Obtiene todos los datos disponibles para un símbolo",
+              "start_line": 688,
+              "end_line": 726
+            },
+            {
+              "name": "process_news_with_expert",
+              "description": "Procesa noticias con el experto en IA para mejorar su calidad",
+              "start_line": 728,
+              "end_line": 777
+            },
+            {
+              "name": "_is_news_relevant",
+              "description": "Determina si una noticia es relevante para un símbolo",
+              "start_line": 779,
+              "end_line": 826
+            },
+            {
+              "name": "_generate_fallback_url",
+              "description": "Genera una URL de respaldo basada en la fuente y el símbolo",
+              "start_line": 828,
+              "end_line": 856
+            },
+            {
+              "name": "_parse_float",
+              "description": "Convierte un string a float, manejando errores",
+              "start_line": 858,
+              "end_line": 867
+            },
+            {
+              "name": "_parse_int",
+              "description": "Convierte un string a int, manejando errores",
+              "start_line": 869,
+              "end_line": 878
+            },
+            {
+              "name": "_get_news_from_google_finance",
+              "description": "Obtiene noticias de un símbolo utilizando Google Finance",
+              "start_line": 880,
+              "end_line": 977
+            },
+            {
+              "name": "_get_news_from_marketwatch",
+              "description": "Obtiene noticias de un símbolo utilizando MarketWatch",
+              "start_line": 979,
+              "end_line": 1070
+            },
+            {
+              "name": "_get_company_name",
+              "description": "Obtiene el nombre de la empresa a partir del símbolo",
+              "start_line": 1072,
+              "end_line": 1107
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "news_processor.py": {
+      "classes": [
+        {
+          "name": "NewsProcessor",
+          "description": "Clase para procesar noticias financieras con IA",
+          "start_line": 21,
+          "end_line": 22,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el procesador de noticias",
+              "start_line": 24,
+              "end_line": 43
+            },
+            {
+              "name": "get_news_for_symbol",
+              "description": "Obtiene noticias para un símbolo",
+              "start_line": 45,
+              "end_line": 177
+            },
+            {
+              "name": "process_with_ai",
+              "description": "Procesa noticias con el experto en IA",
+              "start_line": 179,
+              "end_line": 275
+            },
+            {
+              "name": "_is_english_text",
+              "description": "Determina si un texto está en inglés",
+              "start_line": 277,
+              "end_line": 311
+            }
+          ]
+        },
+        {
+          "name": "MockAIExpert",
+          "description": "Sin descripción disponible",
+          "start_line": 317,
+          "end_line": 367,
+          "methods": [
+            {
+              "name": "process_text",
+              "description": "Sin descripción disponible",
+              "start_line": 318,
+              "end_line": 320
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "news_sentiment_analyzer.py": {
+      "classes": [
+        {
+          "name": "NewsSentimentAnalyzer",
+          "description": "Clase para obtener y analizar noticias y sentimiento de mercado de fuentes fiables",
+          "start_line": 22,
+          "end_line": 23,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el analizador de noticias y sentimiento",
+              "start_line": 25,
+              "end_line": 41
+            },
+            {
+              "name": "get_news_from_finnhub",
+              "description": "Obtiene noticias de Finnhub",
+              "start_line": 43,
+              "end_line": 102
+            },
+            {
+              "name": "get_news_from_alpha_vantage",
+              "description": "Obtiene noticias de Alpha Vantage",
+              "start_line": 104,
+              "end_line": 182
+            },
+            {
+              "name": "get_news_from_web_search",
+              "description": "Obtiene noticias mediante búsqueda web",
+              "start_line": 184,
+              "end_line": 239
+            },
+            {
+              "name": "analyze_sentiment_with_ai",
+              "description": "Analiza el sentimiento de las noticias usando IA",
+              "start_line": 241,
+              "end_line": 321
+            },
+            {
+              "name": "_analyze_sentiment_basic",
+              "description": "Analiza el sentimiento de las noticias usando un método básico",
+              "start_line": 323,
+              "end_line": 396
+            },
+            {
+              "name": "get_consolidated_news_and_sentiment",
+              "description": "Obtiene noticias consolidadas y análisis de sentimiento de múltiples fuentes",
+              "start_line": 398,
+              "end_line": 456
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "signal_analyzer.py": {
+      "classes": [
+        {
+          "name": "RealTimeSignalAnalyzer",
+          "description": "Analiza el mercado en tiempo real para generar señales de trading",
+          "start_line": 34,
+          "end_line": 35,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el analizador de señales en tiempo real",
+              "start_line": 37,
+              "end_line": 51
+            },
+            {
+              "name": "scan_market_by_sector",
+              "description": "Escanea el mercado por sector para encontrar señales de trading en tiempo real",
+              "start_line": 53,
+              "end_line": 254
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Genera análisis detallado para un símbolo específico",
+              "start_line": 256,
+              "end_line": 357
+            },
+            {
+              "name": "get_real_time_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
+              "start_line": 359,
+              "end_line": 457
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias relevantes del mercado en tiempo real",
+              "start_line": 459,
+              "end_line": 558
+            },
+            {
+              "name": "_create_basic_analysis",
+              "description": "Crea un análisis básico para un símbolo cuando no hay datos disponibles",
+              "start_line": 560,
+              "end_line": 588
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "signal_manager.py": {
+      "classes": [
+        {
+          "name": "SignalManager",
+          "description": "Gestiona las señales de trading y su procesamiento",
+          "start_line": 22,
+          "end_line": 23,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de señales",
+              "start_line": 25,
+              "end_line": 28
+            },
+            {
+              "name": "get_active_signals",
+              "description": "Obtiene las señales activas filtradas",
+              "start_line": 30,
+              "end_line": 152
+            },
+            {
+              "name": "get_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
+              "start_line": 154,
+              "end_line": 156
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias relevantes del mercado",
+              "start_line": 158,
+              "end_line": 160
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Obtiene análisis detallado para un símbolo específico",
+              "start_line": 162,
+              "end_line": 175
+            },
+            {
+              "name": "save_signal",
+              "description": "Guarda una nueva señal en la base de datos",
+              "start_line": 177,
+              "end_line": 179
+            },
+            {
+              "name": "save_market_sentiment",
+              "description": "Guarda datos de sentimiento de mercado en la base de datos",
+              "start_line": 181,
+              "end_line": 183
+            },
+            {
+              "name": "save_market_news",
+              "description": "Guarda noticias de mercado en la base de datos",
+              "start_line": 185,
+              "end_line": 187
+            },
+            {
+              "name": "process_scanner_signals",
+              "description": "Procesa señales del scanner y las guarda en la base de datos",
+              "start_line": 189,
+              "end_line": 244
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "market_data_engine.py": {
+      "classes": [
+        {
+          "name": "ThrottlingController",
+          "description": "Controlador avanzado de tasas de solicitud para proveedores de datos de mercado",
+          "start_line": 30,
+          "end_line": 198,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 33,
+              "end_line": 59
+            },
+            {
+              "name": "can_request",
+              "description": "Determina si se puede realizar una solicitud al proveedor especificado",
+              "start_line": 61,
+              "end_line": 105
+            },
+            {
+              "name": "get_backoff_time",
+              "description": "Calcula tiempo de espera adaptativo basado en la congestión del proveedor",
+              "start_line": 107,
+              "end_line": 121
+            },
+            {
+              "name": "report_error",
+              "description": "Reporta un error con un proveedor para activar cooldown",
+              "start_line": 123,
+              "end_line": 140
+            },
+            {
+              "name": "get_stats",
+              "description": "Obtiene estadísticas de throttling",
+              "start_line": 142,
+              "end_line": 160
+            },
+            {
+              "name": "suggest_alternative_provider",
+              "description": "Sugiere un proveedor alternativo cuando uno está limitado",
+              "start_line": 162,
+              "end_line": 193
+            }
+          ]
+        },
+        {
+          "name": "MarketDataCache",
+          "description": "Caché para datos de mercado y resultados de búsqueda web",
+          "start_line": 200,
+          "end_line": 249,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 203,
+              "end_line": 208
+            },
+            {
+              "name": "get",
+              "description": "Obtener datos de caché si son válidos",
+              "start_line": 210,
+              "end_line": 219
+            },
+            {
+              "name": "set",
+              "description": "Almacenar datos en caché con timestamp",
+              "start_line": 221,
+              "end_line": 224
+            },
+            {
+              "name": "clear",
+              "description": "Limpiar caché completo y retornar número de entradas eliminadas",
+              "start_line": 226,
+              "end_line": 230
+            },
+            {
+              "name": "get_stats",
+              "description": "Retornar estadísticas del caché",
+              "start_line": 232,
+              "end_line": 244
+            }
+          ]
+        },
+        {
+          "name": "WebSearchEngine",
+          "description": "Motor de búsqueda web con múltiples proveedores",
+          "start_line": 347,
+          "end_line": 628,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 350,
+              "end_line": 356
+            },
+            {
+              "name": "_get_api_key",
+              "description": "Obtener clave API con estrategia de fallback robusta",
+              "start_line": 358,
+              "end_line": 381
+            },
+            {
+              "name": "search_you_api",
+              "description": "Buscar usando API de YOU",
+              "start_line": 383,
+              "end_line": 422
+            },
+            {
+              "name": "search_tavily",
+              "description": "Buscar usando API de Tavily",
+              "start_line": 424,
+              "end_line": 474
+            },
+            {
+              "name": "search_duckduckgo",
+              "description": "Buscar usando DuckDuckGo",
+              "start_line": 476,
+              "end_line": 512
+            },
+            {
+              "name": "search_alpha_vantage_news",
+              "description": "Buscar noticias usando Alpha Vantage News API",
+              "start_line": 514,
+              "end_line": 551
+            },
+            {
+              "name": "perform_web_search",
+              "description": "Realizar búsqueda web utilizando múltiples proveedores con throttling inteligente",
+              "start_line": 553,
+              "end_line": 627
+            }
+          ]
+        },
+        {
+          "name": "WebScraper",
+          "description": "Scraper para datos fundamentales y técnicos de acciones",
+          "start_line": 630,
+          "end_line": 938,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 633,
+              "end_line": 638
+            },
+            {
+              "name": "_clean_html",
+              "description": "Limpia texto HTML",
+              "start_line": 640,
+              "end_line": 642
+            },
+            {
+              "name": "scrape_yahoo_finance",
+              "description": "Scrape datos de Yahoo Finance",
+              "start_line": 644,
+              "end_line": 758
+            },
+            {
+              "name": "_get_alpha_vantage_overview",
+              "description": "Obtener resumen de company de Alpha Vantage",
+              "start_line": 760,
+              "end_line": 781
+            },
+            {
+              "name": "scrape_financial_news",
+              "description": "Scrape noticias financieras relevantes",
+              "start_line": 783,
+              "end_line": 846
+            },
+            {
+              "name": "_get_alpha_vantage_news",
+              "description": "Obtener noticias desde Alpha Vantage",
+              "start_line": 848,
+              "end_line": 889
+            },
+            {
+              "name": "get_finnhub_sentiment",
+              "description": "Obtener análisis de sentimiento de noticias de Finnhub",
+              "start_line": 891,
+              "end_line": 937
+            }
+          ]
+        },
+        {
+          "name": "StockDataAnalyzer",
+          "description": "Analizador de datos de acciones para trading de opciones",
+          "start_line": 1471,
+          "end_line": 1886,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 1474,
+              "end_line": 1482
+            },
+            {
+              "name": "get_stock_technical_data",
+              "description": "Obtiene datos técnicos históricos de una acción",
+              "start_line": 1484,
+              "end_line": 1548
+            },
+            {
+              "name": "get_news_sentiment",
+              "description": "Analiza sentimiento de noticias para una acción",
+              "start_line": 1550,
+              "end_line": 1662
+            },
+            {
+              "name": "get_options_recommendation",
+              "description": "Genera recomendación para operaciones de opciones",
+              "start_line": 1664,
+              "end_line": 1884
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "get_api_keys_from_secrets",
+          "description": "Obtiene claves API de secrets.toml con manejo mejorado",
+          "start_line": 251,
+          "end_line": 344
+        },
+        {
+          "name": "validate_market_data",
+          "description": "Valida la integridad de los datos de mercado",
+          "start_line": 940,
+          "end_line": 978
+        },
+        {
+          "name": "validate_and_fix_data",
+          "description": "Valida y corrige problemas en datos de mercado",
+          "start_line": 981,
+          "end_line": 1028
+        },
+        {
+          "name": "_generate_synthetic_data",
+          "description": "Genera datos sintéticos para fallback de interfaz",
+          "start_line": 1031,
+          "end_line": 1093
+        },
+        {
+          "name": "_get_alpha_vantage_data",
+          "description": "Obtiene datos desde Alpha Vantage como respaldo",
+          "start_line": 1096,
+          "end_line": 1166
+        },
+        {
+          "name": "_get_finnhub_data",
+          "description": "Obtiene datos desde Finnhub como respaldo adicional",
+          "start_line": 1169,
+          "end_line": 1230
+        },
+        {
+          "name": "_get_marketstack_data",
+          "description": "Obtiene datos desde MarketStack como otra fuente alternativa",
+          "start_line": 1233,
+          "end_line": 1285
+        },
+        {
+          "name": "fetch_market_data",
+          "description": "Obtiene datos de mercado con throttling inteligente, multiple fallbacks y validación.",
+          "start_line": 1288,
+          "end_line": 1468
+        },
+        {
+          "name": "analyze_stock_options",
+          "description": "Función principal para análisis completo de opciones de un símbolo.",
+          "start_line": 1888,
+          "end_line": 1937
+        }
+      ]
+    },
+    "market_data_manager.py": {
+      "classes": [
+        {
+          "name": "MarketDataManager",
+          "description": "Clase para gestionar datos de mercado (noticias y sentimiento)",
+          "start_line": 55,
+          "end_line": 56,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de datos de mercado",
+              "start_line": 58,
+              "end_line": 60
+            },
+            {
+              "name": "save_news_from_signal",
+              "description": "Guarda noticias relevantes de una señal en la tabla market_news",
+              "start_line": 62,
+              "end_line": 448
+            },
+            {
+              "name": "save_sentiment_from_signal",
+              "description": "Guarda datos de sentimiento de mercado basados en una señal",
+              "start_line": 450,
+              "end_line": 616
+            },
+            {
+              "name": "_determine_news_impact",
+              "description": "Determina el impacto de una noticia basado en los datos de la señal",
+              "start_line": 618,
+              "end_line": 637
+            },
+            {
+              "name": "_extract_technical_info",
+              "description": "Extrae información técnica del análisis",
+              "start_line": 639,
+              "end_line": 682
+            },
+            {
+              "name": "_extract_vix",
+              "description": "Extrae información del VIX del análisis",
+              "start_line": 684,
+              "end_line": 718
+            },
+            {
+              "name": "_extract_sp500_trend",
+              "description": "Extrae información de la tendencia del S&P 500",
+              "start_line": 720,
+              "end_line": 753
+            },
+            {
+              "name": "_extract_volume_info",
+              "description": "Extrae información sobre el volumen",
+              "start_line": 755,
+              "end_line": 766
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "market_data_processor.py": {
+      "classes": [
+        {
+          "name": "MarketDataProcessor",
+          "description": "Clase para procesar datos de mercado con IA",
+          "start_line": 17,
+          "end_line": 18,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el procesador de datos de mercado",
+              "start_line": 20,
+              "end_line": 27
+            },
+            {
+              "name": "process_news",
+              "description": "Procesa noticias para mejorar su calidad y relevancia",
+              "start_line": 29,
+              "end_line": 98
+            },
+            {
+              "name": "process_analysis",
+              "description": "Procesa datos de análisis para mejorar su calidad y relevancia",
+              "start_line": 100,
+              "end_line": 136
+            },
+            {
+              "name": "generate_expert_analysis",
+              "description": "Genera un análisis experto basado en los datos disponibles",
+              "start_line": 138,
+              "end_line": 220
+            },
+            {
+              "name": "_is_news_relevant",
+              "description": "Determina si una noticia es relevante para un símbolo",
+              "start_line": 222,
+              "end_line": 256
+            },
+            {
+              "name": "_generate_fallback_url",
+              "description": "Genera una URL de respaldo basada en la fuente y el símbolo",
+              "start_line": 258,
+              "end_line": 284
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "market_data_throttling.py": {
+      "classes": [
+        {
+          "name": "ThrottlingController",
+          "description": "Controlador avanzado de tasas de solicitud para proveedores de datos de mercado",
+          "start_line": 16,
+          "end_line": 17,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 19,
+              "end_line": 66
+            },
+            {
+              "name": "normalize_provider_name",
+              "description": "Normaliza el nombre del proveedor para manejar diferentes variantes",
+              "start_line": 68,
+              "end_line": 84
+            },
+            {
+              "name": "can_request",
+              "description": "Determina si se puede realizar una solicitud al proveedor especificado",
+              "start_line": 86,
+              "end_line": 139
+            },
+            {
+              "name": "get_backoff_time",
+              "description": "Calcula tiempo de espera adaptativo basado en la congestión del proveedor",
+              "start_line": 141,
+              "end_line": 157
+            },
+            {
+              "name": "report_error",
+              "description": "Reporta un error con un proveedor para activar cooldown",
+              "start_line": 159,
+              "end_line": 179
+            },
+            {
+              "name": "get_stats",
+              "description": "Obtiene estadísticas de throttling",
+              "start_line": 181,
+              "end_line": 199
+            },
+            {
+              "name": "suggest_alternative_provider",
+              "description": "Sugiere un proveedor alternativo cuando uno está limitado",
+              "start_line": 201,
+              "end_line": 236
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "enhanced_market_data.py": {
+      "classes": [
+        {
+          "name": "EnhancedMarketData",
+          "description": "Clase para obtener datos de mercado de múltiples fuentes con fallbacks",
+          "start_line": 24,
+          "end_line": 25,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el recolector de datos de mercado",
+              "start_line": 27,
+              "end_line": 57
+            },
+            {
+              "name": "_get_cached_data",
+              "description": "Obtiene datos de la caché si están disponibles y no han expirado",
+              "start_line": 59,
+              "end_line": 64
+            },
+            {
+              "name": "_cache_data",
+              "description": "Almacena datos en la caché con tiempo de expiración",
+              "start_line": 66,
+              "end_line": 69
+            },
+            {
+              "name": "get_stock_data",
+              "description": "Obtiene datos completos de un símbolo utilizando múltiples fuentes",
+              "start_line": 71,
+              "end_line": 147
+            },
+            {
+              "name": "_get_data_from_yfinance",
+              "description": "Obtiene datos de un símbolo utilizando yfinance",
+              "start_line": 149,
+              "end_line": 251
+            },
+            {
+              "name": "_get_data_from_scraping",
+              "description": "Obtiene datos de un símbolo mediante web scraping",
+              "start_line": 253,
+              "end_line": 371
+            },
+            {
+              "name": "_get_news_from_duckduckgo",
+              "description": "Obtiene noticias de un símbolo utilizando DuckDuckGo",
+              "start_line": 373,
+              "end_line": 408
+            },
+            {
+              "name": "_get_news_from_google_finance",
+              "description": "Obtiene noticias de un símbolo utilizando Google Finance",
+              "start_line": 410,
+              "end_line": 482
+            },
+            {
+              "name": "_get_company_name",
+              "description": "Obtiene el nombre de la empresa a partir del símbolo",
+              "start_line": 484,
+              "end_line": 517
+            },
+            {
+              "name": "_merge_dict",
+              "description": "Combina dos diccionarios de forma recursiva, actualizando solo los valores vacíos",
+              "start_line": 519,
+              "end_line": 537
+            },
+            {
+              "name": "process_with_expert",
+              "description": "Procesa los datos con el agente experto para mejorar la calidad",
+              "start_line": 539,
+              "end_line": 551
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "enhanced_market_scanner.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_enhanced_market_scanner",
+          "description": "Función extraída con regex",
+          "start_line": 23,
+          "end_line": 43
+        }
+      ]
+    },
+    "enhanced_market_scanner_fixed.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_enhanced_market_scanner",
+          "description": "Renderiza la versión mejorada del scanner de mercado.",
+          "start_line": 20,
+          "end_line": 2490
+        }
+      ]
+    },
+    "trading_dashboard.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "create_advanced_chart",
+          "description": "Crea gráfico técnico avanzado con análisis institucional",
+          "start_line": 18,
+          "end_line": 171
+        },
+        {
+          "name": "render_technical_metrics",
+          "description": "Renderiza métricas técnicas resumidas",
+          "start_line": 174,
+          "end_line": 236
+        },
+        {
+          "name": "render_signal_summary",
+          "description": "Renderiza resumen de señales de trading",
+          "start_line": 239,
+          "end_line": 314
+        },
+        {
+          "name": "render_timeframe_analysis",
+          "description": "Renderiza análisis por timeframe",
+          "start_line": 317,
+          "end_line": 398
+        },
+        {
+          "name": "render_support_resistance",
+          "description": "Renderiza niveles clave de soporte y resistencia",
+          "start_line": 401,
+          "end_line": 454
+        },
+        {
+          "name": "render_option_recommendations",
+          "description": "Renderiza recomendaciones concretas para opciones",
+          "start_line": 457,
+          "end_line": 521
+        },
+        {
+          "name": "render_dashboard",
+          "description": "Renderiza dashboard completo con análisis técnico",
+          "start_line": 524,
+          "end_line": 605
+        },
+        {
+          "name": "render_technical_tab",
+          "description": "Renderiza pestaña de análisis técnico",
+          "start_line": 608,
+          "end_line": 610
+        },
+        {
+          "name": "render_options_tab",
+          "description": "Renderiza pestaña de análisis de opciones",
+          "start_line": 613,
+          "end_line": 626
+        },
+        {
+          "name": "render_multiframe_tab",
+          "description": "Renderiza pestaña de análisis multi-timeframe",
+          "start_line": 629,
+          "end_line": 637
+        },
+        {
+          "name": "render_fundamental_tab",
+          "description": "Renderiza pestaña de análisis fundamental",
+          "start_line": 640,
+          "end_line": 642
+        },
+        {
+          "name": "render_report_tab",
+          "description": "Renderiza pestaña de reporte ejecutivo",
+          "start_line": 645,
+          "end_line": 647
+        },
+        {
+          "name": "render_risk_tab",
+          "description": "Renderiza pestaña de gestión de riesgo",
+          "start_line": 650,
+          "end_line": 652
+        }
+      ]
+    },
+    "company_data.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "get_company_info",
+          "description": "Obtiene información completa de la empresa o activo",
+          "start_line": 468,
+          "end_line": 490
+        }
+      ]
+    },
+    "authenticator.py": {
+      "classes": [
+        {
+          "name": "InvalidAccessError",
+          "description": "Exception raised for invalid authentication attempts.",
+          "start_line": 12,
+          "end_line": 14
+        }
+      ],
+      "functions": [
+        {
+          "name": "_get_valid_passwords",
+          "description": "Retrieve valid password hashes from Streamlit secrets.",
+          "start_line": 16,
+          "end_line": 30
+        },
+        {
+          "name": "_hash_password",
+          "description": "Hash a password using SHA-256.",
+          "start_line": 32,
+          "end_line": 42
+        },
+        {
+          "name": "check_password",
+          "description": "Validate password and manage authentication attempts.",
+          "start_line": 44,
+          "end_line": 86
+        },
+        {
+          "name": "validate_session",
+          "description": "Validate current session is authentic and not expired.",
+          "start_line": 88,
+          "end_line": 103
+        },
+        {
+          "name": "get_session_info",
+          "description": "Get current session information.",
+          "start_line": 105,
+          "end_line": 116
+        },
+        {
+          "name": "clear_session",
+          "description": "Clear all authentication session data.",
+          "start_line": 118,
+          "end_line": 127
         }
       ]
     }
   },
   "pages": {
-    "1_📈_Analizador_de_Acciones_Pro.py": {
-      "functions": [
-        {
-          "name": "get_popular_symbols",
-          "description": "Obtiene una lista de símbolos populares por categoría",
-          "start_line": 15,
-          "end_line": 30
-        },
-        {
-          "name": "fetch_data",
-          "description": "Obtiene datos de mercado para un símbolo específico",
-          "start_line": 32,
-          "end_line": 50
-        },
-        {
-          "name": "create_chart",
-          "description": "Crea un gráfico técnico básico",
-          "start_line": 52,
-          "end_line": 120
-        },
-        {
-          "name": "analyze_data",
-          "description": "Realiza análisis básico de datos de mercado",
-          "start_line": 122,
-          "end_line": 180
-        },
-        {
-          "name": "display_summary",
-          "description": "Muestra un resumen del análisis",
-          "start_line": 182,
-          "end_line": 220
-        },
-        {
-          "name": "main",
-          "description": "Función principal que controla la interfaz",
-          "start_line": 222,
-          "end_line": 280
-        }
-      ]
-    },
-    "2_🤖_Inversor_Bot.py": {
-      "classes": [
-        {
-          "name": "InvestmentAdvisor",
-          "description": "Proporciona recomendaciones de inversión",
-          "start_line": 20,
-          "end_line": 150
-        }
-      ],
-      "functions": [
-        {
-          "name": "process_query",
-          "description": "Procesa consultas del usuario",
-          "start_line": 152,
-          "end_line": 200
-        },
-        {
-          "name": "generate_response",
-          "description": "Genera respuestas basadas en el contexto",
-          "start_line": 202,
-          "end_line": 250
-        },
-        {
-          "name": "display_chat_interface",
-          "description": "Muestra la interfaz de chat",
-          "start_line": 252,
-          "end_line": 300
-        },
-        {
-          "name": "main",
-          "description": "Función principal de la aplicación",
-          "start_line": 302,
-          "end_line": 350
-        }
-      ]
-    },
-    "3_📊_InversorIA_Mini.py": {
-      "classes": [
-        {
-          "name": "MarketDataProvider",
-          "description": "Proveedor de datos de mercado simplificado",
-          "start_line": 25,
-          "end_line": 120
-        },
-        {
-          "name": "SimpleAnalyzer",
-          "description": "Analizador técnico simplificado",
-          "start_line": 122,
-          "end_line": 250
-        }
-      ],
-      "functions": [
-        {
-          "name": "create_simple_chart",
-          "description": "Crea gráficos técnicos simplificados",
-          "start_line": 252,
-          "end_line": 350
-        },
-        {
-          "name": "display_mini_dashboard",
-          "description": "Muestra un dashboard simplificado",
-          "start_line": 352,
-          "end_line": 420
-        },
-        {
-          "name": "main",
-          "description": "Función principal de la aplicación",
-          "start_line": 422,
-          "end_line": 500
-        }
-      ]
-    },
     "4_📈_MarketIntel_Options_Analyzer.py": {
       "classes": [
         {
-          "name": "OptionsAnalyzer",
-          "description": "Analiza estrategias de opciones",
-          "start_line": 30,
-          "end_line": 200
-        },
-        {
-          "name": "VolatilityCalculator",
-          "description": "Calcula y analiza la volatilidad",
-          "start_line": 202,
-          "end_line": 300
+          "name": "NumpyEncoder",
+          "description": "Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas",
+          "start_line": 63,
+          "end_line": 320,
+          "methods": [
+            {
+              "name": "default",
+              "description": "Sin descripción disponible",
+              "start_line": 66,
+              "end_line": 85
+            }
+          ]
         }
       ],
       "functions": [
         {
-          "name": "calculate_greeks",
-          "description": "Calcula los griegos de las opciones",
-          "start_line": 302,
-          "end_line": 350
+          "name": "init_openai_client",
+          "description": "Inicializa el cliente de OpenAI con manejo mejorado de credenciales",
+          "start_line": 322,
+          "end_line": 425
         },
         {
-          "name": "display_options_chain",
-          "description": "Muestra la cadena de opciones",
-          "start_line": 352,
-          "end_line": 400
+          "name": "create_technical_chart",
+          "description": "Crea gráfico técnico con indicadores y patrones técnicos",
+          "start_line": 428,
+          "end_line": 748
         },
         {
-          "name": "plot_volatility_surface",
-          "description": "Grafica la superficie de volatilidad",
-          "start_line": 402,
-          "end_line": 450
+          "name": "format_patterns_for_prompt",
+          "description": "Formatea los patrones técnicos para incluirlos en el prompt del asistente IA",
+          "start_line": 751,
+          "end_line": 790
+        },
+        {
+          "name": "process_message_with_citations",
+          "description": "Extrae y devuelve el texto del mensaje del asistente con manejo mejorado de errores",
+          "start_line": 793,
+          "end_line": 809
         },
         {
           "name": "consult_expert_ia",
-          "description": "Consulta al experto IA sobre opciones",
-          "start_line": 452,
-          "end_line": 500
+          "description": "Consulta al experto de IA con análisis detallado y solicitud de contraste entre noticias y fundamentos",
+          "start_line": 812,
+          "end_line": 943
+        },
+        {
+          "name": "display_expert_opinion",
+          "description": "Muestra la opinión del experto IA con manejo mejorado de salida",
+          "start_line": 946,
+          "end_line": 1064
+        },
+        {
+          "name": "display_recommendation_summary",
+          "description": "Muestra resumen de recomendación",
+          "start_line": 1067,
+          "end_line": 1163
+        },
+        {
+          "name": "display_fundamental_factors",
+          "description": "Muestra factores fundamentales",
+          "start_line": 1166,
+          "end_line": 1221
+        },
+        {
+          "name": "display_technical_factors",
+          "description": "Muestra factores técnicos",
+          "start_line": 1224,
+          "end_line": 1384
+        },
+        {
+          "name": "display_sentiment_analysis",
+          "description": "Muestra análisis de sentimiento",
+          "start_line": 1387,
+          "end_line": 1517
+        },
+        {
+          "name": "display_news_feed",
+          "description": "Muestra feed de noticias",
+          "start_line": 1520,
+          "end_line": 1542
+        },
+        {
+          "name": "display_web_insights",
+          "description": "Muestra insights de búsqueda web",
+          "start_line": 1545,
+          "end_line": 1570
+        },
+        {
+          "name": "display_trading_strategies",
+          "description": "Muestra estrategias de trading recomendadas",
+          "start_line": 1573,
+          "end_line": 1690
+        },
+        {
+          "name": "display_cache_stats",
+          "description": "Muestra estadísticas de caché",
+          "start_line": 1693,
+          "end_line": 1706
+        },
+        {
+          "name": "display_disclaimer",
+          "description": "Muestra disclaimer",
+          "start_line": 1709,
+          "end_line": 1720
         },
         {
           "name": "main",
-          "description": "Función principal de la aplicación",
-          "start_line": 502,
-          "end_line": 550
+          "description": "Función principal",
+          "start_line": 1723,
+          "end_line": 1978
         }
       ]
     },
     "5_📈_Technical_Expert_Analyzer.py": {
       "classes": [
         {
-          "name": "PatternDetector",
-          "description": "Detecta patrones técnicos avanzados",
-          "start_line": 40,
-          "end_line": 150
-        },
-        {
-          "name": "LevelAnalyzer",
-          "description": "Analiza niveles clave de soporte/resistencia",
-          "start_line": 152,
-          "end_line": 250
+          "name": "NumpyEncoder",
+          "description": "Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas",
+          "start_line": 56,
+          "end_line": 80,
+          "methods": [
+            {
+              "name": "default",
+              "description": "Sin descripción disponible",
+              "start_line": 59,
+              "end_line": 78
+            }
+          ]
         }
       ],
       "functions": [
         {
-          "name": "detect_advanced_patterns",
-          "description": "Detecta patrones técnicos avanzados",
-          "start_line": 252,
-          "end_line": 350
+          "name": "init_openai_client",
+          "description": "Inicializa el cliente de OpenAI con manejo mejorado de credenciales",
+          "start_line": 82,
+          "end_line": 185
         },
         {
-          "name": "analyze_market_structure",
-          "description": "Analiza la estructura del mercado",
-          "start_line": 352,
-          "end_line": 450
+          "name": "create_technical_chart",
+          "description": "Crea gráfico técnico con indicadores y patrones técnicos",
+          "start_line": 188,
+          "end_line": 508
         },
         {
-          "name": "display_technical_dashboard",
-          "description": "Muestra dashboard técnico avanzado",
-          "start_line": 452,
-          "end_line": 550
+          "name": "process_message_with_citations",
+          "description": "Extrae y devuelve el texto del mensaje del asistente con manejo mejorado de errores",
+          "start_line": 511,
+          "end_line": 527
+        },
+        {
+          "name": "format_patterns_for_prompt",
+          "description": "Formatea los patrones técnicos para incluirlos en el prompt del asistente IA",
+          "start_line": 530,
+          "end_line": 569
+        },
+        {
+          "name": "consult_expert_ia",
+          "description": "Consulta al experto de IA con análisis detallado",
+          "start_line": 572,
+          "end_line": 703
+        },
+        {
+          "name": "display_expert_opinion",
+          "description": "Muestra la opinión del experto IA con manejo mejorado de salida",
+          "start_line": 706,
+          "end_line": 824
+        },
+        {
+          "name": "display_login_form",
+          "description": "Muestra formulario de login con validación mejorada",
+          "start_line": 827,
+          "end_line": 853
         },
         {
           "name": "display_session_info",
-          "description": "Muestra información de la sesión",
-          "start_line": 552,
-          "end_line": 600
+          "description": "Muestra información de sesión en la barra lateral con formato mejorado",
+          "start_line": 857,
+          "end_line": 902
+        },
+        {
+          "name": "display_disclaimer",
+          "description": "Muestra disclaimer legal",
+          "start_line": 905,
+          "end_line": 916
         },
         {
           "name": "main",
-          "description": "Función principal de la aplicación",
-          "start_line": 602,
-          "end_line": 700
+          "description": "Función principal para el Analizador Técnico y Experto",
+          "start_line": 919,
+          "end_line": 1201
         }
       ]
     },
-    "6_📊_InversorIA.py": {
-      "classes": [
-        {
-          "name": "LegacyDataProvider",
-          "description": "Proveedor de datos de la versión anterior",
-          "start_line": 30,
-          "end_line": 120
-        },
-        {
-          "name": "LegacyAnalyzer",
-          "description": "Analizador de la versión anterior",
-          "start_line": 122,
-          "end_line": 250
-        }
-      ],
+    "2_🤖_Inversor_Bot.py": {
+      "classes": [],
       "functions": [
         {
-          "name": "render_technical_tab",
-          "description": "Renderiza pestaña de análisis técnico",
-          "start_line": 252,
-          "end_line": 350
+          "name": "secrets_file_exists",
+          "description": "Sin descripción disponible",
+          "start_line": 30,
+          "end_line": 32
         },
         {
-          "name": "render_options_tab",
-          "description": "Renderiza pestaña de opciones",
-          "start_line": 352,
-          "end_line": 450
+          "name": "process_message_with_citations",
+          "description": "Extraiga y devuelva solo el texto del mensaje del asistente.",
+          "start_line": 102,
+          "end_line": 110
+        }
+      ]
+    },
+    "1_📈_Analizador_de_Acciones_Pro.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "get_popular_symbols",
+          "description": "Retorna una lista de símbolos populares por categoría",
+          "start_line": 25,
+          "end_line": 38
         },
         {
-          "name": "render_multiframe_tab",
-          "description": "Renderiza pestaña multi-timeframe",
-          "start_line": 452,
-          "end_line": 550
+          "name": "fetch_stock_price",
+          "description": "Obtiene el precio actual de una acción",
+          "start_line": 41,
+          "end_line": 56
+        },
+        {
+          "name": "fetch_stock_info",
+          "description": "Obtiene información general sobre una acción",
+          "start_line": 59,
+          "end_line": 76
+        },
+        {
+          "name": "fetch_stock_data",
+          "description": "Descarga datos históricos de una acción",
+          "start_line": 79,
+          "end_line": 86
+        },
+        {
+          "name": "calculate_technical_indicators",
+          "description": "Calcula indicadores técnicos optimizados",
+          "start_line": 88,
+          "end_line": 109
+        },
+        {
+          "name": "create_price_chart",
+          "description": "Crea gráfico de precios interactivo",
+          "start_line": 111,
+          "end_line": 123
+        },
+        {
+          "name": "create_technical_charts",
+          "description": "Genera gráficos técnicos profesionales",
+          "start_line": 125,
+          "end_line": 160
+        },
+        {
+          "name": "fetch_options_data",
+          "description": "Descarga datos de opciones con manejo de errores",
+          "start_line": 163,
+          "end_line": 179
         },
         {
           "name": "main",
-          "description": "Función principal de la aplicación",
-          "start_line": 552,
-          "end_line": 650
+          "description": "Sin descripción disponible",
+          "start_line": 181,
+          "end_line": 301
         }
       ]
     },
     "7_🔔_Notificaciones.py": {
       "classes": [
         {
-          "name": "RealTimeSignalAnalyzer",
-          "description": "Analiza señales de trading en tiempo real usando datos del mercado",
-          "start_line": 90,
-          "end_line": 934,
-          "methods": [
-            {
-              "name": "scan_market_by_sector",
-              "description": "Escanea el mercado por sector para encontrar señales de trading",
-              "start_line": 170,
-              "end_line": 357
-            },
-            {
-              "name": "get_detailed_analysis",
-              "description": "Genera análisis detallado para un símbolo específico",
-              "start_line": 359,
-              "end_line": 556
-            },
-            {
-              "name": "get_real_time_market_sentiment",
-              "description": "Obtiene el sentimiento actual del mercado en tiempo real",
-              "start_line": 557,
-              "end_line": 711
-            },
-            {
-              "name": "get_real_time_market_news",
-              "description": "Obtiene noticias relevantes del mercado en tiempo real",
-              "start_line": 712,
-              "end_line": 834
-            },
-            {
-              "name": "_create_basic_analysis",
-              "description": "Crea un análisis básico para un símbolo usando datos técnicos",
-              "start_line": 835,
-              "end_line": 934
-            }
-          ]
-        },
-        {
           "name": "DatabaseManager",
           "description": "Gestiona la conexión y operaciones con la base de datos MariaDB",
-          "start_line": 1132,
-          "end_line": 1393,
+          "start_line": 122,
+          "end_line": 400,
           "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de base de datos con credenciales desde secrets",
+              "start_line": 125,
+              "end_line": 142
+            },
             {
               "name": "connect",
               "description": "Establece conexión con la base de datos",
-              "start_line": 1150,
-              "end_line": 1170
+              "start_line": 144,
+              "end_line": 161
             },
             {
               "name": "disconnect",
               "description": "Cierra la conexión con la base de datos",
-              "start_line": 1172,
-              "end_line": 1180
+              "start_line": 163,
+              "end_line": 167
             },
             {
               "name": "execute_query",
-              "description": "Ejecuta una consulta SQL en la base de datos",
-              "start_line": 1182,
-              "end_line": 1210
+              "description": "Ejecuta una consulta SQL y opcionalmente devuelve resultados",
+              "start_line": 169,
+              "end_line": 221
+            },
+            {
+              "name": "get_signals",
+              "description": "Obtiene señales de trading filtradas con todos los campos detallados",
+              "start_line": 223,
+              "end_line": 256
+            },
+            {
+              "name": "get_market_sentiment",
+              "description": "Obtiene sentimiento de mercado reciente",
+              "start_line": 258,
+              "end_line": 273
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias de mercado recientes",
+              "start_line": 275,
+              "end_line": 283
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Obtiene análisis detallado para un símbolo específico",
+              "start_line": 285,
+              "end_line": 301
             },
             {
               "name": "save_signal",
-              "description": "Guarda una señal de trading en la base de datos",
-              "start_line": 1299,
-              "end_line": 1316
+              "description": "Guarda una nueva señal de trading en la base de datos",
+              "start_line": 303,
+              "end_line": 322
             },
             {
               "name": "log_email_sent",
               "description": "Registra el envío de un correo electrónico",
-              "start_line": 1318,
-              "end_line": 1331
+              "start_line": 324,
+              "end_line": 339
             },
             {
               "name": "save_market_sentiment",
               "description": "Guarda el sentimiento del mercado en la base de datos",
-              "start_line": 1333,
-              "end_line": 1362
+              "start_line": 341,
+              "end_line": 370
             },
             {
               "name": "save_market_news",
               "description": "Guarda una noticia del mercado en la base de datos",
-              "start_line": 1364,
-              "end_line": 1390
+              "start_line": 372,
+              "end_line": 398
             }
           ]
         },
         {
           "name": "EmailManager",
           "description": "Gestiona el envío de correos electrónicos con boletines de trading",
-          "start_line": 1394,
-          "end_line": 1867,
+          "start_line": 402,
+          "end_line": 1062,
           "methods": [
             {
+              "name": "__init__",
+              "description": "Inicializa el gestor de correos con credenciales desde secrets",
+              "start_line": 405,
+              "end_line": 419
+            },
+            {
               "name": "send_email",
-              "description": "Envía un correo electrónico con contenido HTML y opcionalmente imágenes",
-              "start_line": 1413,
-              "end_line": 1553
+              "description": "Envía un correo electrónico con contenido HTML, PDF y opcionalmente imágenes",
+              "start_line": 421,
+              "end_line": 583
             },
             {
               "name": "create_newsletter_html",
-              "description": "Crea el contenido HTML para el boletín de trading",
-              "start_line": 1555,
-              "end_line": 1866
+              "description": "Crea el contenido HTML para el boletín de trading con diseño mejorado optimizado para clientes de correo",
+              "start_line": 585,
+              "end_line": 1031
+            },
+            {
+              "name": "generate_pdf",
+              "description": "Genera un PDF a partir del contenido HTML",
+              "start_line": 1033,
+              "end_line": 1060
             }
           ]
         },
         {
           "name": "SignalManager",
           "description": "Gestiona las señales de trading y su procesamiento",
-          "start_line": 1868,
-          "end_line": 1975,
+          "start_line": 1064,
+          "end_line": 1065,
           "methods": [
             {
-              "name": "generate_signals",
-              "description": "Genera señales de trading en tiempo real",
-              "start_line": 1880,
-              "end_line": 1903
+              "name": "__init__",
+              "description": "Inicializa el gestor de señales",
+              "start_line": 1067,
+              "end_line": 1070
+            },
+            {
+              "name": "get_active_signals",
+              "description": "Obtiene las señales activas filtradas desde la base de datos",
+              "start_line": 1072,
+              "end_line": 1188
+            },
+            {
+              "name": "get_market_sentiment",
+              "description": "Obtiene el sentimiento actual del mercado desde la base de datos",
+              "start_line": 1190,
+              "end_line": 1214
+            },
+            {
+              "name": "get_market_news",
+              "description": "Obtiene noticias relevantes del mercado desde la base de datos",
+              "start_line": 1216,
+              "end_line": 1234
+            },
+            {
+              "name": "get_detailed_analysis",
+              "description": "Obtiene análisis detallado para un símbolo específico desde la base de datos",
+              "start_line": 1236,
+              "end_line": 1256
+            },
+            {
+              "name": "save_signal",
+              "description": "Guarda una nueva señal en la base de datos",
+              "start_line": 1258,
+              "end_line": 1260
             },
             {
               "name": "send_newsletter",
-              "description": "Envía un boletín con señales de trading",
-              "start_line": 1905,
-              "end_line": 1975
+              "description": "Envía un boletín con las señales y análisis",
+              "start_line": 1262,
+              "end_line": 1409
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "6_📊_InversorIA.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "setup_openai",
+          "description": "Configura credenciales de OpenAI",
+          "start_line": 114,
+          "end_line": 137
+        },
+        {
+          "name": "check_api_keys",
+          "description": "Verifica las API keys disponibles en secret.toml o env vars",
+          "start_line": 145,
+          "end_line": 203
+        },
+        {
+          "name": "check_libraries",
+          "description": "Verifica la disponibilidad de las bibliotecas necesarias",
+          "start_line": 206,
+          "end_line": 247
+        },
+        {
+          "name": "display_system_status",
+          "description": "Muestra el estado del sistema, APIs y librerías",
+          "start_line": 250,
+          "end_line": 324
+        },
+        {
+          "name": "check_authentication",
+          "description": "Verifica autenticación del usuario",
+          "start_line": 332,
+          "end_line": 376
+        },
+        {
+          "name": "process_chat_input_with_openai",
+          "description": "Procesa la entrada del chat utilizando OpenAI para respuestas más naturales y variadas.",
+          "start_line": 384,
+          "end_line": 432
+        },
+        {
+          "name": "process_with_assistant",
+          "description": "Procesa el mensaje utilizando la API de Asistentes de OpenAI",
+          "start_line": 435,
+          "end_line": 533
+        },
+        {
+          "name": "process_with_chat_completion",
+          "description": "Procesa el mensaje utilizando la API de Chat Completion de OpenAI",
+          "start_line": 536,
+          "end_line": 600
+        },
+        {
+          "name": "fallback_analyze_symbol",
+          "description": "Función de respaldo para analizar símbolos cuando OpenAI no está disponible",
+          "start_line": 603,
+          "end_line": 891
+        },
+        {
+          "name": "initialize_session_state",
+          "description": "Inicializa el estado de la sesión",
+          "start_line": 899,
+          "end_line": 936
+        },
+        {
+          "name": "render_sidebar",
+          "description": "Renderiza el panel lateral con información profesional",
+          "start_line": 939,
+          "end_line": 1111
+        },
+        {
+          "name": "main",
+          "description": "Función principal de la aplicación",
+          "start_line": 1119,
+          "end_line": 1305
+        }
+      ]
+    },
+    "3_📊_InversorIA_Mini.py": {
+      "classes": [
+        {
+          "name": "MarketDataError",
+          "description": "Excepción para errores en datos de mercado",
+          "start_line": 43,
+          "end_line": 46
+        },
+        {
+          "name": "DataCache",
+          "description": "Sistema de caché con invalidación por tiempo",
+          "start_line": 48,
+          "end_line": 102,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 51,
+              "end_line": 56
+            },
+            {
+              "name": "get",
+              "description": "Obtiene dato del caché si es válido",
+              "start_line": 58,
+              "end_line": 66
+            },
+            {
+              "name": "set",
+              "description": "Almacena dato en caché con timestamp",
+              "start_line": 68,
+              "end_line": 70
+            },
+            {
+              "name": "clear",
+              "description": "Limpia caché completo",
+              "start_line": 72,
+              "end_line": 77
+            },
+            {
+              "name": "can_request",
+              "description": "Controla frecuencia de solicitudes por símbolo",
+              "start_line": 79,
+              "end_line": 89
+            },
+            {
+              "name": "get_stats",
+              "description": "Retorna estadísticas del caché",
+              "start_line": 91,
+              "end_line": 101
+            }
+          ]
+        },
+        {
+          "name": "OptionsParameterManager",
+          "description": "Gestiona parámetros para trading de opciones basados en categoría de activo",
+          "start_line": 104,
+          "end_line": 300,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 107,
+              "end_line": 252
+            },
+            {
+              "name": "get_symbol_params",
+              "description": "Obtiene parámetros específicos para un símbolo",
+              "start_line": 254,
+              "end_line": 256
+            },
+            {
+              "name": "get_strategy_recommendations",
+              "description": "Obtiene estrategias recomendadas según tendencia",
+              "start_line": 258,
+              "end_line": 266
+            },
+            {
+              "name": "get_volatility_adjustments",
+              "description": "Obtiene ajustes recomendados según nivel de VIX",
+              "start_line": 268,
+              "end_line": 299
+            }
+          ]
+        },
+        {
+          "name": "MarketDataProvider",
+          "description": "Proveedor de datos de mercado con manejo de errores y limitación de tasa",
+          "start_line": 302,
+          "end_line": 553,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 305,
+              "end_line": 310
+            },
+            {
+              "name": "_get_api_key",
+              "description": "Obtiene clave de API desde secrets o variables de entorno",
+              "start_line": 312,
+              "end_line": 317
+            },
+            {
+              "name": "_rate_limit",
+              "description": "Controla la tasa de solicitudes",
+              "start_line": 319,
+              "end_line": 342
+            },
+            {
+              "name": "get_market_data",
+              "description": "Obtiene datos de mercado con manejo de errores",
+              "start_line": 344,
+              "end_line": 402
+            },
+            {
+              "name": "_validate_and_fix_data",
+              "description": "Valida y corrige problemas en datos de mercado",
+              "start_line": 404,
+              "end_line": 434
+            },
+            {
+              "name": "_get_alpha_vantage_data",
+              "description": "Obtiene datos desde Alpha Vantage como respaldo",
+              "start_line": 436,
+              "end_line": 494
+            },
+            {
+              "name": "_generate_synthetic_data",
+              "description": "Genera datos sintéticos para fallback de interfaz",
+              "start_line": 496,
+              "end_line": 552
+            }
+          ]
+        },
+        {
+          "name": "TechnicalAnalyzer",
+          "description": "Analizador técnico con cálculo de indicadores robustos",
+          "start_line": 555,
+          "end_line": 892,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 558,
+              "end_line": 560
+            },
+            {
+              "name": "get_market_data",
+              "description": "Obtiene datos de mercado a través del proveedor",
+              "start_line": 562,
+              "end_line": 564
+            },
+            {
+              "name": "analyze_trend",
+              "description": "Analiza tendencia de un símbolo con manejo de errores",
+              "start_line": 566,
+              "end_line": 617
+            },
+            {
+              "name": "_calculate_indicators",
+              "description": "Calcula indicadores técnicos con seguridad en asignaciones",
+              "start_line": 619,
+              "end_line": 678
+            },
+            {
+              "name": "_determine_trend",
+              "description": "Determina tendencia basada en indicadores con manejo seguro",
+              "start_line": 680,
+              "end_line": 788
+            },
+            {
+              "name": "identify_strategy",
+              "description": "Identifica estrategias basadas en el análisis técnico",
+              "start_line": 790,
+              "end_line": 862
+            },
+            {
+              "name": "_check_strategy_conditions",
+              "description": "Verifica si las condiciones de una estrategia se cumplen",
+              "start_line": 864,
+              "end_line": 891
+            }
+          ]
+        },
+        {
+          "name": "MarketScanner",
+          "description": "Escáner de mercado con detección de estrategias",
+          "start_line": 894,
+          "end_line": 981,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Sin descripción disponible",
+              "start_line": 897,
+              "end_line": 901
+            },
+            {
+              "name": "get_cached_analysis",
+              "description": "Obtiene análisis cacheado si existe",
+              "start_line": 903,
+              "end_line": 907
+            },
+            {
+              "name": "scan_market",
+              "description": "Ejecuta escaneo de mercado enfocado en sectores seleccionados",
+              "start_line": 909,
+              "end_line": 980
             }
           ]
         }
       ],
       "functions": [
         {
+          "name": "get_market_status",
+          "description": "Obtiene el estado actual del mercado con manejo seguro de errores",
+          "start_line": 983,
+          "end_line": 1023
+        },
+        {
+          "name": "initialize_session_state",
+          "description": "Inicializa el estado de la sesión con manejo de errores",
+          "start_line": 1026,
+          "end_line": 1056
+        },
+        {
           "name": "main",
-          "description": "Función principal de la aplicación de notificaciones",
-          "start_line": 2000,
-          "end_line": 2100
+          "description": "Sin descripción disponible",
+          "start_line": 1059,
+          "end_line": 1334
         }
       ]
+    }
+  },
+  "components": {
+    "market_scanner_ui.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_market_scanner",
+          "description": "Renderiza la pestaña del scanner de mercado",
+          "start_line": 14,
+          "end_line": 148
+        }
+      ]
+    },
+    "sidebar.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_sidebar",
+          "description": "Renderiza la barra lateral de la aplicación",
+          "start_line": 12,
+          "end_line": 77
+        }
+      ]
+    },
+    "ai_chat.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_ai_chat",
+          "description": "Renderiza la pestaña de chat con IA",
+          "start_line": 18,
+          "end_line": 127
+        }
+      ]
+    },
+    "__init__.py": {
+      "classes": [],
+      "functions": []
+    },
+    "dashboard.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_dashboard",
+          "description": "Renderiza el dashboard principal",
+          "start_line": 18,
+          "end_line": 184
+        }
+      ]
+    },
+    "individual_analysis_fixed.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_individual_analysis",
+          "description": "Renderiza la pestaña de análisis individual",
+          "start_line": 30,
+          "end_line": 126
+        }
+      ]
+    },
+    "individual_analysis.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "render_individual_analysis",
+          "description": "Renderiza la pestaña de análisis individual",
+          "start_line": 31,
+          "end_line": 117
+        }
+      ]
+    }
+  },
+  "utils": {
+    "config.py": {
+      "classes": [
+        {
+          "name": "NumpyEncoder",
+          "description": "Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas",
+          "start_line": 21,
+          "end_line": 43,
+          "methods": [
+            {
+              "name": "default",
+              "description": "Sin descripción disponible",
+              "start_line": 24,
+              "end_line": 43
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "name": "setup_page_config",
+          "description": "Configura la página de Streamlit",
+          "start_line": 45,
+          "end_line": 54
+        },
+        {
+          "name": "initialize_session_state",
+          "description": "Inicializa el estado de la sesión con valores por defecto",
+          "start_line": 56,
+          "end_line": 80
+        }
+      ]
+    },
+    "session_state.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "initialize_session_state",
+          "description": "Inicializa el estado de la sesión con valores por defecto",
+          "start_line": 12,
+          "end_line": 39
+        },
+        {
+          "name": "get_current_symbol",
+          "description": "Obtiene el símbolo actual seleccionado",
+          "start_line": 41,
+          "end_line": 45
+        },
+        {
+          "name": "set_current_symbol",
+          "description": "Establece el símbolo actual",
+          "start_line": 47,
+          "end_line": 52
+        },
+        {
+          "name": "update_scan_results",
+          "description": "Actualiza los resultados del scanner",
+          "start_line": 54,
+          "end_line": 60
+        },
+        {
+          "name": "add_chat_message",
+          "description": "Añade un mensaje al historial de chat",
+          "start_line": 62,
+          "end_line": 69
+        },
+        {
+          "name": "clear_chat_history",
+          "description": "Limpia el historial de chat",
+          "start_line": 71,
+          "end_line": 75
+        }
+      ]
+    },
+    "summary_manager.py": {
+      "classes": [
+        {
+          "name": "SummaryManager",
+          "description": "Clase para gestionar resúmenes de procesamiento y resultados",
+          "start_line": 16,
+          "end_line": 20,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de resúmenes",
+              "start_line": 22,
+              "end_line": 26
+            },
+            {
+              "name": "create_summary_container",
+              "description": "Crea un nuevo contenedor para resúmenes",
+              "start_line": 28,
+              "end_line": 39
+            },
+            {
+              "name": "show_summary",
+              "description": "Muestra un resumen de procesamiento",
+              "start_line": 41,
+              "end_line": 81
+            },
+            {
+              "name": "show_database_summary",
+              "description": "Muestra un resumen de operaciones de base de datos",
+              "start_line": 83,
+              "end_line": 125
+            },
+            {
+              "name": "show_signal_summary",
+              "description": "Muestra un resumen de señales procesadas",
+              "start_line": 127,
+              "end_line": 170
+            },
+            {
+              "name": "clear_summary",
+              "description": "Limpia un contenedor de resumen",
+              "start_line": 172,
+              "end_line": 188
+            },
+            {
+              "name": "clear_all_summaries",
+              "description": "Limpia todos los contenedores de resumen",
+              "start_line": 190,
+              "end_line": 197
+            }
+          ]
+        }
+      ],
+      "functions": []
+    },
+    "__init__.py": {
+      "classes": [],
+      "functions": []
+    },
+    "ui_utils.py": {
+      "classes": [],
+      "functions": [
+        {
+          "name": "display_header",
+          "description": "Muestra un encabezado con estilo consistente",
+          "start_line": 13,
+          "end_line": 19
+        },
+        {
+          "name": "display_info_message",
+          "description": "Muestra un mensaje informativo con estilo",
+          "start_line": 21,
+          "end_line": 32
+        },
+        {
+          "name": "display_error_message",
+          "description": "Muestra un mensaje de error con estilo",
+          "start_line": 34,
+          "end_line": 45
+        },
+        {
+          "name": "display_asset_card",
+          "description": "Muestra una tarjeta de activo con información básica",
+          "start_line": 47,
+          "end_line": 71
+        },
+        {
+          "name": "create_candlestick_chart",
+          "description": "Crea un gráfico de velas con Plotly",
+          "start_line": 73,
+          "end_line": 101
+        },
+        {
+          "name": "format_timestamp",
+          "description": "Formatea una marca de tiempo para mostrarla",
+          "start_line": 103,
+          "end_line": 116
+        },
+        {
+          "name": "display_data_table",
+          "description": "Muestra una tabla de datos con formato mejorado",
+          "start_line": 118,
+          "end_line": 136
+        }
+      ]
+    },
+    "progress_manager.py": {
+      "classes": [
+        {
+          "name": "ProgressManager",
+          "description": "Clase para gestionar barras de progreso y mensajes de estado",
+          "start_line": 16,
+          "end_line": 20,
+          "methods": [
+            {
+              "name": "__init__",
+              "description": "Inicializa el gestor de progreso",
+              "start_line": 22,
+              "end_line": 32
+            },
+            {
+              "name": "create_progress_bar",
+              "description": "Crea una nueva barra de progreso",
+              "start_line": 34,
+              "end_line": 48
+            },
+            {
+              "name": "update_progress",
+              "description": "Actualiza una barra de progreso existente",
+              "start_line": 50,
+              "end_line": 70
+            },
+            {
+              "name": "complete_progress",
+              "description": "Marca una barra de progreso como completada",
+              "start_line": 72,
+              "end_line": 98
+            },
+            {
+              "name": "error_progress",
+              "description": "Marca una barra de progreso con error",
+              "start_line": 100,
+              "end_line": 122
+            },
+            {
+              "name": "clear_progress",
+              "description": "Limpia una barra de progreso y sus mensajes asociados",
+              "start_line": 124,
+              "end_line": 153
+            },
+            {
+              "name": "clear_all_progress",
+              "description": "Limpia todas las barras de progreso y mensajes",
+              "start_line": 155,
+              "end_line": 162
+            },
+            {
+              "name": "run_with_progress",
+              "description": "Ejecuta una función mostrando una barra de progreso",
+              "start_line": 164,
+              "end_line": 219
+            }
+          ]
+        }
+      ],
+      "functions": []
     }
   }
 }

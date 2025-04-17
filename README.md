@@ -18,6 +18,7 @@ Esta plataforma integra de forma fluida:
 * **Perspectiva Multitemporal:** Para confirmar la robustez de las señales a través de diferentes horizontes de inversión.
 * **Inteligencia de Mercado en Tiempo Real:** Incorporando análisis de sentimiento, noticias relevantes y datos fundamentales.
 * **Descubrimiento de Oportunidades:** Mediante un scanner de mercado configurable y eficiente.
+* **Sistema de Notificaciones:** Envío de boletines por correo y seguimiento de señales en base de datos.
 * **Asistencia IA Contextual:** Un copiloto inteligente que entiende el estado actual del mercado y del activo analizado.
 
 InversorIA Pro busca capacitar a los traders para que operen con mayor confianza, eficiencia y una perspectiva basada en datos, todo dentro de un entorno unificado.
@@ -66,6 +67,44 @@ Compara señales en gráficos diarios, semanales y mensuales para identificar al
 - **Consultas Específicas:** Respuestas a preguntas concretas sobre el mercado y activos.
 - **Contexto Persistente:** Recuerda el activo que estás analizando y el estado general del mercado.
 
+### 🔔 Sistema de Notificaciones
+- **Señales Activas:** Visualización de señales de trading recientes filtradas por categoría y confianza.
+- **Envío de Boletines:** Generación y envío de boletines por correo electrónico con señales seleccionadas.
+- **Historial de Señales:** Consulta del historial de señales generadas y boletines enviados.
+- **Almacenamiento en Base de Datos:** Registro persistente de señales, noticias y sentimiento de mercado.
+
+## 📁 Estructura del Proyecto
+
+El proyecto está organizado de la siguiente manera:
+
+```
+InversorIA/
+├── 📊_InversorIA_Pro.py       # Archivo principal de la aplicación
+├── pages/                     # Páginas adicionales de la aplicación
+│   ├── 1_📈_Analizador_de_Acciones_Pro.py
+│   ├── 2_🤖_Inversor_Bot.py
+│   ├── 3_📊_InversorIA_Mini.py
+│   ├── 4_📈_MarketIntel_Options_Analyzer.py
+│   ├── 5_📈_Technical_Expert_Analyzer.py
+│   ├── 6_📊_InversorIA.py
+│   └── 7_🔔_Notificaciones.py
+├── assets/                    # Recursos estáticos (imágenes, logos, etc.)
+├── components/                # Componentes reutilizables
+├── styles/                    # Estilos CSS
+├── utils/                     # Utilidades generales
+├── sql/                       # Scripts SQL
+├── temp/                      # Carpeta para archivos temporales
+├── legacy_code/               # Código antiguo o no utilizado
+│   ├── tests/                 # Scripts de prueba
+│   ├── old_versions/          # Versiones antiguas de archivos
+│   ├── temp_json/             # Archivos JSON temporales
+│   └── dev_utils/             # Utilidades de desarrollo
+├── .streamlit/                # Configuración de Streamlit
+├── requirements.txt           # Dependencias del proyecto
+├── README.md                  # Documentación principal
+└── secrets.toml.example       # Ejemplo de configuración de secretos
+```
+
 ## 🚀 Instalación
 
 ### 1. Prerrequisitos
@@ -105,6 +144,21 @@ PASSWORD = "tu-contraseña-muy-segura"
 # YOU_API_KEY = "tu-you-com-key"
 # TAVILY_API_KEY = "tu-tavily-key"
 # FINNHUB_API_KEY = "tu-finnhub-key"
+
+# --- Configuración de Base de Datos (Para Sistema de Notificaciones) ---
+# [connections.mysql]
+# host = "localhost"
+# port = 3306
+# database = "inversoria"
+# user = "usuario_db"
+# password = "contraseña_db"
+
+# --- Configuración de Correo Electrónico (Para Envío de Boletines) ---
+# [email]
+# sender = "tu-correo@gmail.com"
+# password = "tu-clave-de-aplicacion"
+# smtp_server = "smtp.gmail.com"
+# smtp_port = 587
 ```
 
 ## 💻 Uso
@@ -125,6 +179,11 @@ PASSWORD = "tu-contraseña-muy-segura"
 4. **Interactuar con IA:**
    Escribe tus preguntas o solicitudes en el panel de chat.
 
+5. **Sistema de Notificaciones:**
+   - Accede a la pestaña "Notificaciones" para gestionar señales y boletines.
+   - Configura la base de datos y el servidor de correo en `secrets.toml`.
+   - Visualiza señales activas, envía boletines y consulta el historial.
+
 ## 🔍 Cómo Sacarle el Máximo Provecho
 
 InversorIA Pro está diseñado para un flujo de trabajo analítico. Aquí tienes una guía paso a paso:
@@ -132,6 +191,7 @@ InversorIA Pro está diseñado para un flujo de trabajo analítico. Aquí tienes
 ### 1. Configuración Inicial Optimizada
 - Asegúrate de tener todas las API keys necesarias en `secrets.toml`.
 - Utiliza un entorno virtual de Python para evitar conflictos de dependencias.
+- Los archivos temporales se guardarán en la carpeta `temp/` para mantener organizado el directorio principal.
 
 ### 2. Vista Panorámica con el Scanner
 - **Inicia aquí:** Selecciona los sectores que te interesan y ejecuta el scanner.
@@ -157,11 +217,42 @@ InversorIA Pro está diseñado para un flujo de trabajo analítico. Aquí tienes
 - Revisa periódicamente nuevas oportunidades y el estado de posiciones abiertas.
 - Utiliza "Limpiar Caché" para actualizar datos cuando sea necesario.
 
+### 7. Configuración del Sistema de Notificaciones
+- **Base de Datos:** Crea una base de datos MariaDB con el siguiente comando:
+  ```sql
+  CREATE DATABASE inversoria CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  ```
+- **Usuario de Base de Datos:** Crea un usuario con permisos:
+  ```sql
+  CREATE USER 'usuario_db'@'localhost' IDENTIFIED BY 'contraseña_db';
+  GRANT ALL PRIVILEGES ON inversoria.* TO 'usuario_db'@'localhost';
+  FLUSH PRIVILEGES;
+  ```
+- **Correo Electrónico:** Para Gmail, usa una "Clave de aplicación" en lugar de la contraseña normal.
+- **Seguridad:** Las credenciales nunca deben ser compartidas o subidas a repositorios públicos.
+
 ## ⚠️ Limitaciones (Potenciales)
 
 - La precisión del análisis depende de la calidad y puntualidad de los datos de las APIs configuradas.
 - Funcionalidades avanzadas pueden requerir suscripciones a servicios de datos adicionales.
 - El rendimiento puede variar según la potencia de tu máquina, especialmente al procesar grandes cantidades de datos.
+- El código antiguo o no utilizado se almacena en la carpeta `legacy_code/` para referencia, pero no se utiliza en la aplicación principal.
+
+## 💾 Estructura de la Base de Datos
+
+El sistema de notificaciones utiliza las siguientes tablas en la base de datos:
+
+1. `trading_signals`: Almacena las señales de trading generadas
+   - Incluye información detallada sobre cada señal: símbolo, dirección, confianza, fecha, etc.
+
+2. `email_logs`: Registra los envíos de boletines
+   - Guarda información sobre cada boletín enviado: destinatarios, asunto, fecha, señales incluidas, etc.
+
+3. `market_sentiment`: Almacena el sentimiento diario del mercado
+   - Registra indicadores de sentimiento para diferentes sectores y el mercado general
+
+4. `market_news`: Guarda noticias relevantes del mercado
+   - Almacena noticias importantes relacionadas con activos específicos o el mercado en general
 
 ## 🤝 Contribuciones
 

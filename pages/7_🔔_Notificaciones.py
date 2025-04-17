@@ -10,7 +10,8 @@ import sys
 import os
 import io
 import decimal
-import tempfile
+
+# import tempfile  # No se utiliza, usar carpeta 'temp' para archivos temporales
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
@@ -257,7 +258,7 @@ class DatabaseManager:
 
     def get_market_sentiment(self, days_back=7):
         """Obtiene sentimiento de mercado reciente"""
-        query = """SELECT * FROM market_sentiment 
+        query = """SELECT * FROM market_sentiment
                   WHERE date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                   ORDER BY date DESC LIMIT 1"""
         params = [days_back]
@@ -603,7 +604,7 @@ class EmailManager:
                     <td style="padding: 20px 0;">
                         <!-- Contenido central limitado a 600px para mejor visualización -->
                         <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse: collapse; background-color: #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 8px;">
-                            
+
                             <!-- HEADER -->
                             <tr>
                                 <td align="center" bgcolor="#2c3e50" style="padding: 30px 20px; color: #ffffff; border-radius: 8px 8px 0 0; background: linear-gradient(135deg, #2c3e50 0%, #1a2a3a 100%);">
@@ -611,7 +612,7 @@ class EmailManager:
                                     <p style="margin: 10px 0 0; font-size: 16px; font-family: Arial, sans-serif;">{current_date}</p>
                                 </td>
                             </tr>
-                            
+
                             <!-- CONTENIDO -->
                             <tr>
                                 <td style="padding: 30px 20px;">
@@ -708,7 +709,7 @@ class EmailManager:
                                 <h3 style="margin-top: 0; color: {direction_color}; font-size: 18px; font-weight: bold; margin-bottom: 15px;">
                                     {symbol} - {direction_text}
                                 </h3>
-                                
+
                                 <!-- Información básica -->
                                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 15px;">
                                     <tr>
@@ -910,7 +911,7 @@ class EmailManager:
                         html += f"""
                         <div style="margin: 20px 0 10px; text-align: center;">
                             <p style="margin: 0 0 8px; font-size: 14px; color: #6c757d;">Recomendación Final</p>
-                            <p style="margin: 0; display: inline-block; padding: 8px 20px; background-color: {rec_bg}; 
+                            <p style="margin: 0; display: inline-block; padding: 8px 20px; background-color: {rec_bg};
                                     border: 2px solid {rec_color}; border-radius: 20px; font-size: 16px; font-weight: bold; color: {rec_color};">
                                 {recommendation}
                             </p>
@@ -944,12 +945,12 @@ class EmailManager:
 
             html += f"""
             <h2 style="color: #2c3e50; font-size: 22px; margin-top: 30px; margin-bottom: 20px; border-bottom: 2px solid #eaeaea; padding-bottom: 10px; font-family: Arial, sans-serif;">Sentimiento de Mercado</h2>
-            
+
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 30px; background-color: {sentiment_bg}; border-left: 4px solid {sentiment_border}; border-radius: 4px;">
                 <tr>
                     <td style="padding: 20px;">
                         <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 18px; color: #2c3e50;">Sentimiento General: {market_sentiment.get('overall', 'Neutral')}</h3>
-                        
+
                         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
                             <tr>
                                 <td width="50%" style="padding: 8px 0;"><strong>VIX:</strong> {market_sentiment.get('vix', 'N/A')}</td>
@@ -1011,7 +1012,7 @@ class EmailManager:
         html += """
                                 </td>
                             </tr>
-                            
+
                             <!-- FOOTER -->
                             <tr>
                                 <td style="padding: 30px 20px; background-color: #f8f9fa; border-top: 1px solid #eaeaea; border-radius: 0 0 8px 8px; color: #6c757d; text-align: center; font-size: 12px;">
@@ -1503,18 +1504,18 @@ with tab1:
 
                 # Construir el HTML con diseño mejorado
                 html = f"""
-                <div style="position: relative; background-color: {card_bg}; padding: 25px; 
-                        border-radius: 12px; margin-bottom: 25px; 
-                        border: 1px solid {border_color}; 
+                <div style="position: relative; background-color: {card_bg}; padding: 25px;
+                        border-radius: 12px; margin-bottom: 25px;
+                        border: 1px solid {border_color};
                         box-shadow: 0 8px 15px rgba(0,0,0,0.08);">
                 """
 
                 # Badge para Alta Confianza
                 if signal.get("is_high_confidence") == 1:
                     html += """
-                    <div style="position: absolute; top: 15px; right: 15px; 
-                                background-color: #28a745; color: white; 
-                                padding: 5px 12px; border-radius: 20px; 
+                    <div style="position: absolute; top: 15px; right: 15px;
+                                background-color: #28a745; color: white;
+                                padding: 5px 12px; border-radius: 20px;
                                 font-size: 12px; font-weight: bold;
                                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                         ⭐ Alta Confianza
@@ -1544,7 +1545,7 @@ with tab1:
                 if signal.get("setup_type"):
                     html += f"""
                     <div style="display: inline-block; margin: 10px 0 15px 0;
-                                padding: 6px 12px; background-color: #e9f5ff; 
+                                padding: 6px 12px; background-color: #e9f5ff;
                                 border-radius: 20px; font-size: 14px; color: #0275d8;
                                 border: 1px solid rgba(2, 117, 216, 0.2);">
                         <i>Setup:</i> {signal.get("setup_type")}
@@ -1553,7 +1554,7 @@ with tab1:
 
                 # Precios y Objetivos - Diseño mejorado
                 html += """
-                <div style="background-color: white; border-radius: 8px; margin: 15px 0; 
+                <div style="background-color: white; border-radius: 8px; margin: 15px 0;
                         padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
                         border: 1px solid #eee;">
                 """
@@ -1626,9 +1627,9 @@ with tab1:
 
                     html += f"""
                     <div style="display: flex; align-items: center;">
-                        <div style="background-color: {rr_color}; color: white; 
-                                border-radius: 50%; width: 40px; height: 40px; display: flex; 
-                                align-items: center; justify-content: center; font-weight: bold; 
+                        <div style="background-color: {rr_color}; color: white;
+                                border-radius: 50%; width: 40px; height: 40px; display: flex;
+                                align-items: center; justify-content: center; font-weight: bold;
                                 margin-right: 10px;">
                             {rr_value:.1f}
                         </div>
@@ -1651,8 +1652,8 @@ with tab1:
                 <div style="background-color: rgba({
                             "40, 167, 69, 0.1" if confidence == "Alta" else
                             ("253, 126, 20, 0.1" if confidence == "Media" else "108, 117, 125, 0.1")
-                        }); 
-                        padding: 5px 12px; border-radius: 15px; 
+                        });
+                        padding: 5px 12px; border-radius: 15px;
                         color: {conf_color}; font-weight: 500;">
                     Confianza: {confidence}
                 </div>
@@ -1681,7 +1682,7 @@ with tab1:
                     )
 
                     html += f"""
-                    <div style="background-color: white; border-radius: 8px; padding: 10px; 
+                    <div style="background-color: white; border-radius: 8px; padding: 10px;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee;">
                         <div style="font-size: 12px; color: #666; margin-bottom: 5px;">RSI</div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1694,7 +1695,7 @@ with tab1:
                 # Soporte
                 if signal.get("support_level"):
                     html += f"""
-                    <div style="background-color: white; border-radius: 8px; padding: 10px; 
+                    <div style="background-color: white; border-radius: 8px; padding: 10px;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee;
                             border-left: 3px solid #28a745;">
                         <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Soporte</div>
@@ -1705,7 +1706,7 @@ with tab1:
                 # Resistencia
                 if signal.get("resistance_level"):
                     html += f"""
-                    <div style="background-color: white; border-radius: 8px; padding: 10px; 
+                    <div style="background-color: white; border-radius: 8px; padding: 10px;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee;
                             border-left: 3px solid #dc3545;">
                         <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Resistencia</div>
@@ -1716,7 +1717,7 @@ with tab1:
                 # Volatilidad
                 if signal.get("volatility"):
                     html += f"""
-                    <div style="background-color: white; border-radius: 8px; padding: 10px; 
+                    <div style="background-color: white; border-radius: 8px; padding: 10px;
                             box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee;">
                         <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Volatilidad</div>
                         <div style="font-size: 16px; font-weight: 600;">{signal.get('volatility')}%</div>
@@ -1735,7 +1736,7 @@ with tab1:
 
                 if trends_available:
                     html += """
-                    <div style="background-color: white; border-radius: 8px; margin: 15px 0; 
+                    <div style="background-color: white; border-radius: 8px; margin: 15px 0;
                             padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
                             border: 1px solid #eee;">
                         <div style="font-size: 14px; font-weight: 500; color: #444; margin-bottom: 12px;">
@@ -1768,8 +1769,8 @@ with tab1:
                         html += f"""
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Tendencia Global</div>
-                            <div style="display: inline-block; padding: 5px 10px; 
-                                    background-color: {trend_bg}; border-radius: 5px; 
+                            <div style="display: inline-block; padding: 5px 10px;
+                                    background-color: {trend_bg}; border-radius: 5px;
                                     color: {trend_color}; font-weight: 500;">
                                 {trend}
                                 {f' <small>({trend_strength})</small>' if trend_strength else ''}
@@ -1802,8 +1803,8 @@ with tab1:
                         html += f"""
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Diaria</div>
-                            <div style="display: inline-block; padding: 5px 10px; 
-                                    background-color: {dt_bg}; border-radius: 5px; 
+                            <div style="display: inline-block; padding: 5px 10px;
+                                    background-color: {dt_bg}; border-radius: 5px;
                                     color: {dt_color}; font-weight: 500;">
                                 {daily_trend}
                             </div>
@@ -1835,8 +1836,8 @@ with tab1:
                         html += f"""
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Semanal</div>
-                            <div style="display: inline-block; padding: 5px 10px; 
-                                    background-color: {wt_bg}; border-radius: 5px; 
+                            <div style="display: inline-block; padding: 5px 10px;
+                                    background-color: {wt_bg}; border-radius: 5px;
                                     color: {wt_color}; font-weight: 500;">
                                 {weekly_trend}
                             </div>
@@ -1868,8 +1869,8 @@ with tab1:
                         html += f"""
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Mensual</div>
-                            <div style="display: inline-block; padding: 5px 10px; 
-                                    background-color: {mt_bg}; border-radius: 5px; 
+                            <div style="display: inline-block; padding: 5px 10px;
+                                    background-color: {mt_bg}; border-radius: 5px;
                                     color: {mt_color}; font-weight: 500;">
                                 {monthly_trend}
                             </div>
@@ -1946,7 +1947,7 @@ with tab1:
                     )
 
                     html += f"""
-                    <div style="background-color: rgba(25, 118, 210, 0.05); border-radius: 8px; 
+                    <div style="background-color: rgba(25, 118, 210, 0.05); border-radius: 8px;
                             padding: 12px 15px; margin: 15px 0; border-left: 3px solid #1976d2;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="font-size: 14px; font-weight: 500; color: #1976d2;">
@@ -1976,7 +1977,7 @@ with tab1:
                     html += f"""
                     <div style="text-align: center; margin: 20px 0 10px 0;">
                         <div style="font-size: 14px; color: #666; margin-bottom: 5px;">Recomendación Final</div>
-                        <div style="display: inline-block; padding: 8px 20px; 
+                        <div style="display: inline-block; padding: 8px 20px;
                                 background-color: {
                                     "rgba(40, 167, 69, 0.1)" if "COMPRAR" in recommendation.upper() else
                                     ("rgba(220, 53, 69, 0.1)" if "VENDER" in recommendation.upper() else "rgba(108, 117, 125, 0.1)")
@@ -1991,11 +1992,11 @@ with tab1:
                 # Sección de análisis detallado
                 html += f"""
                 <details style="margin-top: 20px; cursor: pointer;">
-                    <summary style="color: {text_color}; font-weight: 500; padding: 10px; 
+                    <summary style="color: {text_color}; font-weight: 500; padding: 10px;
                                 background-color: rgba(0,0,0,0.03); border-radius: 5px;">
                         Ver análisis detallado
                     </summary>
-                    <div style="background-color: white; padding: 15px; 
+                    <div style="background-color: white; padding: 15px;
                             border-radius: 8px; margin-top: 10px; border: 1px solid #eee;">
                 """
 
@@ -2213,9 +2214,9 @@ with tab1:
             # Mostrar noticia con diseño mejorado (compatible con modo oscuro)
             st.markdown(
                 f"""
-            <div style="background-color: rgba(255,255,255,0.05); padding: 20px; 
-                       border-radius: 10px; margin-bottom: 15px; 
-                       border: 1px solid rgba(0,0,0,0.05); 
+            <div style="background-color: rgba(255,255,255,0.05); padding: 20px;
+                       border-radius: 10px; margin-bottom: 15px;
+                       border: 1px solid rgba(0,0,0,0.05);
                        box-shadow: 0 4px 6px rgba(0,0,0,0.03);">
                 <h4 style="margin-top: 0; color: #0275d8; font-weight: 600; font-size: 18px;">
                     {item.get('title', '')}

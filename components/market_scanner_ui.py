@@ -6,33 +6,36 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import logging
-from market_scanner import display_opportunities
 from signal_manager import SignalManager
 
 logger = logging.getLogger(__name__)
+
 
 def render_market_scanner():
     """
     Renderiza la pestaña del scanner de mercado
     """
     st.markdown("## 🔍 Scanner de Mercado")
-    
+
     # Usar la función mejorada de display_opportunities
-    from market_scanner import display_opportunities
-    
+    from legacy_code.old_versions.market_scanner import display_opportunities
+
     # Verificar si el scanner está disponible
     if st.session_state.scanner is not None:
         # Mostrar el scanner mejorado
         display_opportunities(st.session_state.scanner)
-        
+
         # Guardar señales en la base de datos cuando hay resultados
-        if "scan_results" in st.session_state and not st.session_state.scan_results.empty:
+        if (
+            "scan_results" in st.session_state
+            and not st.session_state.scan_results.empty
+        ):
             # Botón para guardar señales en la base de datos
             if st.button("Guardar Señales en Base de Datos", type="primary"):
                 # Inicializar gestor de señales si no existe
                 if "signal_manager" not in locals():
                     signal_manager = SignalManager()
-                    
+
                 with st.spinner("Guardando señales en la base de datos..."):
                     signals_saved = 0
                     for _, row in st.session_state.scan_results.iterrows():
@@ -42,9 +45,7 @@ def render_market_scanner():
                                 "CALL"
                                 if row["Estrategia"] == "CALL"
                                 else (
-                                    "PUT"
-                                    if row["Estrategia"] == "PUT"
-                                    else "NEUTRAL"
+                                    "PUT" if row["Estrategia"] == "PUT" else "NEUTRAL"
                                 )
                             )
 
@@ -56,10 +57,7 @@ def render_market_scanner():
                             )
                             if confidence == "Alta" or confidence == "ALTA":
                                 confidence = "Alta"
-                            elif (
-                                confidence == "Media"
-                                or confidence == "MEDIA"
-                            ):
+                            elif confidence == "Media" or confidence == "MEDIA":
                                 confidence = "Media"
                             else:
                                 confidence = "Baja"
@@ -69,9 +67,7 @@ def render_market_scanner():
                                 "symbol": row["Symbol"],
                                 "price": (
                                     row["Precio"]
-                                    if isinstance(
-                                        row["Precio"], (int, float)
-                                    )
+                                    if isinstance(row["Precio"], (int, float))
                                     else 0.0
                                 ),
                                 "direction": direction,
@@ -86,13 +82,20 @@ def render_market_scanner():
                                 "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
                                 "created_at": datetime.now(),
                             }
-                            
+
                             # Añadir información adicional si está disponible
-                            if "Trading_Specialist" in row and row["Trading_Specialist"] != "NEUTRAL":
-                                signal["analysis"] += f" Trading Specialist: {row['Trading_Specialist']}"
-                            
+                            if (
+                                "Trading_Specialist" in row
+                                and row["Trading_Specialist"] != "NEUTRAL"
+                            ):
+                                signal[
+                                    "analysis"
+                                ] += f" Trading Specialist: {row['Trading_Specialist']}"
+
                             if "Sentimiento" in row and row["Sentimiento"] != "neutral":
-                                signal["analysis"] += f" Sentimiento: {row['Sentimiento']}"
+                                signal[
+                                    "analysis"
+                                ] += f" Sentimiento: {row['Sentimiento']}"
 
                             # Verificar si la señal ya existe en la base de datos
                             existing_signals = signal_manager.db_manager.execute_query(
@@ -102,9 +105,7 @@ def render_market_scanner():
 
                             if not existing_signals:
                                 # Guardar señal en la base de datos
-                                signal_manager.db_manager.save_signal(
-                                    signal
-                                )
+                                signal_manager.db_manager.save_signal(signal)
                                 signals_saved += 1
                         except Exception as e:
                             logger.error(
@@ -119,10 +120,10 @@ def render_market_scanner():
                         st.info("No se guardaron nuevas señales en la base de datos")
     else:
         st.error(
-            "El scanner de mercado no está disponible. Verifique la importación desde market_scanner.py"
+            "El scanner de mercado no está disponible. Verifique la importación desde legacy_code/old_versions/market_scanner.py"
         )
         st.session_state.scan_results = pd.DataFrame()
-    
+
     # Sección de información
     with st.expander("ℹ️ Acerca del Scanner"):
         st.markdown(
