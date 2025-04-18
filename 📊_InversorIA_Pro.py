@@ -14,9 +14,18 @@ Características:
 - Scanner de mercado con detección de oportunidades
 """
 
+import streamlit as st
+
+# Configuración de la página - DEBE SER EL PRIMER COMANDO DE STREAMLIT
+st.set_page_config(
+    page_title="InversorIA Pro",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
 import os
 import time
-import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -53,19 +62,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Lista para almacenar errores de importación
+import_errors = []
+
 # Importar componentes personalizados
 try:
     from market_utils import (
         fetch_market_data,
         TechnicalAnalyzer,
-        OptionsParameterManager,
+        MarketUtils,  # Actualizado de OptionsParameterManager a MarketUtils
         get_market_context,
         get_vix_level,
         clear_cache,
         _data_cache,
     )
 except Exception as e:
-    st.error(f"Error importando market_utils: {str(e)}")
+    import_errors.append(f"Error importando market_utils: {str(e)}")
 
 try:
     from trading_dashboard import (
@@ -82,17 +94,17 @@ try:
     # Importar el scanner mejorado
     from enhanced_market_scanner_fixed import render_enhanced_market_scanner
 except Exception as e:
-    st.error(f"Error importando trading_dashboard: {str(e)}")
+    import_errors.append(f"Error importando trading_dashboard: {str(e)}")
 
 try:
     from authenticator import check_password, validate_session, clear_session
 except Exception as e:
-    st.error(f"Error importando authenticator: {str(e)}")
+    import_errors.append(f"Error importando authenticator: {str(e)}")
 
 try:
     from openai_utils import process_tool_calls, tools
 except Exception as e:
-    st.error(f"Error importando openai_utils: {str(e)}")
+    import_errors.append(f"Error importando openai_utils: {str(e)}")
 
 try:
     from technical_analysis import (
@@ -102,15 +114,7 @@ try:
         detect_candle_patterns,
     )
 except Exception as e:
-    st.error(f"Error importando technical_analysis: {str(e)}")
-
-# Configuración de la página
-st.set_page_config(
-    page_title="InversorIA Pro",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+    import_errors.append(f"Error importando technical_analysis: {str(e)}")
 
 
 # Clase para manejar la codificación JSON
@@ -5228,7 +5232,7 @@ def render_enhanced_dashboard(symbol, timeframe="1d"):
         if "options_params" in context:
             params = context.get("options_params", {})
         else:
-            options_manager = OptionsParameterManager()
+            options_manager = MarketUtils()
             params = options_manager.get_symbol_params(symbol)
 
         if params:
@@ -7449,11 +7453,9 @@ def main():
 
                                         # Obtener parámetros de opciones si están disponibles
                                         try:
-                                            from market_utils import (
-                                                OptionsParameterManager,
-                                            )
+                                            from market_utils import MarketUtils
 
-                                            options_manager = OptionsParameterManager()
+                                            options_manager = MarketUtils()
                                             options_params = (
                                                 options_manager.get_symbol_params(
                                                     signal["symbol"]
@@ -8040,19 +8042,72 @@ def main():
                                                                     "sentiment_date": datetime.now(),
                                                                 }
 
-                                                                sentiment_id = save_market_sentiment(
-                                                                    sentiment_data
+                                                                # Verificar si ya existe un registro de sentimiento para hoy
+                                                                today = datetime.now().strftime(
+                                                                    "%Y-%m-%d"
                                                                 )
+                                                                check_query = "SELECT id FROM market_sentiment WHERE DATE(date) = %s"
+                                                                existing_sentiment = (
+                                                                    None
+                                                                )
+
+                                                                try:
+                                                                    from database_utils import (
+                                                                        DatabaseManager,
+                                                                    )
+
+                                                                    db_manager = (
+                                                                        DatabaseManager()
+                                                                    )
+                                                                    existing_sentiment = db_manager.execute_query(
+                                                                        check_query,
+                                                                        [today],
+                                                                    )
+                                                                except (
+                                                                    Exception
+                                                                ) as db_error:
+                                                                    logger.warning(
+                                                                        f"Error verificando sentimiento existente: {str(db_error)}"
+                                                                    )
+
+                                                                if (
+                                                                    existing_sentiment
+                                                                    and len(
+                                                                        existing_sentiment
+                                                                    )
+                                                                    > 0
+                                                                ):
+                                                                    sentiment_id = existing_sentiment[
+                                                                        0
+                                                                    ].get(
+                                                                        "id"
+                                                                    )
+                                                                    # Mostrar mensaje de que ya existe un registro para hoy
+                                                                    st.success(
+                                                                        f"📈 Sentimiento de mercado ya guardado para hoy con ID: {sentiment_id}"
+                                                                    )
+                                                                    logger.info(
+                                                                        f"Sentimiento de mercado ya existe para hoy con ID: {sentiment_id}"
+                                                                    )
+                                                                else:
+                                                                    # Si no existe, guardar nuevo sentimiento
+                                                                    sentiment_id = save_market_sentiment(
+                                                                        sentiment_data
+                                                                    )
+                                                                    if sentiment_id:
+                                                                        # Mostrar mensaje de éxito
+                                                                        st.success(
+                                                                            f"📈 Sentimiento de mercado guardado con ID: {sentiment_id}"
+                                                                        )
+                                                                        logger.info(
+                                                                            f"Sentimiento de mercado guardado con ID: {sentiment_id}"
+                                                                        )
                                                             except (
                                                                 Exception
                                                             ) as sentiment_error:
                                                                 logger.warning(
                                                                     f"No se pudo guardar sentimiento para {signal.get('symbol', '')}: {str(sentiment_error)}"
                                                                 )
-                                                        if sentiment_id:
-                                                            logger.info(
-                                                                f"Sentimiento de mercado guardado con ID: {sentiment_id}"
-                                                            )
                                                 except Exception as data_error:
                                                     logger.error(
                                                         f"Error guardando datos de mercado: {str(data_error)}"
@@ -8108,44 +8163,44 @@ def main():
                                     "saved_signals_info" in st.session_state
                                     and st.session_state.saved_signals_info
                                 ):
-                                    # Crear un mensaje de resumen más detallado y atractivo
-                                    summary_msg = f"""<div style='background-color: #e6f7e6; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
+                                    # Crear un mensaje de resumen más detallado y atractivo con soporte para modo oscuro
+                                    summary_msg = f"""<div style='background-color: var(--background-color, #e6f7e6); color: var(--text-color, #333); padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
                                         <h4 style='color: #28a745; margin-top: 0;'>✅ Se guardaron {signals_saved} señales en la base de datos</h4>
                                         <div style='margin-top: 10px;'>"""
 
-                                    # Añadir detalles de cada señal guardada en una tabla estilizada
+                                    # Añadir detalles de cada señal guardada en una tabla estilizada con soporte para modo oscuro
                                     summary_msg += """<table style='width: 100%; border-collapse: collapse; margin-top: 10px;'>
-                                        <tr style='background-color: #f2f2f2;'>
-                                            <th style='padding: 8px; text-align: left; border-bottom: 1px solid #ddd;'>Símbolo</th>
-                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>ID</th>
-                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>Noticias</th>
+                                        <tr style='background-color: var(--header-bg-color, #f2f2f2); color: var(--header-text-color, #333);'>
+                                            <th style='padding: 8px; text-align: left; border-bottom: 1px solid var(--border-color, #ddd);'>Símbolo</th>
+                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color, #ddd);'>ID</th>
+                                            <th style='padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color, #ddd);'>Noticias</th>
                                         </tr>"""
 
                                     total_news = 0
                                     for info in st.session_state.saved_signals_info:
-                                        # Alternar colores de fila para mejor legibilidad
+                                        # Alternar colores de fila para mejor legibilidad con soporte para modo oscuro
                                         row_style = (
-                                            "background-color: #f9f9f9;"
+                                            "background-color: var(--row-alt-bg-color, #f9f9f9);"
                                             if total_news % 2 == 0
-                                            else ""
+                                            else "background-color: var(--row-bg-color, #ffffff);"
                                         )
-                                        summary_msg += f"""<tr style='{row_style}'>
-                                            <td style='padding: 8px; text-align: left; border-bottom: 1px solid #ddd;'><b>{info['symbol']}</b></td>
-                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>{info['id']}</td>
-                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid #ddd;'>{info['news_count']}</td>
+                                        summary_msg += f"""<tr style='{row_style} color: var(--text-color, #333);'>
+                                            <td style='padding: 8px; text-align: left; border-bottom: 1px solid var(--border-color, #ddd);'><b>{info['symbol']}</b></td>
+                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color, #ddd);'>{info['id']}</td>
+                                            <td style='padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color, #ddd);'>{info['news_count']}</td>
                                         </tr>"""
                                         total_news += info["news_count"]
 
                                     summary_msg += "</table>"
 
-                                    # Añadir resumen de noticias y sentimiento con mejor formato
+                                    # Añadir resumen de noticias y sentimiento con mejor formato y soporte para modo oscuro
                                     if total_news > 0:
-                                        summary_msg += f"""<div style='margin-top: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px; border-left: 5px solid #007bff;'>
+                                        summary_msg += f"""<div style='margin-top: 15px; padding: 10px; background-color: var(--info-bg-color, #f0f8ff); color: var(--info-text-color, #333); border-radius: 5px; border-left: 5px solid #007bff;'>
                                             <p style='margin: 0;'><b>📰 Total de noticias guardadas:</b> {total_news}</p>
                                         </div>"""
 
-                                    # Añadir mensaje de cierre
-                                    summary_msg += """<div style='margin-top: 15px; font-size: 0.9em; color: #666;'>
+                                    # Añadir mensaje de cierre con soporte para modo oscuro
+                                    summary_msg += """<div style='margin-top: 15px; font-size: 0.9em; color: var(--secondary-text-color, #666);'>
                                         <p>Los datos han sido almacenados correctamente en la base de datos y estarán disponibles para consultas futuras.</p>
                                     </div>"""
 
@@ -8158,8 +8213,8 @@ def main():
                                     # Limpiar la información de señales guardadas
                                     st.session_state.saved_signals_info = []
                                 else:
-                                    # Crear un mensaje de éxito más atractivo cuando no hay detalles disponibles
-                                    success_msg = f"""<div style='background-color: #e6f7e6; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
+                                    # Crear un mensaje de éxito más atractivo cuando no hay detalles disponibles con soporte para modo oscuro
+                                    success_msg = f"""<div style='background-color: var(--background-color, #e6f7e6); color: var(--text-color, #333); padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;'>
                                         <h4 style='color: #28a745; margin-top: 0;'>✅ Se guardaron {signals_saved} señales en la base de datos</h4>
                                         <p>Los datos han sido almacenados correctamente y estarán disponibles para consultas futuras.</p>
                                     </div>"""

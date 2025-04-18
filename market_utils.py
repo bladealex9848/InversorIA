@@ -604,10 +604,14 @@ def fetch_market_data(
 # =================================================
 
 
-class OptionsParameterManager:
-    """Gestiona parámetros para trading de opciones basados en categoría de activo"""
+class MarketUtils:
+    """Clase principal para utilidades de mercado y parámetros de trading"""
 
     def __init__(self):
+        # Inicializar el gestor de parámetros de opciones
+        self._init_options_params()
+
+    def _init_options_params(self):
         self.options_params = {
             # Índices
             "SPY": {
@@ -1415,7 +1419,7 @@ class TechnicalAnalyzer:
         self.data = data
         self.indicators = None
         self.signals = {}
-        self.options_manager = OptionsParameterManager()
+        self.options_manager = MarketUtils()
 
     def calculate_indicators(self, data=None):
         """Calcula indicadores técnicos con validación avanzada"""
@@ -1431,7 +1435,9 @@ class TechnicalAnalyzer:
                 len(df) < 15
             ):  # Necesitamos al menos 15 puntos para la mayoría de indicadores
                 if not hasattr(self, "_warning_shown"):
-                    logger.warning(f"⚠️ Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles. Se necesitan al menos 20 filas.")
+                    logger.warning(
+                        f"⚠️ Datos insuficientes para calcular indicadores: solo {len(df)} filas disponibles. Se necesitan al menos 20 filas."
+                    )
                     self._warning_shown = True
                 return df  # Devolver los datos sin procesar si son insuficientes
 
@@ -2673,7 +2679,7 @@ def get_market_context(symbol: str) -> Dict:
         vix_level = get_vix_level()
 
         # Obtener parámetros de opciones
-        options_manager = OptionsParameterManager()
+        options_manager = MarketUtils()
         options_params = options_manager.get_symbol_params(symbol)
         volatility_adjustments = options_manager.get_volatility_adjustments(vix_level)
 

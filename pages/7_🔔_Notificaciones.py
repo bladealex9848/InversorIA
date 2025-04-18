@@ -436,55 +436,88 @@ class DatabaseManager:
             )
             from ai_utils import get_expert_analysis
 
-            # Traducir título si está en inglés
-            if news_data.get("title") and not news_data.get("title").startswith(
-                "Error"
-            ):
-                # Detectar si el título está en inglés (verificación simple)
-                title = news_data.get("title")
-                english_words = [
-                    "the",
-                    "and",
-                    "why",
-                    "what",
-                    "how",
-                    "is",
-                    "are",
-                    "to",
-                    "for",
-                    "in",
-                    "on",
-                    "at",
-                ]
+            # Detectar palabras en inglés para verificación
+            english_words = [
+                "the",
+                "and",
+                "why",
+                "what",
+                "how",
+                "is",
+                "are",
+                "to",
+                "for",
+                "in",
+                "on",
+                "at",
+                "stock",
+                "market",
+                "shares",
+                "price",
+                "report",
+                "earnings",
+                "revenue",
+                "growth",
+                "investors",
+                "trading",
+                "financial",
+                "company",
+                "business",
+                "quarter",
+                "year",
+            ]
+
+            # Procesar título - siempre traducir para asegurar consistencia
+            title = news_data.get("title", "")
+            if title and not title.startswith("Error") and len(title) > 5:
+                # Verificar si está en inglés
                 is_english = any(
                     word.lower() in title.lower().split() for word in english_words
                 )
 
-                if is_english:
-                    prompt = f"Traduce este título de noticia financiera al español de forma concisa y profesional: '{title}'"
-                    translated_title = get_expert_analysis(prompt)
-                    if translated_title and len(translated_title) > 10:
-                        news_data["title"] = translated_title.strip()
-                        logger.info(f"Título traducido: {news_data['title']}")
+                # Traducir título (siempre, para asegurar calidad)
+                prompt = f"""Traduce este título de noticia financiera al español de forma profesional y concisa.
+                Si ya está en español, mejóralo para que sea claro y profesional: '{title}'"""
 
-            # Traducir y condensar resumen
-            if news_data.get("summary") and len(news_data.get("summary", "")) > 20:
-                summary = news_data.get("summary")
-                # Detectar si el resumen está en inglés
+                translated_title = get_expert_analysis(prompt)
+                if translated_title and len(translated_title) > 5:
+                    news_data["title"] = translated_title.strip()
+                    logger.info(f"Título procesado: {news_data['title']}")
+
+            # Procesar resumen - siempre crear uno si no existe o mejorarlo si existe
+            summary = news_data.get("summary", "")
+
+            # Si no hay resumen o es muy corto, intentar generarlo desde el título
+            if not summary or len(summary) < 20:
+                if title and len(title) > 10:
+                    prompt = f"""Genera un resumen informativo en español (máximo 200 caracteres) para una noticia financiera
+                    con este título: '{title}'. El resumen debe ser profesional, informativo y relevante para inversores."""
+
+                    generated_summary = get_expert_analysis(prompt)
+                    if generated_summary and len(generated_summary) > 20:
+                        news_data["summary"] = generated_summary.strip()
+                        logger.info(f"Resumen generado: {news_data['summary']}")
+            else:
+                # Hay un resumen, verificar si está en inglés
                 is_english = any(
                     word.lower() in summary.lower().split() for word in english_words
                 )
 
-                if is_english:
-                    prompt = f"Traduce y condensa este resumen de noticia financiera al español de forma profesional y concisa (máximo 200 caracteres): '{summary}'"
-                    translated_summary = get_expert_analysis(prompt)
-                    if translated_summary and len(translated_summary) > 20:
-                        news_data["summary"] = translated_summary.strip()
-                        logger.info(
-                            f"Resumen traducido y condensado: {news_data['summary']}"
-                        )
+                # Traducir y mejorar el resumen
+                prompt = f"""Traduce y mejora este resumen de noticia financiera al español de forma profesional y concisa (máximo 200 caracteres).
+                Si ya está en español, mejóralo para que sea claro, informativo y relevante para inversores: '{summary}'"""
+
+                processed_summary = get_expert_analysis(prompt)
+                if processed_summary and len(processed_summary) > 20:
+                    news_data["summary"] = processed_summary.strip()
+                    logger.info(f"Resumen procesado: {news_data['summary']}")
         except Exception as e:
-            logger.warning(f"No se pudo traducir la noticia: {str(e)}")
+            logger.warning(f"No se pudo procesar la noticia: {str(e)}")
+            # Asegurar que hay un resumen mínimo si falló el procesamiento
+            if not news_data.get("summary") and news_data.get("title"):
+                news_data["summary"] = (
+                    f"Noticia relacionada con {news_data.get('symbol')}: {news_data.get('title')}"
+                )
 
         # Si no existe, insertar la noticia
         query = """INSERT INTO market_news
@@ -792,9 +825,53 @@ class EmailManager:
                 if company_name:
                     symbol_display = f"{symbol}<br/><span style='font-size: 11px; font-weight: normal; color: #666;'>{company_name}</span>"
 
+                # Determinar color de fondo de la fila según la dirección
+                if signal.get("direction") == "CALL":
+                    row_bg_color = "#e8f5e9"  # Verde claro para CALL
+                elif signal.get("direction") == "PUT":
+                    row_bg_color = "#ffebee"  # Rojo claro para PUT
+                else:
+                    row_bg_color = (
+                        bg_color  # Mantener el color original basado en confianza
+                    )
+
+                # Obtener parámetros del activo desde market_utils.py
+                asset_params = {}
+                try:
+                    from market_utils import MarketUtils
+
+                    market_utils = MarketUtils()
+                    symbol_key = signal.get("symbol", "")
+                    if symbol_key in market_utils.options_params:
+                        asset_params = market_utils.options_params[symbol_key]
+                except Exception as e:
+                    logger.warning(
+                        f"No se pudieron obtener parámetros del activo para {signal.get('symbol', '')}: {str(e)}"
+                    )
+
+                # Crear cadena de parámetros del activo
+                params_str = ""
+                if asset_params:
+                    params_list = []
+                    if "costo_strike" in asset_params:
+                        params_list.append(
+                            f"Costo strike: {asset_params['costo_strike']}"
+                        )
+                    if "volumen_min" in asset_params:
+                        params_list.append(
+                            f"Volumen mínimo: {asset_params['volumen_min']}"
+                        )
+                    if "distance_spot_strike" in asset_params:
+                        params_list.append(
+                            f"Distancia spot-strike: {asset_params['distance_spot_strike']}"
+                        )
+
+                    if params_list:
+                        params_str = f"<br/><span style='font-size: 10px; color: #666;'>{' | '.join(params_list)}</span>"
+
                 html += f"""
-                <tr style="background-color: {bg_color};">
-                    <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; font-weight: bold;">{symbol_display}</td>
+                <tr style="background-color: {row_bg_color};">
+                    <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; font-weight: bold;">{symbol_display}{params_str}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2; color: {direction_color}; font-weight: bold;">{direction_text}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2;">${signal.get('price', '0.00')}</td>
                     <td style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #f2f2f2;">{signal.get('confidence_level', 'Baja')}</td>
@@ -856,16 +933,38 @@ class EmailManager:
                                 f"No se pudo obtener información detallada de la empresa para {symbol}: {str(e)}"
                             )
 
+                    # Inicializar variables de tendencia
+                    trend = signal.get("trend", "")
+                    trend_strength = signal.get("trend_strength", "")
+                    trend_bg = "#ffffff"  # Color por defecto
+
+                    # Determinar color de fondo según tendencia si está disponible
+                    if trend:
+                        if "ALCISTA" in trend.upper():
+                            trend_bg = "#e8f5e9"  # Verde claro para tendencia alcista
+                        elif "BAJISTA" in trend.upper():
+                            trend_bg = "#ffebee"  # Rojo claro para tendencia bajista
+                        else:
+                            trend_bg = "#f5f5f5"  # Gris claro para tendencia neutral
+
                     html += f"""
-                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 30px; border-left: 4px solid {border_color}; background-color: #ffffff; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 30px; border-left: 4px solid {border_color}; background-color: {trend_bg}; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);" class="signal-{direction_text.lower()}">
                         <tr>
                             <td style="padding: 20px;">
-                                <!-- Encabezado de la señal -->
-                                <h3 style="margin-top: 0; color: {direction_color}; font-size: 18px; font-weight: bold; margin-bottom: 5px;">
-                                    {symbol} - {direction_text}
-                                </h3>
-                                <p style="margin: 0 0 15px; color: #444; font-size: 15px;">{company_name}</p>
-                                {f'<p style="margin: 0 0 15px; color: #666; font-size: 13px; font-style: italic;">{company_description}</p>' if company_description else ''}
+                                <!-- Encabezado de la señal con más información -->
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                        <h3 style="margin-top: 0; color: {direction_color}; font-size: 18px; font-weight: bold; margin-bottom: 5px;">
+                                            {symbol} - {direction_text}
+                                        </h3>
+                                        <p style="margin: 0 0 5px; color: #444; font-size: 15px;">{company_name}</p>
+                                        {f'<p style="margin: 0 0 15px; color: #666; font-size: 13px; font-style: italic;">{company_description}</p>' if company_description else ''}
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <span style="display: inline-block; padding: 5px 10px; background-color: {direction_color}; color: white; border-radius: 20px; font-size: 12px; font-weight: bold;">{signal.get('confidence_level', 'Media')}</span>
+                                        {f'<p style="margin: 5px 0 0; font-size: 12px; color: #666;">Actualizado: {signal.get("created_at").strftime("%d/%m/%Y") if isinstance(signal.get("created_at"), datetime) else "Hoy"}</p>' if signal.get("created_at") else ''}
+                                    </div>
+                                </div>
 
                                 <!-- Información básica -->
                                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 15px;">
@@ -932,10 +1031,7 @@ class EmailManager:
                             </p>
                             """
 
-                    # Tendencias
-                    trend = signal.get("trend")
-                    trend_strength = signal.get("trend_strength")
-
+                    # Tendencias - usar las variables ya definidas
                     if trend:
                         trend_color = (
                             "#28a745"
@@ -944,13 +1040,7 @@ class EmailManager:
                                 "#dc3545" if "BAJISTA" in trend.upper() else "#6c757d"
                             )
                         )
-                        trend_bg = (
-                            "#e8f5e9"
-                            if "ALCISTA" in trend.upper()
-                            else (
-                                "#ffebee" if "BAJISTA" in trend.upper() else "#f5f5f5"
-                            )
-                        )
+                        # trend_bg ya está definido arriba
 
                         html += f"""
                         <p style="margin: 15px 0 5px; font-size: 14px; color: #6c757d;">Tendencia:</p>
@@ -1025,11 +1115,25 @@ class EmailManager:
                         </table>
                         """
 
-                    # Usar el análisis experto si está disponible, o los análisis básicos si no
+                    # Verificar si hay un error en el análisis experto
                     expert_analysis = signal.get("expert_analysis", "")
+                    has_expert_error = False
 
+                    # Detectar errores comunes en el análisis experto
                     if (
-                        expert_analysis and len(expert_analysis) > 50
+                        expert_analysis
+                        and "st.session_state has no attribute" in expert_analysis
+                    ):
+                        has_expert_error = True
+                        logger.warning(
+                            f"Error detectado en el análisis experto para {signal.get('symbol', '')}: {expert_analysis[:100]}..."
+                        )
+
+                    # Usar el análisis experto si está disponible y no tiene errores, o los análisis básicos si no
+                    if (
+                        expert_analysis
+                        and len(expert_analysis) > 50
+                        and not has_expert_error
                     ):  # Verificar que sea un análisis sustancial
                         # Convertir el formato markdown a HTML para el correo
                         try:
@@ -1073,22 +1177,47 @@ class EmailManager:
                             </div>
                             """
                     else:
-                        # Usar los análisis básicos si no hay análisis experto
-                        html += f"""
-                        <p style="margin: 15px 0; font-size: 15px; line-height: 1.6;">
-                            {signal.get('analysis', 'No hay análisis disponible.')}
-                        </p>
-                        """
+                        # Usar los análisis básicos si no hay análisis experto o hay errores
+                        analysis_content = signal.get("analysis", "")
+                        technical_analysis_content = signal.get(
+                            "technical_analysis", ""
+                        )
 
-                        # Añadir análisis técnico si está disponible
-                        if signal.get("technical_analysis"):
+                        # Si hay contenido en alguno de los campos de análisis, usarlo
+                        if analysis_content and len(analysis_content) > 10:
                             html += f"""
-                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-                                <p style="margin: 0 0 10px; font-weight: bold; color: #2c3e50;">Análisis Técnico:</p>
-                                <p style="margin: 0; font-size: 14px; line-height: 1.6;">
-                                    {signal.get('technical_analysis')}
+                            <div style="margin-top: 15px; background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+                                <h3 style="margin-top: 0; color: #2c3e50; font-size: 16px;">Análisis Fundamental</h3>
+                                <p style="margin: 10px 0; font-size: 14px; line-height: 1.6; color: #444;">
+                                    {analysis_content}
                                 </p>
                             </div>
+                            """
+                        else:
+                            html += f"""
+                            <p style="margin: 15px 0; font-size: 15px; line-height: 1.6; font-style: italic; color: #666;">
+                                No hay análisis fundamental disponible para este activo.
+                            </p>
+                            """
+
+                        # Añadir análisis técnico si está disponible
+                        if (
+                            technical_analysis_content
+                            and len(technical_analysis_content) > 10
+                        ):
+                            html += f"""
+                            <div style="margin-top: 15px; background-color: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
+                                <h3 style="margin-top: 0; color: #2c3e50; font-size: 16px;">Análisis Técnico</h3>
+                                <p style="margin: 10px 0; font-size: 14px; line-height: 1.6; color: #444;">
+                                    {technical_analysis_content}
+                                </p>
+                            </div>
+                            """
+                        elif not analysis_content or len(analysis_content) <= 10:
+                            html += f"""
+                            <p style="margin: 15px 0; font-size: 15px; line-height: 1.6; font-style: italic; color: #666;">
+                                No hay análisis técnico disponible para este activo.
+                            </p>
                             """
 
                     # Recomendación final
@@ -1401,6 +1530,34 @@ class EmailManager:
                     padding-top: 10px;
                     border-top: 1px solid #eaeaea;
                 }
+                /* Estilos para señales de trading */
+                .signal-call {
+                    background-color: #e8f5e9;
+                    border-left: 4px solid #28a745;
+                }
+                .signal-put {
+                    background-color: #ffebee;
+                    border-left: 4px solid #dc3545;
+                }
+                .signal-neutral {
+                    background-color: #f5f5f5;
+                    border-left: 4px solid #6c757d;
+                }
+                /* Estilos para tablas */
+                .data-table th {
+                    background-color: #f2f6f9;
+                    color: #2c3e50;
+                    padding: 10px;
+                    text-align: left;
+                    border-bottom: 1px solid #dee2e6;
+                }
+                .data-table td {
+                    padding: 8px;
+                    border-bottom: 1px solid #f2f2f2;
+                }
+                .data-table tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
             </style>
             """
 
@@ -1410,6 +1567,27 @@ class EmailManager:
                 enhanced_html = enhanced_html.replace("</head>", f"{pdf_styles}</head>")
             else:
                 enhanced_html = f"<html><head>{pdf_styles}</head><body>{enhanced_html}</body></html>"
+
+            # Verificar si wkhtmltopdf está instalado
+            try:
+                import subprocess
+
+                subprocess.run(
+                    ["which", "wkhtmltopdf"], check=True, capture_output=True
+                )
+                logger.info("wkhtmltopdf está instalado en el sistema")
+            except (subprocess.SubprocessError, FileNotFoundError):
+                logger.warning(
+                    "wkhtmltopdf no está instalado o no se encuentra en el PATH"
+                )
+                # Intentar usar la ruta configurada en pdfkit
+                try:
+                    config = pdfkit.configuration()
+                    logger.info(f"Usando configuración de pdfkit: {config.wkhtmltopdf}")
+                except Exception as config_error:
+                    logger.warning(
+                        f"Error obteniendo configuración de pdfkit: {str(config_error)}"
+                    )
 
             # Opciones para pdfkit (ajustar según sea necesario)
             options = {
@@ -1429,25 +1607,46 @@ class EmailManager:
             }
 
             # Generar PDF
-            pdf = pdfkit.from_string(enhanced_html, False, options=options)
-            logger.info("PDF generado correctamente con diseño mejorado")
-            return pdf
-        except Exception as e:
-            logger.error(f"Error al generar PDF: {str(e)}")
-            # Intentar con opciones más básicas si falla
             try:
-                logger.info("Intentando generar PDF con opciones básicas...")
-                options = {
-                    "page-size": "A4",
-                    "encoding": "UTF-8",
-                    "no-outline": None,
-                }
-                pdf = pdfkit.from_string(html_content, False, options=options)
-                logger.info("PDF generado correctamente con opciones básicas")
-                return pdf
-            except Exception as e2:
-                logger.error(f"Error al generar PDF con opciones básicas: {str(e2)}")
-                return None
+                # Intentar con configuración personalizada primero
+                try:
+                    config = pdfkit.configuration()
+                    pdf = pdfkit.from_string(
+                        enhanced_html, False, options=options, configuration=config
+                    )
+                    logger.info(
+                        "PDF generado correctamente con configuración personalizada"
+                    )
+                    return pdf
+                except Exception as config_error:
+                    logger.warning(
+                        f"Error con configuración personalizada: {str(config_error)}"
+                    )
+                    # Intentar sin configuración personalizada
+                    pdf = pdfkit.from_string(enhanced_html, False, options=options)
+                    logger.info("PDF generado correctamente con diseño mejorado")
+                    return pdf
+            except Exception as pdf_error:
+                logger.error(f"Error generando PDF completo: {str(pdf_error)}")
+                # Intentar con opciones más básicas
+                try:
+                    logger.info("Intentando generar PDF con opciones básicas...")
+                    options = {
+                        "page-size": "A4",
+                        "encoding": "UTF-8",
+                        "no-outline": None,
+                    }
+                    pdf = pdfkit.from_string(html_content, False, options=options)
+                    logger.info("PDF generado correctamente con opciones básicas")
+                    return pdf
+                except Exception as basic_error:
+                    logger.error(
+                        f"Error al generar PDF con opciones básicas: {str(basic_error)}"
+                    )
+                    return None
+        except Exception as e:
+            logger.error(f"Error general al generar PDF: {str(e)}")
+            return None
 
 
 # Clase para gestionar las señales de trading
@@ -3140,7 +3339,7 @@ with tab3:
 
             # Aquí aplicamos estilos manualmente para evitar problemas de compatibilidad
             if "Dirección" in df_display.columns:
-                styled_df = styled_df.applymap(
+                styled_df = styled_df.map(
                     lambda x: (
                         "color: #28a745; font-weight: bold"
                         if "Compra" in str(x)
@@ -3239,7 +3438,7 @@ with tab3:
             styled_df = df_display.style
 
             if "Estado" in df_display.columns:
-                styled_df = styled_df.applymap(
+                styled_df = styled_df.map(
                     lambda x: (
                         "color: #28a745; font-weight: bold"
                         if "Exitoso" in str(x)
