@@ -1032,11 +1032,56 @@ class AIExpert:
         Inicializa el experto en IA
         """
         self.client = None
+        self.assistant_id = None
+
         try:
-            if "openai_client" in st.session_state:
-                self.client = st.session_state.openai_client
-        except:
-            pass
+            # Intentar obtener el cliente desde session_state si estamos en Streamlit
+            try:
+                if "openai_client" in st.session_state:
+                    self.client = st.session_state.openai_client
+                    logger.info("Cliente OpenAI obtenido desde st.session_state")
+            except Exception:
+                # Si no estamos en Streamlit, inicializar el cliente directamente
+                pass
+
+            # Si no tenemos cliente, intentar inicializarlo directamente
+            if not self.client:
+                try:
+                    import os
+                    import toml
+                    import openai
+
+                    # Intentar cargar secretos desde secrets.toml
+                    secrets_path = os.path.join(".streamlit", "secrets.toml")
+                    if os.path.exists(secrets_path):
+                        secrets = toml.load(secrets_path)
+
+                        # Configurar cliente OpenAI
+                        if "openai" in secrets and "api_key" in secrets["openai"]:
+                            openai.api_key = secrets["openai"]["api_key"]
+                            self.client = openai.OpenAI(
+                                api_key=secrets["openai"]["api_key"]
+                            )
+                            logger.info(
+                                "Cliente OpenAI inicializado con 'openai.api_key'"
+                            )
+                        elif "OPENAI_API_KEY" in secrets:
+                            openai.api_key = secrets["OPENAI_API_KEY"]
+                            self.client = openai.OpenAI(
+                                api_key=secrets["OPENAI_API_KEY"]
+                            )
+                            logger.info(
+                                "Cliente OpenAI inicializado con 'OPENAI_API_KEY'"
+                            )
+
+                        # Obtener el ID del asistente
+                        if "ASSISTANT_ID" in secrets:
+                            self.assistant_id = secrets["ASSISTANT_ID"]
+                            logger.info(f"Usando asistente con ID: {self.assistant_id}")
+                except Exception as e:
+                    logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error en __init__: {str(e)}")
 
     def process_text(self, prompt: str, max_tokens: int = 250) -> str:
         """
@@ -1054,9 +1099,29 @@ class AIExpert:
             if not self.client:
                 return self._fallback_process(prompt)
 
+            # Si tenemos un asistente configurado, usarlo
+            if self.assistant_id:
+                return self._process_with_assistant(prompt)
+
+            # Obtener el modelo preferido de los secretos
+            model = "gpt-4"
+            try:
+                import os
+                import toml
+
+                # Intentar cargar el modelo desde secrets.toml
+                secrets_path = os.path.join(".streamlit", "secrets.toml")
+                if os.path.exists(secrets_path):
+                    secrets = toml.load(secrets_path)
+                    if "OPENAI_API_MODEL" in secrets:
+                        model = secrets["OPENAI_API_MODEL"]
+                        logger.info(f"Usando modelo: {model}")
+            except Exception as e:
+                logger.warning(f"Error cargando modelo desde secrets.toml: {str(e)}")
+
             # Enviar solicitud
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=model,
                 messages=[
                     {
                         "role": "system",
@@ -1073,6 +1138,65 @@ class AIExpert:
 
         except Exception as e:
             logger.error(f"Error en process_text: {str(e)}")
+            return self._fallback_process(prompt)
+
+    def _process_with_assistant(self, prompt: str) -> str:
+        """
+        Procesa texto utilizando un asistente de OpenAI
+
+        Args:
+            prompt (str): Texto a procesar
+
+        Returns:
+            str: Texto procesado
+        """
+        try:
+            import time
+
+            # Crear un hilo
+            thread = self.client.beta.threads.create()
+
+            # Añadir mensaje al hilo
+            self.client.beta.threads.messages.create(
+                thread_id=thread.id, role="user", content=prompt
+            )
+
+            # Ejecutar el asistente
+            run = self.client.beta.threads.runs.create(
+                thread_id=thread.id, assistant_id=self.assistant_id
+            )
+
+            # Esperar a que termine la ejecución
+            while run.status != "completed":
+                time.sleep(1)
+                run = self.client.beta.threads.runs.retrieve(
+                    thread_id=thread.id, run_id=run.id
+                )
+
+                # Si hay un error, salir del bucle
+                if run.status in ["failed", "cancelled", "expired"]:
+                    logger.error(f"Error en la ejecución del asistente: {run.status}")
+                    return self._fallback_process(prompt)
+
+            # Obtener los mensajes
+            messages = self.client.beta.threads.messages.list(thread_id=thread.id)
+
+            # Extraer la respuesta del asistente
+            for message in messages.data:
+                if message.role == "assistant":
+                    # Extraer el contenido del mensaje
+                    if hasattr(message, "content") and len(message.content) > 0:
+                        message_content = message.content[0]
+                        if hasattr(message_content, "text"):
+                            nested_text = message_content.text
+                            if hasattr(nested_text, "value"):
+                                return nested_text.value
+
+            # Si no se pudo extraer la respuesta
+            return "No se pudo procesar el mensaje del asistente"
+
+        except Exception as e:
+            logger.error(f"Error procesando con asistente: {str(e)}")
             return self._fallback_process(prompt)
 
     def _fallback_process(self, prompt: str) -> str:

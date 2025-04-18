@@ -25,9 +25,14 @@ InversorIA/
 ├── database_utils.py          # Utilidades para interacción con base de datos
 ├── market_utils.py            # Utilidades para análisis de mercado
 ├── market_data_processor.py   # Procesador de datos de mercado con IA
+├── database_quality_processor.py # Procesador de calidad de datos en la base de datos
+├── database_quality_utils.py  # Utilidades para verificar y mejorar la calidad de los datos
+├── text_processing.py         # Funciones para análisis y traducción de texto
+├── ai_content_generator.py    # Funciones para generar contenido con IA
+├── data_enrichment.py         # Funciones para enriquecer datos (URLs, noticias, etc.)
 ├── yahoo_finance_scraper.py   # Scraper para obtener datos de Yahoo Finance
 ├── company_data.py            # Datos de compañías y símbolos
-├── check_database_quality.py  # Herramienta para verificar calidad de datos
+├── check_db.py                # Herramienta para verificar calidad de datos
 ├── update_database_schema.py  # Herramienta para actualizar esquema de base de datos
 ├── legacy_code/               # Código antiguo o no utilizado
 │   ├── tests/                 # Scripts de prueba
@@ -53,7 +58,7 @@ InversorIA/
 - **Archivo Principal**: `📊_InversorIA_Pro.py` contiene la aplicación principal.
 - **Páginas Adicionales**: Coloca nuevas páginas en la carpeta `pages/` con un prefijo numérico para mantener el orden.
 - **Módulos Auxiliares**: Coloca los módulos auxiliares en la raíz del proyecto si son utilizados por múltiples componentes.
-- **Herramientas de Mantenimiento**: Archivos como `check_database_quality.py` y `update_database_schema.py` son herramientas para mantener la calidad y estructura de los datos.
+- **Herramientas de Mantenimiento**: Archivos como `database_quality_processor.py`, `check_db.py` y `update_database_schema.py` son herramientas para mantener la calidad y estructura de los datos.
 
 ### 2. Organización de Carpetas
 
@@ -88,7 +93,7 @@ InversorIA/
 - **Inventario de Funciones**: Actualiza `inventario_funciones.md` cuando añadas nuevas funciones.
 - **Mapa de Código**: Actualiza `code_map.json` cuando modifiques la estructura del proyecto.
 - **Guía de Estructura**: Actualiza `PROJECT_STRUCTURE_GUIDE.md` cuando realices cambios en la estructura del proyecto.
-- **Calidad de Datos**: Utiliza `check_database_quality.py` para verificar la calidad de los datos almacenados en la base de datos.
+- **Calidad de Datos**: Utiliza `check_db.py` para verificar la calidad de los datos y `database_quality_processor.py` para procesar y mejorar los datos con campos vacíos.
 
 ### 6. Convenciones de Nomenclatura
 
@@ -110,7 +115,7 @@ InversorIA/
 3. **Pruebas**: Escribe pruebas para nuevas funcionalidades y colócalas en una carpeta `tests/` apropiada.
 4. **Documentación**: Actualiza la documentación cuando añadas nuevas características o modifiques las existentes.
 5. **Limpieza**: Mueve el código obsoleto a `legacy_code/` en lugar de eliminarlo, para mantener la referencia.
-6. **Calidad de Datos**: Ejecuta regularmente `check_database_quality.py` para verificar la calidad de los datos y `update_database_schema.py` cuando necesites modificar el esquema de la base de datos.
+6. **Calidad de Datos**: Ejecuta regularmente `check_db.py` para verificar la calidad de los datos, `database_quality_processor.py` para procesar y mejorar los datos con campos vacíos, y `update_database_schema.py` cuando necesites modificar el esquema de la base de datos.
 7. **Scraping de Datos**: Asegúrate de que el scraper de Yahoo Finance (`yahoo_finance_scraper.py`) obtenga URLs válidas para las noticias y datos completos.
 
 Siguiendo estas directrices, mantendremos el proyecto organizado, facilitando su mantenimiento y evolución a largo plazo.

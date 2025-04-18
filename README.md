@@ -90,24 +90,56 @@ InversorIA/
 │   └── 7_🔔_Notificaciones.py
 ├── assets/                    # Recursos estáticos (imágenes, logos, etc.)
 ├── components/                # Componentes reutilizables
-├── scripts/                   # Scripts de utilidad y configuración
-│   ├── setup-repo.sh           # Script para configurar el repositorio
-│   ├── install-hooks.sh        # Script para instalar hooks de Git
-│   └── hooks/                  # Hooks de Git pre-commit
 ├── styles/                    # Estilos CSS
 ├── utils/                     # Utilidades generales
 ├── sql/                       # Scripts SQL
 ├── temp/                      # Carpeta para archivos temporales
+├── ai_utils.py                # Utilidades de IA y procesamiento con modelos
+├── database_utils.py          # Utilidades para interacción con base de datos
+├── market_utils.py            # Utilidades para análisis de mercado
+├── market_data_processor.py   # Procesador de datos de mercado con IA
+├── database_quality_processor.py # Procesador de calidad de datos en la base de datos
+├── database_quality_utils.py  # Utilidades para verificar y mejorar la calidad de los datos
+├── text_processing.py         # Funciones para análisis y traducción de texto
+├── ai_content_generator.py    # Funciones para generar contenido con IA
+├── data_enrichment.py         # Funciones para enriquecer datos (URLs, noticias, etc.)
+├── yahoo_finance_scraper.py   # Scraper para obtener datos de Yahoo Finance
+├── company_data.py            # Datos de compañías y símbolos
+├── check_db.py                # Herramienta para verificar calidad de datos
+├── update_database_schema.py  # Herramienta para actualizar esquema de base de datos
+├── scripts/                   # Scripts de utilidad y configuración
+│   ├── setup-repo.sh           # Script para configurar el repositorio
+│   ├── install-hooks.sh        # Script para instalar hooks de Git
+│   └── hooks/                  # Hooks de Git pre-commit
 ├── legacy_code/               # Código antiguo o no utilizado
 │   ├── tests/                 # Scripts de prueba
 │   ├── old_versions/          # Versiones antiguas de archivos
 │   ├── temp_json/             # Archivos JSON temporales
-│   └── dev_utils/             # Utilidades de desarrollo
+│   ├── temp_scripts/          # Scripts temporales de mantenimiento
+│   ├── dev_utils/             # Utilidades de desarrollo
+│   ├── docs/                  # Documentación antigua
+│   └── sql/                   # Scripts SQL antiguos
 ├── .streamlit/                # Configuración de Streamlit
 ├── requirements.txt           # Dependencias del proyecto
 ├── README.md                  # Documentación principal
+├── inventario_funciones.md    # Inventario de funciones del proyecto
+├── code_map.json              # Mapa de código del proyecto
 └── secrets.toml.example       # Ejemplo de configuración de secretos
 ```
+
+### Directrices para Mantener la Estructura
+
+1. **Archivos Principales**: `📊_InversorIA_Pro.py` contiene la aplicación principal.
+2. **Páginas Adicionales**: Nuevas páginas en la carpeta `pages/` con prefijo numérico para mantener el orden.
+3. **Módulos Auxiliares**: Módulos auxiliares en la raíz si son utilizados por múltiples componentes.
+4. **Archivos Temporales**: Todos los archivos temporales deben guardarse en la carpeta `temp/`.
+5. **Código Antiguo**: Mover código obsoleto a `legacy_code/` en lugar de eliminarlo.
+6. **Documentación**: Mantener actualizada la documentación y el inventario de funciones.
+7. **Convenciones de Nomenclatura**:
+   - Archivos Python: snake_case (ej. `market_utils.py`)
+   - Clases: PascalCase (ej. `MarketScanner`)
+   - Funciones y Variables: snake_case (ej. `get_market_data()`)
+   - Constantes: UPPER_CASE (ej. `MAX_RETRIES`)
 
 ## 🚀 Instalación
 
@@ -150,6 +182,7 @@ Crea la carpeta `.streamlit` y dentro el archivo `secrets.toml`:
 # --- Obligatorias ---
 OPENAI_API_KEY = "sk-..."
 ASSISTANT_ID = "asst_..." # Si usas la API de Asistentes OpenAI
+OPENAI_API_MODEL="gpt-4.1-nano" # o su modelo preferido
 
 # Contraseña para acceder a la aplicación
 PASSWORD = "tu-contraseña-muy-segura"
@@ -245,6 +278,52 @@ InversorIA Pro está diseñado para un flujo de trabajo analítico. Aquí tienes
   ```
 - **Correo Electrónico:** Para Gmail, usa una "Clave de aplicación" en lugar de la contraseña normal.
 - **Seguridad:** Las credenciales nunca deben ser compartidas o subidas a repositorios públicos.
+
+## 💾 Validación y Mejora de Datos
+
+InversorIA Pro incluye un sistema de validación y mejora de datos para asegurar que la información almacenada en la base de datos sea de alta calidad. Este sistema garantiza que campos críticos como 'summary' en la tabla 'market_news' y 'analysis' en la tabla 'market_sentiment' estén siempre completos y procesados por el experto en IA.
+
+### Herramientas de Validación y Mejora
+
+1. **check_db.py**: Herramienta para verificar la estructura y calidad de los datos en las tablas.
+   ```bash
+   python check_db.py
+   ```
+   Muestra la estructura de las tablas, un resumen de registros y calidad de datos, los últimos registros de cada tabla y registros con campos críticos vacíos.
+
+2. **database_quality_processor.py**: Herramienta para procesar registros con campos críticos vacíos.
+   ```bash
+   python database_quality_processor.py
+   ```
+   Busca noticias con resumen vacío y genera resúmenes con IA, busca registros de sentimiento con análisis vacío y genera análisis con IA, traduce títulos en inglés al español, e intenta obtener URLs de noticias desde Yahoo Finance cuando faltan.
+
+3. **post_save_quality_check.py**: Script para verificar y procesar la calidad de los datos después de guardar registros.
+   ```bash
+   # Verificar sin procesar
+   python post_save_quality_check.py --check-only
+
+   # Procesar solo noticias
+   python post_save_quality_check.py --table news
+
+   # Procesar solo sentimiento
+   python post_save_quality_check.py --table sentiment
+
+   # Procesar solo señales
+   python post_save_quality_check.py --table signals
+
+   # Procesar todo con límite de 5 registros por tabla
+   python post_save_quality_check.py --limit 5
+   ```
+
+### Integración con el Flujo de Trabajo
+
+El sistema de validación y mejora de datos está integrado en el flujo de trabajo de la aplicación:
+
+1. **Al guardar datos**: Las funciones `save_market_news`, `save_market_sentiment` y `save_trading_signal` en `database_utils.py` procesan automáticamente la calidad de los datos después de guardar.
+
+2. **Procesamiento periódico**: Se recomienda ejecutar `database_quality_processor.py` periódicamente para procesar registros existentes con campos críticos vacíos.
+
+3. **Monitoreo**: Ejecutar regularmente `check_db.py` para monitorear la calidad de los datos y detectar problemas.
 
 ## ⚠️ Limitaciones (Potenciales)
 

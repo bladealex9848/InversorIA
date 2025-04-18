@@ -10,6 +10,18 @@ import re
 import json
 from database_utils import DatabaseManager
 
+# Importar el validador de datos
+try:
+    from utils.data_validator import DataValidator
+
+    DATA_VALIDATOR_AVAILABLE = True
+except ImportError:
+    DATA_VALIDATOR_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "No se pudo importar DataValidator. Los datos no serán validados antes de guardarlos."
+    )
+
 # Importar el scraper de Yahoo Finance
 try:
     from yahoo_finance_scraper import YahooFinanceScraper
@@ -45,9 +57,25 @@ logger = logging.getLogger(__name__)
 class MarketDataManager:
     """Clase para gestionar datos de mercado (noticias y sentimiento)"""
 
-    def __init__(self, db_manager=None):
+    def __init__(self, db_manager=None, ai_expert=None):
         """Inicializa el gestor de datos de mercado"""
         self.db_manager = db_manager if db_manager else DatabaseManager()
+
+        # Inicializar el validador de datos si está disponible
+        self.data_validator = None
+        if DATA_VALIDATOR_AVAILABLE:
+            try:
+                from ai_utils import AIExpert
+
+                # Si no se proporciona un experto en IA, intentar crear uno
+                if not ai_expert and "openai_client" in globals():
+                    ai_expert = AIExpert()
+                self.data_validator = DataValidator(ai_expert)
+                logger.info("Validador de datos inicializado correctamente")
+            except Exception as e:
+                logger.warning(
+                    f"No se pudo inicializar el validador de datos: {str(e)}"
+                )
 
     def save_news_from_signal(self, signal_data):
         """
@@ -122,6 +150,11 @@ class MarketDataManager:
                                 "news_date": datetime.now(),
                                 "impact": impact,
                             }
+
+                            # Validar y mejorar la noticia antes de guardarla
+                            if self.data_validator:
+                                news = self.data_validator.validate_market_news(news)
+                                logger.info(f"Noticia {i+1} validada y mejorada con IA")
 
                             # Guardar noticia
                             news_id = self.db_manager.save_market_news(news)
@@ -306,6 +339,11 @@ class MarketDataManager:
                     "impact": self._determine_news_impact(signal_data),
                 }
 
+                # Validar y mejorar la noticia principal antes de guardarla
+                if self.data_validator:
+                    main_news = self.data_validator.validate_market_news(main_news)
+                    logger.info("Noticia principal validada y mejorada con IA")
+
                 # Guardar la noticia principal (permitir múltiples noticias del mismo día)
                 news_id = self.db_manager.save_market_news(main_news)
                 if news_id:
@@ -409,6 +447,15 @@ class MarketDataManager:
                             "news_date": datetime.now(),
                             "impact": impact,
                         }
+
+                        # Validar y mejorar la noticia adicional antes de guardarla
+                        if self.data_validator:
+                            add_news = self.data_validator.validate_market_news(
+                                add_news
+                            )
+                            logger.info(
+                                f"Noticia adicional {i+1} validada y mejorada con IA"
+                            )
 
                         # Guardar la noticia adicional (permitir múltiples noticias)
                         news_id = self.db_manager.save_market_news(add_news)
@@ -531,6 +578,13 @@ class MarketDataManager:
                 "volume": volume_info,
                 "notes": notes,
             }
+
+            # Validar y mejorar los datos de sentimiento antes de guardarlos
+            if self.data_validator:
+                sentiment_data = self.data_validator.validate_market_sentiment(
+                    sentiment_data
+                )
+                logger.info("Datos de sentimiento validados y mejorados con IA")
 
             # Guardar datos de sentimiento
             sentiment_id = self.db_manager.save_market_sentiment(sentiment_data)

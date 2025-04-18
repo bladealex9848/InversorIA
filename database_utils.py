@@ -1265,11 +1265,14 @@ class DatabaseManager:
             return None
 
 
-def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
+def save_market_news(
+    news_data: Dict[str, Any], process_quality: bool = True
+) -> Optional[int]:
     """Guarda una noticia de mercado en la base de datos
 
     Args:
         news_data (Dict[str, Any]): Datos de la noticia a guardar
+        process_quality (bool): Indica si se debe procesar la calidad de los datos después de guardar
 
     Returns:
         Optional[int]: ID de la noticia guardada o None si hubo un error
@@ -1299,9 +1302,12 @@ def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
                 "Error"
             ):
                 original_title = news_data.get("title")
-                prompt = f"Traduce este título de noticia financiera al español de forma concisa y profesional: '{original_title}'"
+                prompt = f"Traduce este título de noticia financiera al español de forma concisa y profesional (máximo 100 caracteres): '{original_title}'"
                 translated_title = get_expert_analysis(prompt)
                 if translated_title and len(translated_title) > 10:
+                    # Limitar la longitud del título a 250 caracteres (límite de la columna en la base de datos)
+                    if len(translated_title) > 250:
+                        translated_title = translated_title[:247] + "..."
                     news_data["title"] = translated_title.strip()
                     logger.info(f"Título traducido: {news_data['title']}")
 
@@ -1350,6 +1356,20 @@ def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
         news_id = db_manager.execute_query(query, params, fetch=False)
         if news_id:
             logger.info(f"Noticia guardada con ID: {news_id}")
+
+            # Procesar la calidad de los datos después de guardar
+            if process_quality:
+                try:
+                    from post_save_quality_check import process_quality_after_save
+
+                    # Procesar solo las noticias
+                    process_quality_after_save(table_name="news", limit=1)
+                    logger.info(
+                        f"Procesamiento de calidad completado para la noticia {news_id}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+
             return news_id
         else:
             logger.error("Error guardando noticia: No se obtuvo ID")
@@ -1360,11 +1380,14 @@ def save_market_news(news_data: Dict[str, Any]) -> Optional[int]:
         return None
 
 
-def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
+def save_market_sentiment(
+    sentiment_data: Dict[str, Any], process_quality: bool = True
+) -> Optional[int]:
     """Guarda datos de sentimiento de mercado en la base de datos
 
     Args:
         sentiment_data (Dict[str, Any]): Datos de sentimiento a guardar
+        process_quality (bool): Indica si se debe procesar la calidad de los datos después de guardar
 
     Returns:
         Optional[int]: ID del sentimiento guardado o None si hubo un error
@@ -1507,6 +1530,20 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
             db_manager.execute_query(update_query, params, fetch=False)
             sentiment_id = existing_sentiment[0].get("id")
             logger.info(f"Sentimiento de mercado actualizado con ID: {sentiment_id}")
+
+            # Procesar la calidad de los datos después de guardar
+            if process_quality:
+                try:
+                    from post_save_quality_check import process_quality_after_save
+
+                    # Procesar solo el sentimiento
+                    process_quality_after_save(table_name="sentiment", limit=1)
+                    logger.info(
+                        f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+
             return sentiment_id
         else:
             # Insertar nuevo registro con todos los campos
@@ -1533,6 +1570,20 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
 
             sentiment_id = db_manager.execute_query(insert_query, params, fetch=False)
             logger.info(f"Nuevo sentimiento de mercado guardado con ID: {sentiment_id}")
+
+            # Procesar la calidad de los datos después de guardar
+            if process_quality:
+                try:
+                    from post_save_quality_check import process_quality_after_save
+
+                    # Procesar solo el sentimiento
+                    process_quality_after_save(table_name="sentiment", limit=1)
+                    logger.info(
+                        f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+
             return sentiment_id
 
     except Exception as e:
@@ -1540,11 +1591,14 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
         return None
 
 
-def save_trading_signal(signal_data: Dict[str, Any]) -> Optional[int]:
+def save_trading_signal(
+    signal_data: Dict[str, Any], process_quality: bool = True
+) -> Optional[int]:
     """Guarda una señal de trading en la base de datos
 
     Args:
         signal_data (Dict[str, Any]): Datos de la señal a guardar
+        process_quality (bool): Indica si se debe procesar la calidad de los datos después de guardar
 
     Returns:
         Optional[int]: ID de la señal guardada o None si hubo un error
@@ -1607,7 +1661,22 @@ def save_trading_signal(signal_data: Dict[str, Any]) -> Optional[int]:
             logger.warning(f"No se pudieron mejorar los datos de noticias: {str(e)}")
 
         # Usar el método save_signal del DatabaseManager
-        return db_manager.save_signal(signal_data)
+        signal_id = db_manager.save_signal(signal_data)
+
+        # Procesar la calidad de los datos después de guardar
+        if signal_id and process_quality:
+            try:
+                from post_save_quality_check import process_quality_after_save
+
+                # Procesar solo las señales de trading
+                process_quality_after_save(table_name="signals", limit=1)
+                logger.info(
+                    f"Procesamiento de calidad completado para la señal {signal_id}"
+                )
+            except Exception as e:
+                logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+
+        return signal_id
 
     except Exception as e:
         logger.error(f"Error guardando señal de trading: {str(e)}")

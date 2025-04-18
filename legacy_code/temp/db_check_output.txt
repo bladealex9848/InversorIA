@@ -1,0 +1,459 @@
+2025-04-18 08:36:13,429 - INFO - Usando configuración de base de datos desde secrets.toml (formato db_)
+2025-04-18 08:36:13,892 - INFO - Conexión establecida con la base de datos liceopan_enki_sincelejo
+
+================================================================================
+ESTRUCTURA DE LAS TABLAS
+================================================================================
+
+Tabla: market_news
+----------------------------------------
+Campo: id                   Tipo: int(11)                        Nulo: NO    Clave: PRI   Default: None
+Campo: title                Tipo: varchar(255)                   Nulo: NO    Clave:       Default: None
+Campo: summary              Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: source               Tipo: varchar(100)                   Nulo: YES   Clave:       Default: None
+Campo: url                  Tipo: varchar(255)                   Nulo: YES   Clave:       Default: None
+Campo: news_date            Tipo: datetime                       Nulo: YES   Clave: MUL   Default: None
+Campo: impact               Tipo: enum('Alto','Medio','Bajo')    Nulo: YES   Clave: MUL   Default: None
+Campo: symbol               Tipo: varchar(20)                    Nulo: YES   Clave:       Default: None
+Campo: created_at           Tipo: datetime                       Nulo: YES   Clave:       Default: current_timestamp()
+Campo: updated_at           Tipo: datetime                       Nulo: YES   Clave:       Default: current_timestamp()
+
+Tabla: market_sentiment
+----------------------------------------
+Campo: id                   Tipo: int(11)                        Nulo: NO    Clave: PRI   Default: None
+Campo: symbol               Tipo: varchar(20)                    Nulo: YES   Clave:       Default: None
+Campo: sentiment            Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: score                Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: source               Tipo: varchar(100)                   Nulo: YES   Clave:       Default: None
+Campo: analysis             Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: sentiment_date       Tipo: datetime                       Nulo: YES   Clave:       Default: None
+Campo: date                 Tipo: date                           Nulo: NO    Clave: UNI   Default: None
+Campo: overall              Tipo: enum('Alcista','Bajista','Neutral') Nulo: NO    Clave:       Default: None
+Campo: vix                  Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: sp500_trend          Tipo: varchar(100)                   Nulo: YES   Clave:       Default: None
+Campo: technical_indicators Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: volume               Tipo: varchar(100)                   Nulo: YES   Clave:       Default: None
+Campo: notes                Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: created_at           Tipo: datetime                       Nulo: YES   Clave:       Default: current_timestamp()
+Campo: updated_at           Tipo: datetime                       Nulo: YES   Clave:       Default: current_timestamp()
+
+Tabla: trading_signals
+----------------------------------------
+Campo: id                   Tipo: int(11)                        Nulo: NO    Clave: PRI   Default: None
+Campo: symbol               Tipo: varchar(20)                    Nulo: NO    Clave: MUL   Default: None
+Campo: price                Tipo: decimal(10,2)                  Nulo: YES   Clave:       Default: None
+Campo: entry_price          Tipo: decimal(10,2)                  Nulo: YES   Clave: MUL   Default: None
+Campo: stop_loss            Tipo: decimal(10,2)                  Nulo: YES   Clave:       Default: None
+Campo: target_price         Tipo: decimal(10,2)                  Nulo: YES   Clave:       Default: None
+Campo: risk_reward          Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: direction            Tipo: enum('CALL','PUT','NEUTRAL')   Nulo: NO    Clave: MUL   Default: None
+Campo: confidence_level     Tipo: enum('Alta','Media','Baja')    Nulo: NO    Clave: MUL   Default: None
+Campo: timeframe            Tipo: varchar(20)                    Nulo: YES   Clave:       Default: None
+Campo: strategy             Tipo: varchar(100)                   Nulo: YES   Clave:       Default: None
+Campo: setup_type           Tipo: varchar(100)                   Nulo: YES   Clave: MUL   Default: None
+Campo: category             Tipo: varchar(50)                    Nulo: YES   Clave: MUL   Default: None
+Campo: analysis             Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: technical_analysis   Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: support_level        Tipo: decimal(10,2)                  Nulo: YES   Clave:       Default: None
+Campo: resistance_level     Tipo: decimal(10,2)                  Nulo: YES   Clave:       Default: None
+Campo: rsi                  Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: trend                Tipo: varchar(50)                    Nulo: YES   Clave: MUL   Default: None
+Campo: trend_strength       Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: volatility           Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: options_signal       Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: options_analysis     Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: trading_specialist_signal Tipo: varchar(50)                    Nulo: YES   Clave: MUL   Default: None
+Campo: trading_specialist_confidence Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: sentiment            Tipo: varchar(50)                    Nulo: YES   Clave: MUL   Default: None
+Campo: sentiment_score      Tipo: decimal(5,2)                   Nulo: YES   Clave:       Default: None
+Campo: signal_date          Tipo: date                           Nulo: YES   Clave:       Default: curdate()
+Campo: latest_news          Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: news_source          Tipo: varchar(255)                   Nulo: YES   Clave:       Default: None
+Campo: additional_news      Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: expert_analysis      Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: recommendation       Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: mtf_analysis         Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: daily_trend          Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: weekly_trend         Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: monthly_trend        Tipo: varchar(50)                    Nulo: YES   Clave:       Default: None
+Campo: bullish_indicators   Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: bearish_indicators   Tipo: text                           Nulo: YES   Clave:       Default: None
+Campo: is_high_confidence   Tipo: tinyint(1)                     Nulo: YES   Clave: MUL   Default: 0
+Campo: created_at           Tipo: datetime                       Nulo: NO    Clave: MUL   Default: None
+Campo: updated_at           Tipo: datetime                       Nulo: YES   Clave:       Default: current_timestamp()
+
+================================================================================
+RESUMEN DE REGISTROS Y CALIDAD DE DATOS
+================================================================================
+
+Tabla market_news:
+  - Registros totales: 88
+  - Registros recientes (7 días): 88
+  - Campos con valores vacíos:
+    * summary: 29 registros (33.0%)
+    * url: 7 registros (8.0%)
+
+Tabla market_sentiment:
+  - Registros totales: 1
+  - Registros recientes (7 días): 1
+  - Campos con valores NULL:
+    * symbol: 1 registros (100.0%)
+    * sentiment: 1 registros (100.0%)
+    * score: 1 registros (100.0%)
+    * source: 1 registros (100.0%)
+    * sentiment_date: 1 registros (100.0%)
+
+Tabla trading_signals:
+  - Registros totales: 44
+  - Registros recientes (7 días): 44
+
+============================== ÚLTIMOS 10 REGISTROS DE MARKET_NEWS ==============================
+
+--- Registro 1 ---
+ID: 88
+Símbolo: SPY
+Título: El activo VIXY del sector Volatilidad muestra una tendencia bajista con una relación riesgo/recompensa de 10.72.
+Resumen: Noticia relacionada con ProShares VIX Short-Term Futures ETF: El activo VIXY del sector Volatilidad muestra una tendencia bajista con una relación ...
+Fuente: InversorIA Analytics
+Impacto: Medio
+URL: 
+Fecha: 2025-04-18 08:17:08
+Creado: 2025-04-18 08:17:12
+--------------------------------------------------------------------------------
+
+--- Registro 2 ---
+ID: 87
+Símbolo: SPY
+Título: ProShares VIX Short-Term Futures ETF (VIXY) muestra tendencia bajista con soporte en $62.96
+Resumen: Análisis experto para ProShares VIX Short-Term Futures ETF: ## EVALUACIÓN GENERAL VIXY, ETF que busca replicar la exposición a futuros del VIX a co...
+Fuente: Yahoo Finance
+Impacto: Medio
+URL: https://finance.yahoo.com/quote/VIXY
+Fecha: 2025-04-18 08:17:05
+Creado: 2025-04-18 08:17:08
+--------------------------------------------------------------------------------
+
+--- Registro 3 ---
+ID: 86
+Símbolo: SPY
+Título: Why Fearful Investors Shouldn’t Take the VIXY ETF Bait
+Resumen: Inversores preocupados deben evitar caer en la tentación del ETF VIXY, ya que su volatilidad puede no ser un reflejo exacto del mercado, afectando ...
+Fuente: TipRanks
+Impacto: Medio
+URL: https://finance.yahoo.com/news/why-fearful-investors-shouldn-t-132908168.html
+Fecha: 2025-04-18 08:17:01
+Creado: 2025-04-18 08:17:05
+--------------------------------------------------------------------------------
+
+--- Registro 4 ---
+ID: 85
+Símbolo: SPY
+Título: The Best Ways To Profit From, And Safeguard Against, Market Volatility
+Resumen: Funds focused on the VIX, the stock market's so-called fear gauge, can minimize losses if Trump's next announcement sends stocks crashing.
+Fuente: Forbes
+Impacto: Medio
+URL: https://www.forbes.com/sites/hanktucker/2025/04/18/the-best-ways-to-profit-from-and-safeguard-against-market-volatility/
+Fecha: 2025-04-18 08:16:25
+Creado: 2025-04-18 08:16:28
+--------------------------------------------------------------------------------
+
+--- Registro 5 ---
+ID: 84
+Símbolo: SPY
+Título: ProShares Short VIX Short Term Futures ETF Short Interest Report | BATS:SVXY | Benzinga
+Resumen: Short interest in ProShares Short VIX Short Term Futures ETF (BATS:SVXY) decreased during the last ... out their positions without sending the stoc...
+Fuente: Benzinga.com
+Impacto: Medio
+URL: https://www.benzinga.com/quote/SVXY/short-interest
+Fecha: 2025-04-18 08:16:21
+Creado: 2025-04-18 08:16:25
+--------------------------------------------------------------------------------
+
+--- Registro 6 ---
+ID: 83
+Símbolo: SPY
+Título: ProShares Short VIX Short Term Futures ETF (SVXY) Real-Time
+Resumen: Stock prices may also move more quickly in this environment. Investors who anticipate trading during these times are strongly advised to use limit ...
+Fuente: Nasdaq
+Impacto: Medio
+URL: https://www.nasdaq.com/market-activity/etf/svxy/real-time
+Fecha: 2025-04-18 08:16:15
+Creado: 2025-04-18 08:16:19
+--------------------------------------------------------------------------------
+
+--- Registro 7 ---
+ID: 82
+Símbolo: SPY
+Título: Se recomienda cautela debido a la volatilidad del mercado..
+Resumen: Noticia relacionada con ProShares Ultra VIX Short-Term Futures ETF: Se recomienda cautela debido a la volatilidad del mercado..
+Fuente: InversorIA Analytics
+Impacto: Medio
+URL: 
+Fecha: 2025-04-18 08:15:40
+Creado: 2025-04-18 08:15:44
+--------------------------------------------------------------------------------
+
+--- Registro 8 ---
+ID: 81
+Símbolo: SPY
+Título: El activo UVXY del sector Volatilidad muestra una tendencia bajista con una relación riesgo/recompensa de 0.08.
+Resumen: Noticia relacionada con ProShares Ultra VIX Short-Term Futures ETF: El activo UVXY del sector Volatilidad muestra una tendencia bajista con una rel...
+Fuente: InversorIA Analytics
+Impacto: Medio
+URL: 
+Fecha: 2025-04-18 08:15:37
+Creado: 2025-04-18 08:15:40
+--------------------------------------------------------------------------------
+
+--- Registro 9 ---
+ID: 80
+Símbolo: SPY
+Título: ProShares Ultra VIX Short-Term Futures ETF (UVXY) muestra tendencia bajista con soporte en $31.91
+Resumen: Análisis experto para ProShares Ultra VIX Short-Term Futures ETF: ## EVALUACIÓN GENERAL UVXY, ETF que busca replicar 1.5 veces el rendimiento diari...
+Fuente: Yahoo Finance
+Impacto: Medio
+URL: https://finance.yahoo.com/quote/UVXY
+Fecha: 2025-04-18 08:15:33
+Creado: 2025-04-18 08:15:37
+--------------------------------------------------------------------------------
+
+--- Registro 10 ---
+ID: 79
+Símbolo: SPY
+Título: A day trader's advice for navigating risk and volatility
+Resumen: Consejos de un day trader para gestionar riesgos y volatilidad en SPY, destacando estrategias de trading adaptativas ante fluctuaciones en el merca...
+Fuente: Yahoo Finance Video
+Impacto: Medio
+URL: https://finance.yahoo.com/video/day-traders-advice-navigating-risk-130034665.html
+Fecha: 2025-04-18 08:15:30
+Creado: 2025-04-18 08:15:33
+--------------------------------------------------------------------------------
+
+============================== ÚLTIMOS 10 REGISTROS DE MARKET_SENTIMENT ==============================
+
+--- Registro 1 ---
+ID: 3
+Fecha: 2025-04-18
+Sentimiento: Neutral
+VIX: 52.00
+Tendencia S&P500: Bajista
+Análisis: El sentimiento general del mercado es neutral, reflejado en un VIX de 52.00, indicando una alta volatilidad y posibles fluctuaciones en los precios...
+Indicadores técnicos: Indicadores alcistas: No se detectaron indicadores alcistas significativos | Indicadores bajistas: Tendencia bajista | RSI: 57.67757291553675 | Ten...
+Volumen: N/A
+Notas: Análisis de iPath Series B S&P 500 VIX Short-Term Futures ETN (VXX). Sentimiento: neutral (Score:...
+Creado: 2025-04-18 08:15:03
+--------------------------------------------------------------------------------
+
+============================== ÚLTIMOS 10 REGISTROS DE TRADING_SIGNALS ==============================
+
+--- Registro 1 ---
+ID: 44
+Símbolo: VIXY
+Precio: $69.96
+Dirección: PUT
+Confianza: Baja
+Estrategia: PUT
+Categoría: Volatilidad
+Timeframe: Medio Plazo
+Soporte: $62.96
+Resistencia: $73.46
+RSI: 57.63
+Tendencia: BAJISTA
+Análisis: VIXY presenta una tendencia claramente bajista, respaldada por la formación de mínimos y máximos decrecientes en los gráficos de marco temporal rel...
+Análisis técnico: VIXY mantiene una tendencia bajista consolidada, evidenciada por la formación de mínimos y máximos decrecientes en los gráficos de mayor duración, ...
+Análisis experto: ## EVALUACIÓN GENERAL
+VIXY, ETF que busca replicar la exposición a futuros del VIX a corto plazo, presenta una tendencia bajista con señal técnica ...
+Creado: 2025-04-18 08:16:37
+--------------------------------------------------------------------------------
+
+--- Registro 2 ---
+ID: 43
+Símbolo: SVXY
+Precio: $35.66
+Dirección: PUT
+Confianza: Baja
+Estrategia: PUT
+Categoría: Volatilidad
+Timeframe: Medio Plazo
+Soporte: $32.09
+Resistencia: $37.44
+RSI: 35.29
+Tendencia: BAJISTA
+Análisis: SVXY presenta una tendencia claramente bajista, evidenciada por la formación de mínimos y máximos decrecientes en los gráficos de marco temporal re...
+Análisis técnico: SVXY mantiene una tendencia bajista consolidada, evidenciada por la formación de mínimos y máximos decrecientes en los gráficos de mayor duración, ...
+Análisis experto: ## EVALUACIÓN GENERAL
+SVXY, ETF que busca replicar la mitad del rendimiento inverso del índice VIX Short-Term Futures, presenta una tendencia bajis...
+Creado: 2025-04-18 08:15:50
+--------------------------------------------------------------------------------
+
+--- Registro 3 ---
+ID: 42
+Símbolo: UVXY
+Precio: $35.46
+Dirección: PUT
+Confianza: Baja
+Estrategia: PUT
+Categoría: Volatilidad
+Timeframe: Medio Plazo
+Soporte: $31.91
+Resistencia: $37.23
+RSI: 55.55
+Tendencia: BAJISTA
+Análisis: UVXY presenta una tendencia claramente bajista, evidenciada por la estructura de mínimos y máximos decrecientes en los gráficos de marco temporal r...
+Análisis técnico: UVXY mantiene una tendencia bajista marcada por la formación de mínimos y máximos decrecientes en los gráficos de mayor duración, consolidando la d...
+Análisis experto: ## EVALUACIÓN GENERAL
+UVXY, ETF que busca replicar 1.5 veces el rendimiento diario del VIX a corto plazo, presenta una tendencia bajista en el esce...
+Creado: 2025-04-18 08:15:03
+--------------------------------------------------------------------------------
+
+--- Registro 4 ---
+ID: 41
+Símbolo: VXX
+Precio: $71.34
+Dirección: PUT
+Confianza: Baja
+Estrategia: PUT
+Categoría: Volatilidad
+Timeframe: Medio Plazo
+Soporte: $64.21
+Resistencia: $74.91
+RSI: 57.68
+Tendencia: BAJISTA
+Análisis: El análisis del símbolo VXX indica una señal de opción PUT con nivel de confianza bajo, lo que sugiere precaución en la interpretación de la tenden...
+Análisis técnico: VXX presenta una tendencia bajista moderada, respaldada por la formación de sucesivos mínimos y máximos decrecientes en gráficos de marco temporal ...
+Análisis experto: ## EVALUACIÓN GENERAL
+El activo VXX, un ETF que sigue los futuros del VIX, muestra una tendencia bajista en el corto plazo, a pesar de haber alcanz...
+Creado: 2025-04-18 08:14:10
+--------------------------------------------------------------------------------
+
+--- Registro 5 ---
+ID: 22
+Símbolo: V
+Precio: $329.61
+Dirección: PUT
+Confianza: Alta
+Estrategia: PUT
+Categoría: Finanzas
+Timeframe: Medio Plazo
+Soporte: $296.65
+Resistencia: $346.09
+RSI: 46.46
+Tendencia: BAJISTA
+Análisis: V presenta una señal de venta PUT con alta confianza, respaldada por una tendencia bajista claramente establecida. El precio en torno a $329.61 con...
+Análisis técnico: V mantiene una tendencia bajista fuerte, confirmada por el precio por debajo de medias móviles de 50 y 200 periodos en marco diario, que actúan com...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:56:18
+--------------------------------------------------------------------------------
+
+--- Registro 6 ---
+ID: 21
+Símbolo: WFC
+Precio: $64.71
+Dirección: PUT
+Confianza: Baja
+Estrategia: PUT
+Categoría: Finanzas
+Timeframe: Medio Plazo
+Soporte: $58.24
+Resistencia: $67.95
+RSI: 42.19
+Tendencia: BAJISTA
+Análisis: WFC presenta una señal de venta PUT con confianza baja, respaldada por la estructura del mercado. El precio en torno a $64.71 confirma la continuid...
+Análisis técnico: WFC mantiene una tendencia bajista moderada, evidenciada por la caída del precio por debajo de medias móviles de 50 y 200 periodos en marco diario,...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:55:43
+--------------------------------------------------------------------------------
+
+--- Registro 7 ---
+ID: 20
+Símbolo: CRM
+Precio: $247.26
+Dirección: PUT
+Confianza: Alta
+Estrategia: PUT
+Categoría: Tecnología
+Timeframe: Medio Plazo
+Soporte: $222.53
+Resistencia: $259.62
+RSI: 35.39
+Tendencia: BAJISTA
+Análisis: CRM presenta una señal de venta PUT con alta confianza, respaldada por la estructura del mercado y los indicadores técnicos. El precio en torno a $...
+Análisis técnico: CRM mantiene una tendencia bajista fuerte, confirmada por la acción del precio por debajo de medias móviles de 50 y 200 periodos en marco diario, a...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:55:08
+--------------------------------------------------------------------------------
+
+--- Registro 8 ---
+ID: 19
+Símbolo: META
+Precio: $501.48
+Dirección: PUT
+Confianza: Alta
+Estrategia: PUT
+Categoría: Tecnología
+Timeframe: Medio Plazo
+Soporte: $451.33
+Resistencia: $526.55
+RSI: 35.45
+Tendencia: BAJISTA
+Análisis: META presenta una señal de venta PUT con alta confianza, respaldada por la fuerte tendencia bajista que muestra el activo. El precio en torno a $50...
+Análisis técnico: META mantiene una tendencia bajista marcada por la acción del precio por debajo de medias móviles de 50 y 200 periodos, ambas en dirección descende...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:54:35
+--------------------------------------------------------------------------------
+
+--- Registro 9 ---
+ID: 18
+Símbolo: NVDA
+Precio: $101.49
+Dirección: PUT
+Confianza: Alta
+Estrategia: PUT
+Categoría: Tecnología
+Timeframe: Medio Plazo
+Soporte: $91.34
+Resistencia: $106.56
+RSI: 41.68
+Tendencia: BAJISTA
+Análisis: NVDA presenta una señal de venta PUT con alta confianza, respaldada por la estructura del mercado y los indicadores técnicos. El precio actual de a...
+Análisis técnico: NVDA mantiene una tendencia bajista marcada por la acción del precio por debajo de medias móviles de 50 y 200 periodos, ambas en dirección descende...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:53:58
+--------------------------------------------------------------------------------
+
+--- Registro 10 ---
+ID: 17
+Símbolo: TSLA
+Precio: $241.37
+Dirección: PUT
+Confianza: Alta
+Estrategia: PUT
+Categoría: Tecnología
+Timeframe: Medio Plazo
+Soporte: $217.23
+Resistencia: $253.44
+RSI: 43.56
+Tendencia: BAJISTA
+Análisis: TSLA presenta una señal de venta PUT con alta confianza, respaldada por la estructura del mercado y los indicadores técnicos. El precio en torno a ...
+Análisis técnico: TSLA mantiene una tendencia bajista marcada por la acción del precio por debajo de medias móviles de 50 y 200 periodos, ambas en dirección descende...
+Análisis experto: Error al consultar al experto: st.session_state has no attribute "progress_bars". Did you forget to initialize it? More info: https://docs.streamli...
+Creado: 2025-04-18 00:53:21
+--------------------------------------------------------------------------------
+
+================================================================================
+REGISTROS CON CAMPOS CRÍTICOS VACÍOS
+================================================================================
+
+Tabla market_news:
+  - Campo 'summary': 10 registros con valores vacíos
+    * Registro 1: ID=6, Símbolo=SPY, Título=A day trader's advice for navi..., Creado=2025-04-17 15:21:35
+    * Registro 2: ID=15, Símbolo=SPY, Título=Why Fearful Investors Shouldn’..., Creado=2025-04-17 15:23:09
+    * Registro 3: ID=17, Símbolo=SPY, Título=Is UnitedHealth Group Incorpor..., Creado=2025-04-17 22:40:00
+    * Registro 4: ID=18, Símbolo=SPY, Título=Short Week Finishes with Netfl..., Creado=2025-04-17 22:40:03
+    * Registro 5: ID=19, Símbolo=SPY, Título=Tariff signs in Fed surveys, U..., Creado=2025-04-17 22:40:07
+
+Tabla market_sentiment: No se encontraron campos críticos vacíos
+
+Tabla trading_signals: No se encontraron campos críticos vacíos
+================================================================================
+2025-04-18 08:36:39,779 - INFO - Conexión cerrada
