@@ -1350,13 +1350,67 @@ class EmailManager:
         return context
 
     def generate_pdf(self, html_content):
-        """Genera un PDF a partir del contenido HTML"""
+        """Genera un PDF a partir del contenido HTML con diseño mejorado"""
         # Verificar si pdfkit está disponible
         if not PDFKIT_AVAILABLE:
             logger.warning("pdfkit no está disponible. No se puede generar PDF.")
             return None
 
         try:
+            # Mejorar el HTML para el PDF con estilos adicionales
+            # Añadir CSS para mejorar la apariencia en el PDF
+            pdf_styles = """
+            <style>
+                @page {
+                    size: A4;
+                    margin: 1cm;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                }
+                h1, h2, h3, h4 {
+                    color: #2c3e50;
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                img {
+                    max-width: 100%;
+                    height: auto;
+                }
+                .page-break {
+                    page-break-after: always;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #eaeaea;
+                }
+                .footer {
+                    text-align: center;
+                    font-size: 10px;
+                    color: #6c757d;
+                    margin-top: 30px;
+                    padding-top: 10px;
+                    border-top: 1px solid #eaeaea;
+                }
+            </style>
+            """
+
+            # Insertar los estilos en el HTML
+            enhanced_html = html_content
+            if "</head>" in enhanced_html:
+                enhanced_html = enhanced_html.replace("</head>", f"{pdf_styles}</head>")
+            else:
+                enhanced_html = f"<html><head>{pdf_styles}</head><body>{enhanced_html}</body></html>"
+
             # Opciones para pdfkit (ajustar según sea necesario)
             options = {
                 "page-size": "A4",
@@ -1368,15 +1422,32 @@ class EmailManager:
                 "no-outline": None,
                 "enable-local-file-access": "",
                 "print-media-type": "",
+                "javascript-delay": "1000",  # Esperar a que se carguen los scripts
+                "enable-javascript": "",  # Habilitar JavaScript
+                "images": "",  # Incluir imágenes
+                "quiet": "",  # Modo silencioso
             }
 
             # Generar PDF
-            pdf = pdfkit.from_string(html_content, False, options=options)
-            logger.info("PDF generado correctamente")
+            pdf = pdfkit.from_string(enhanced_html, False, options=options)
+            logger.info("PDF generado correctamente con diseño mejorado")
             return pdf
         except Exception as e:
             logger.error(f"Error al generar PDF: {str(e)}")
-            return None
+            # Intentar con opciones más básicas si falla
+            try:
+                logger.info("Intentando generar PDF con opciones básicas...")
+                options = {
+                    "page-size": "A4",
+                    "encoding": "UTF-8",
+                    "no-outline": None,
+                }
+                pdf = pdfkit.from_string(html_content, False, options=options)
+                logger.info("PDF generado correctamente con opciones básicas")
+                return pdf
+            except Exception as e2:
+                logger.error(f"Error al generar PDF con opciones básicas: {str(e2)}")
+                return None
 
 
 # Clase para gestionar las señales de trading
@@ -1675,17 +1746,99 @@ class SignalManager:
             signals, market_sentiment, news_summary
         )
 
-        # Generar PDF si está habilitado
+        # Generar PDF mejorado si está habilitado
         pdf_content = None
         if include_pdf and PDFKIT_AVAILABLE:
             try:
-                pdf_content = self.email_manager.generate_pdf(html_content)
+                # Crear una versión mejorada del HTML para el PDF
+                # Añadir información adicional para el PDF que no está en el correo
+                pdf_html = html_content
+
+                # Añadir información detallada de cada señal para el PDF
+                if signals and len(signals) > 0:
+                    pdf_html = pdf_html.replace(
+                        "</body>",
+                        """
+                    <div class="page-break"></div>
+                    <h1 style="text-align: center; margin-top: 20px;">Análisis Detallado de Señales</h1>
+                    <p style="text-align: center; color: #666;">Este análisis detallado solo está disponible en la versión PDF del boletín</p>
+                    """,
+                    )
+
+                    for signal in signals:
+                        symbol = signal.get("symbol", "")
+                        company_name = signal.get("company_name", symbol)
+                        analysis = signal.get("analysis", "")
+                        technical_analysis = signal.get("technical_analysis", "")
+                        expert_analysis = signal.get("expert_analysis", "")
+
+                        pdf_html += f"""
+                        <div style="margin: 30px 0; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                            <h2>{symbol} - {company_name}</h2>
+                            <h3>Análisis Fundamental</h3>
+                            <p>{analysis}</p>
+
+                            <h3>Análisis Técnico</h3>
+                            <p>{technical_analysis}</p>
+
+                            <h3>Análisis del Experto</h3>
+                            <p>{expert_analysis}</p>
+                        </div>
+                        """
+
+                    pdf_html += "</body>"
+
+                # Añadir información detallada de noticias para el PDF
+                if news_summary and len(news_summary) > 0:
+                    pdf_html = pdf_html.replace(
+                        "</body>",
+                        """
+                    <div class="page-break"></div>
+                    <h1 style="text-align: center; margin-top: 20px;">Noticias Completas</h1>
+                    <p style="text-align: center; color: #666;">Versión completa de las noticias mencionadas en el boletín</p>
+                    """,
+                    )
+
+                    for news in news_summary:
+                        title = news.get("title", "")
+                        summary = news.get("summary", "")
+                        source = news.get("source", "")
+                        url = news.get("url", "")
+
+                        pdf_html += f"""
+                        <div style="margin: 20px 0; padding: 15px; border: 1px solid #eee; border-radius: 8px;">
+                            <h3>{title}</h3>
+                            <p>{summary}</p>
+                            <p style="color: #666; font-size: 12px;">Fuente: {source} {f'<a href="{url}">{url}</a>' if url else ''}</p>
+                        </div>
+                        """
+
+                    pdf_html += "</body>"
+
+                # Generar el PDF con el contenido mejorado
+                pdf_content = self.email_manager.generate_pdf(pdf_html)
                 if pdf_content:
-                    logger.info("PDF generado correctamente para adjuntar al correo")
+                    logger.info(
+                        "PDF mejorado generado correctamente para adjuntar al correo"
+                    )
                 else:
-                    logger.warning("No se pudo generar el PDF para adjuntar al correo")
+                    logger.warning(
+                        "No se pudo generar el PDF mejorado para adjuntar al correo"
+                    )
+                    # Intentar con el HTML original como fallback
+                    pdf_content = self.email_manager.generate_pdf(html_content)
+                    if pdf_content:
+                        logger.info("PDF básico generado como alternativa")
             except Exception as e:
                 logger.error(f"Error generando PDF: {str(e)}")
+                # Intentar con opciones más básicas
+                try:
+                    logger.info("Intentando generar PDF con opciones básicas...")
+                    pdf_content = self.email_manager.generate_pdf(html_content)
+                    if pdf_content:
+                        logger.info("PDF básico generado como alternativa")
+                except Exception as e2:
+                    logger.error(f"Error generando PDF básico: {str(e2)}")
 
         # Enviar correo
         subject = (

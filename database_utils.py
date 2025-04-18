@@ -1439,10 +1439,13 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
             else:
                 cleaned_data[key] = value
 
-        # Verificar si ya existe un registro para la fecha especificada
+        # Verificar si ya existe un registro para la fecha y símbolo especificados
         check_query = """SELECT id FROM market_sentiment
-                      WHERE date = %s"""
-        check_params = [cleaned_data.get("date", datetime.now().date())]
+                      WHERE date = %s AND symbol = %s"""
+        check_params = [
+            cleaned_data.get("date", datetime.now().date()),
+            cleaned_data.get("symbol", "SPY"),
+        ]
         existing_sentiment = db_manager.execute_query(check_query, check_params)
 
         if existing_sentiment and len(existing_sentiment) > 0:
@@ -1461,6 +1464,12 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
                                   technical_indicators = %s,
                                   volume = %s,
                                   notes = %s,
+                                  symbol = %s,
+                                  sentiment = %s,
+                                  score = %s,
+                                  source = %s,
+                                  analysis = %s,
+                                  sentiment_date = %s,
                                   updated_at = NOW()
                               WHERE id = %s"""
             else:
@@ -1470,7 +1479,13 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
                                   sp500_trend = %s,
                                   technical_indicators = %s,
                                   volume = %s,
-                                  notes = %s
+                                  notes = %s,
+                                  symbol = %s,
+                                  sentiment = %s,
+                                  score = %s,
+                                  source = %s,
+                                  analysis = %s,
+                                  sentiment_date = %s
                               WHERE id = %s"""
 
             params = (
@@ -1480,6 +1495,12 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),
                 cleaned_data.get("notes", ""),
+                cleaned_data.get("symbol", "SPY"),
+                cleaned_data.get("sentiment", cleaned_data.get("overall", "Neutral")),
+                cleaned_data.get("score", 0.5),
+                cleaned_data.get("source", "InversorIA Analytics"),
+                cleaned_data.get("analysis", ""),
+                cleaned_data.get("sentiment_date", datetime.now()),
                 existing_sentiment[0].get("id"),
             )
 
@@ -1488,10 +1509,11 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
             logger.info(f"Sentimiento de mercado actualizado con ID: {sentiment_id}")
             return sentiment_id
         else:
-            # Insertar nuevo registro
+            # Insertar nuevo registro con todos los campos
             insert_query = """INSERT INTO market_sentiment
-                          (date, overall, vix, sp500_trend, technical_indicators, volume, notes, created_at)
-                          VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
+                          (date, overall, vix, sp500_trend, technical_indicators, volume, notes,
+                           symbol, sentiment, score, source, analysis, sentiment_date, created_at)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())"""
 
             params = (
                 cleaned_data.get("date", datetime.now().date()),
@@ -1501,6 +1523,12 @@ def save_market_sentiment(sentiment_data: Dict[str, Any]) -> Optional[int]:
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),
                 cleaned_data.get("notes", ""),
+                cleaned_data.get("symbol", "SPY"),
+                cleaned_data.get("sentiment", cleaned_data.get("overall", "Neutral")),
+                cleaned_data.get("score", 0.5),
+                cleaned_data.get("source", "InversorIA Analytics"),
+                cleaned_data.get("analysis", ""),
+                cleaned_data.get("sentiment_date", datetime.now()),
             )
 
             sentiment_id = db_manager.execute_query(insert_query, params, fetch=False)
