@@ -1289,9 +1289,93 @@ def save_market_news(
         if not news_data.get("news_date"):
             news_data["news_date"] = datetime.now()
 
-        # Asegurar que el símbolo esté presente
-        if not news_data.get("symbol"):
-            news_data["symbol"] = "SPY"  # Valor por defecto
+        # Asegurar que el símbolo esté presente y sea correcto
+        # Si ya viene un símbolo, verificar que sea válido usando company_data.py
+        from company_data import COMPANY_INFO
+
+        original_symbol = news_data.get("symbol")
+        title = news_data.get("title", "")
+
+        # Caso 1: Si ya viene un símbolo, verificar que sea válido
+        if original_symbol:
+            # Verificar si el símbolo existe en nuestra base de datos
+            if original_symbol in COMPANY_INFO:
+                # El símbolo es válido, mantenerlo
+                logger.info(
+                    f"Símbolo válido proporcionado: {original_symbol} - {COMPANY_INFO[original_symbol]['name']}"
+                )
+            else:
+                # El símbolo no es reconocido, intentar extraerlo del título
+                extracted_symbol = extract_symbol_from_title(title)
+                if extracted_symbol and extracted_symbol in COMPANY_INFO:
+                    news_data["symbol"] = extracted_symbol
+                    logger.info(
+                        f"Símbolo reemplazado: {original_symbol} -> {extracted_symbol} ({COMPANY_INFO[extracted_symbol]['name']})"
+                    )
+                else:
+                    # Intentar usar IA para identificar el símbolo
+                    try:
+                        from ai_utils import get_expert_analysis
+
+                        prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en este título de noticia financiera. Responde solo con el símbolo, sin explicaciones: '{title}'"
+                        ai_symbol = get_expert_analysis(prompt).strip().upper()
+
+                        # Verificar si el símbolo identificado por IA es válido
+                        if ai_symbol and ai_symbol in COMPANY_INFO:
+                            news_data["symbol"] = ai_symbol
+                            logger.info(
+                                f"Símbolo identificado por IA: {ai_symbol} ({COMPANY_INFO[ai_symbol]['name']})"
+                            )
+                        else:
+                            # Mantener el símbolo original si no se puede identificar uno mejor
+                            logger.info(
+                                f"Manteniendo símbolo original no reconocido: {original_symbol}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error al usar IA para identificar símbolo: {str(e)}"
+                        )
+                        # Mantener el símbolo original
+                        logger.info(f"Manteniendo símbolo original: {original_symbol}")
+
+        # Caso 2: Si no viene un símbolo, intentar extraerlo del título
+        else:
+            # Intentar extraer el símbolo del título
+            extracted_symbol = extract_symbol_from_title(title)
+            if extracted_symbol and extracted_symbol in COMPANY_INFO:
+                news_data["symbol"] = extracted_symbol
+                logger.info(
+                    f"Símbolo extraído del título: {extracted_symbol} ({COMPANY_INFO[extracted_symbol]['name']})"
+                )
+            else:
+                # Intentar usar IA para identificar el símbolo
+                try:
+                    from ai_utils import get_expert_analysis
+
+                    prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en este título de noticia financiera. Responde solo con el símbolo, sin explicaciones: '{title}'"
+                    ai_symbol = get_expert_analysis(prompt).strip().upper()
+
+                    # Verificar si el símbolo identificado por IA es válido
+                    if ai_symbol and ai_symbol in COMPANY_INFO:
+                        news_data["symbol"] = ai_symbol
+                        logger.info(
+                            f"Símbolo identificado por IA: {ai_symbol} ({COMPANY_INFO[ai_symbol]['name']})"
+                        )
+                    else:
+                        # Usar SPY como valor por defecto si no se puede identificar un símbolo
+                        news_data["symbol"] = "SPY"
+                        logger.info(
+                            "No se pudo identificar un símbolo, usando SPY como valor por defecto"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Error al usar IA para identificar símbolo: {str(e)}"
+                    )
+                    # Usar SPY como valor por defecto
+                    news_data["symbol"] = "SPY"
+                    logger.info(
+                        "Error al identificar símbolo, usando SPY como valor por defecto"
+                    )
 
         # Traducir y condensar el título y resumen al español usando el experto de IA
         try:
@@ -1389,15 +1473,19 @@ def save_market_news(
             # Procesar la calidad de los datos después de guardar
             if process_quality:
                 try:
-                    from post_save_quality_check import process_quality_after_save
+                    # Importar aquí para evitar problemas de importación circular
+                    import post_save_quality_check
 
                     # Procesar solo las noticias
-                    process_quality_after_save(table_name="news", limit=1)
+                    post_save_quality_check.process_quality_after_save(
+                        table_name="news", limit=1
+                    )
                     logger.info(
                         f"Procesamiento de calidad completado para la noticia {news_id}"
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+                    logger.warning(f"Traza completa:", exc_info=True)
 
             return news_id
         else:
@@ -1563,15 +1651,19 @@ def save_market_sentiment(
             # Procesar la calidad de los datos después de guardar
             if process_quality:
                 try:
-                    from post_save_quality_check import process_quality_after_save
+                    # Importar aquí para evitar problemas de importación circular
+                    import post_save_quality_check
 
                     # Procesar solo el sentimiento
-                    process_quality_after_save(table_name="sentiment", limit=1)
+                    post_save_quality_check.process_quality_after_save(
+                        table_name="sentiment", limit=1
+                    )
                     logger.info(
                         f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+                    logger.warning(f"Traza completa:", exc_info=True)
 
             return sentiment_id
         else:
@@ -1603,15 +1695,19 @@ def save_market_sentiment(
             # Procesar la calidad de los datos después de guardar
             if process_quality:
                 try:
-                    from post_save_quality_check import process_quality_after_save
+                    # Importar aquí para evitar problemas de importación circular
+                    import post_save_quality_check
 
                     # Procesar solo el sentimiento
-                    process_quality_after_save(table_name="sentiment", limit=1)
+                    post_save_quality_check.process_quality_after_save(
+                        table_name="sentiment", limit=1
+                    )
                     logger.info(
                         f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+                    logger.warning(f"Traza completa:", exc_info=True)
 
             return sentiment_id
 
@@ -1695,18 +1791,118 @@ def save_trading_signal(
         # Procesar la calidad de los datos después de guardar
         if signal_id and process_quality:
             try:
-                from post_save_quality_check import process_quality_after_save
+                # Importar aquí para evitar problemas de importación circular
+                import post_save_quality_check
 
                 # Procesar solo las señales de trading
-                process_quality_after_save(table_name="signals", limit=1)
+                post_save_quality_check.process_quality_after_save(
+                    table_name="signals", limit=1
+                )
                 logger.info(
                     f"Procesamiento de calidad completado para la señal {signal_id}"
                 )
             except Exception as e:
                 logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+                logger.warning(f"Traza completa:", exc_info=True)
 
         return signal_id
 
     except Exception as e:
         logger.error(f"Error guardando señal de trading: {str(e)}")
         return None
+
+
+def extract_symbol_from_title(title: str) -> Optional[str]:
+    """
+    Extrae el símbolo de una acción o ETF del título de una noticia.
+    Utiliza company_data.py para validar los símbolos encontrados.
+
+    Args:
+        title (str): Título de la noticia
+
+    Returns:
+        Optional[str]: Símbolo extraído o None si no se encuentra
+    """
+    if not title:
+        return None
+
+    # Importar re si no está disponible en este contexto
+    import re
+
+    # Importar datos de company_data.py
+    from company_data import COMPANY_INFO
+
+    # Buscar patrones comunes de símbolos en el título
+    # Patrón 1: Símbolos entre paréntesis como (AAPL), (TSLA), etc.
+    parenthesis_pattern = r"\(([A-Z]{1,5})\)"
+    matches = re.findall(parenthesis_pattern, title)
+    if matches:
+        # Verificar que el símbolo no sea una abreviatura común
+        common_abbr = [
+            "CEO",
+            "CFO",
+            "CTO",
+            "COO",
+            "USA",
+            "UK",
+            "EU",
+            "Q1",
+            "Q2",
+            "Q3",
+            "Q4",
+        ]
+        for match in matches:
+            if match not in common_abbr and len(match) >= 2 and len(match) <= 5:
+                # Verificar si el símbolo existe en COMPANY_INFO
+                if match in COMPANY_INFO:
+                    return match
+
+    # Patrón 2: Símbolos con prefijo NYSE: o NASDAQ: como NYSE:AAPL, NASDAQ:TSLA, etc.
+    exchange_pattern = r"(NYSE|NASDAQ):\s*([A-Z]{1,5})"
+    matches = re.findall(exchange_pattern, title)
+    if matches:
+        symbol = matches[0][1]  # Devolver el símbolo, no el exchange
+        # Verificar si el símbolo existe en COMPANY_INFO
+        if symbol in COMPANY_INFO:
+            return symbol
+
+    # Patrón 3: Buscar símbolos directamente en el texto (palabras en mayúsculas de 2-5 letras)
+    ticker_pattern = r"\b([A-Z]{2,5})\b"
+    matches = re.findall(ticker_pattern, title)
+    if matches:
+        common_words = [
+            "CEO",
+            "CFO",
+            "CTO",
+            "COO",
+            "USA",
+            "UK",
+            "EU",
+            "AI",
+            "IPO",
+            "ETF",
+        ]
+        for match in matches:
+            if match not in common_words and match in COMPANY_INFO:
+                return match
+
+    # Patrón 4: Buscar nombres de empresas en el título
+    # Crear un diccionario inverso de nombres de empresas a símbolos
+    company_name_to_symbol = {}
+    for symbol, info in COMPANY_INFO.items():
+        company_name = info.get("name", "")
+        if company_name:
+            # Guardar el nombre completo
+            company_name_to_symbol[company_name] = symbol
+            # Guardar también la primera palabra del nombre (para casos como "Apple Inc." -> "Apple")
+            first_word = company_name.split()[0]
+            if len(first_word) > 2:  # Evitar palabras muy cortas
+                company_name_to_symbol[first_word] = symbol
+
+    # Buscar coincidencias de nombres de empresas en el título
+    for company_name, symbol in company_name_to_symbol.items():
+        if company_name in title:
+            return symbol
+
+    # Si no se encuentra ningún símbolo, devolver None
+    return None
