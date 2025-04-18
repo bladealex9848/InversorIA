@@ -90,6 +90,10 @@ InversorIA/
 │   └── 7_🔔_Notificaciones.py
 ├── assets/                    # Recursos estáticos (imágenes, logos, etc.)
 ├── components/                # Componentes reutilizables
+├── scripts/                   # Scripts de utilidad y configuración
+│   ├── setup-repo.sh           # Script para configurar el repositorio
+│   ├── install-hooks.sh        # Script para instalar hooks de Git
+│   └── hooks/                  # Hooks de Git pre-commit
 ├── styles/                    # Estilos CSS
 ├── utils/                     # Utilidades generales
 ├── sql/                       # Scripts SQL
@@ -123,7 +127,18 @@ git clone https://github.com/bladealex9848/InversorIA-Pro
 cd InversorIA-Pro
 ```
 
-### 4. Instalar Dependencias
+### 4. Configurar el Repositorio
+Ejecuta el script de configuración para instalar los hooks de Git y configurar el entorno:
+```bash
+./scripts/setup-repo.sh
+```
+
+Este script realizará las siguientes acciones:
+- Instalar los hooks de Git para prevenir la exposición de credenciales sensibles
+- Crear el archivo `.streamlit/secrets.toml` a partir de `secrets.toml.example`
+- Ofrecer instalar las dependencias del proyecto
+
+### 5. Instalar Dependencias (Si no lo hiciste en el paso anterior)
 ```bash
 pip install -r requirements.txt
 ```
@@ -237,6 +252,29 @@ InversorIA Pro está diseñado para un flujo de trabajo analítico. Aquí tienes
 - Funcionalidades avanzadas pueden requerir suscripciones a servicios de datos adicionales.
 - El rendimiento puede variar según la potencia de tu máquina, especialmente al procesar grandes cantidades de datos.
 - El código antiguo o no utilizado se almacena en la carpeta `legacy_code/` para referencia, pero no se utiliza en la aplicación principal.
+
+## 🔒 Seguridad
+
+### Protección de Credenciales
+
+El proyecto incluye medidas para proteger las credenciales sensibles:
+
+1. **Hooks de Git Pre-commit**: Previenen automáticamente la exposición de credenciales sensibles en los commits.
+   - Detecta patrones comunes de credenciales (contraseñas, API keys, tokens, etc.)
+   - Bloquea commits que contengan información sensible
+   - Se instala automáticamente con el script `setup-repo.sh`
+
+2. **Archivo `secrets.toml`**: Todas las credenciales deben almacenarse en este archivo, que está incluido en `.gitignore`.
+
+3. **Ejemplo de Configuración**: El archivo `secrets.toml.example` muestra la estructura correcta sin exponer credenciales reales.
+
+### Mejores Prácticas de Seguridad
+
+- **Nunca** incluyas credenciales directamente en el código fuente
+- **Nunca** subas el archivo `secrets.toml` al repositorio
+- Utiliza siempre el hook pre-commit para verificar tus cambios antes de confirmarlos
+- Cambia regularmente tus contraseñas y tokens de API
+- Utiliza claves de API con permisos limitados cuando sea posible
 
 ## 💾 Estructura de la Base de Datos
 

@@ -1,0 +1,146 @@
+#!/bin/bash
+
+# Hook de pre-commit para detectar credenciales sensibles
+# Este script verifica los archivos que se van a confirmar en busca de credenciales sensibles
+
+echo "Ejecutando verificación de credenciales sensibles..."
+
+# Obtener la lista de archivos que se van a confirmar
+FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Patrones de credenciales sensibles a buscar
+PATTERNS=(
+    # Direcciones IP
+    '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'
+
+    # Contraseñas comunes en código
+    'password\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'passwd\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'pwd\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'pass\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'secret\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'key\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+
+    # Nombres de usuario comunes en código
+    'username\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'user\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+
+    # Nombres de bases de datos específicos
+    'liceopan_enki_sincelejo'
+
+    # Nombres de usuario específicos
+    'liceopan_root'
+
+    # Contraseñas específicas
+    '@Soporte2020@'
+
+    # Servidores de correo específicos
+    'mail\.enki\.care'
+    'info@enki\.care'
+
+    # Tokens y claves API
+    'api[_-]?key\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'auth[_-]?token\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'oauth\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'access[_-]?token\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+    'secret[_-]?key\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
+
+    # Cadenas de conexión
+    'jdbc:[a-z]+://[a-zA-Z0-9\.\-_:]+/[a-zA-Z0-9\.\-_]+'
+    'mongodb://[a-zA-Z0-9\.\-_:]+/[a-zA-Z0-9\.\-_]+'
+    'mysql://[a-zA-Z0-9\.\-_:]+/[a-zA-Z0-9\.\-_]+'
+    'postgresql://[a-zA-Z0-9\.\-_:]+/[a-zA-Z0-9\.\-_]+'
+    'redis://[a-zA-Z0-9\.\-_:]+/[a-zA-Z0-9\.\-_]+'
+)
+
+# Archivos a ignorar (expresiones regulares)
+IGNORED_FILES=(
+    '\.git/'
+    '\.gitignore'
+    '\.env\.example'
+    'secrets\.toml\.example'
+    '\.git/hooks/pre-commit'
+    'scripts/hooks/'
+    'scripts/hooks/pre-commit'
+    'legacy_code/'
+    'requirements\.txt'
+)
+
+# Función para verificar si un archivo debe ser ignorado
+should_ignore_file() {
+    local file="$1"
+
+    for pattern in "${IGNORED_FILES[@]}"; do
+        if [[ "$file" =~ $pattern ]]; then
+            return 0  # Ignorar el archivo
+        fi
+    done
+
+    return 1  # No ignorar el archivo
+}
+
+# Función para verificar si una línea debe ser ignorada
+should_ignore_line() {
+    local line="$1"
+
+    # Ignorar líneas de comentarios
+    if [[ "$line" =~ ^[[:space:]]*[#//] ]]; then
+        return 0
+    fi
+
+    # Ignorar líneas que contienen "example" o "placeholder"
+    if [[ "$line" =~ example|placeholder|dummy|localhost|127\.0\.0\.1|0\.0\.0\.0 ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+# Bandera para rastrear si se encontraron credenciales
+CREDENTIALS_FOUND=0
+
+# Verificar cada archivo
+for FILE in $FILES; do
+    # Ignorar archivos binarios y archivos en la lista de ignorados
+    if [[ ! -f "$FILE" ]] || should_ignore_file "$FILE"; then
+        continue
+    fi
+
+    # Verificar cada patrón en el archivo
+    for PATTERN in "${PATTERNS[@]}"; do
+        # Obtener las líneas que coinciden con el patrón
+        MATCHES=$(grep -n -E "$PATTERN" "$FILE" || true)
+
+        if [[ -n "$MATCHES" ]]; then
+            # Verificar cada línea coincidente
+            while IFS= read -r LINE; do
+                # Extraer el número de línea y el contenido
+                LINE_NUM=$(echo "$LINE" | cut -d: -f1)
+                LINE_CONTENT=$(echo "$LINE" | cut -d: -f2-)
+
+                # Ignorar líneas que deben ser ignoradas
+                if should_ignore_line "$LINE_CONTENT"; then
+                    continue
+                fi
+
+                # Mostrar la advertencia
+                echo -e "\033[31mAdvertencia: Posible credencial sensible encontrada en $FILE:$LINE_NUM\033[0m"
+                echo -e "\033[33m$LINE_CONTENT\033[0m"
+                echo ""
+
+                CREDENTIALS_FOUND=1
+            done <<< "$MATCHES"
+        fi
+    done
+done
+
+# Si se encontraron credenciales, abortar el commit
+if [[ $CREDENTIALS_FOUND -eq 1 ]]; then
+    echo -e "\033[31mError: Se encontraron posibles credenciales sensibles en los archivos a confirmar.\033[0m"
+    echo "Por favor, elimina las credenciales sensibles antes de confirmar."
+    echo "Si estás seguro de que no son credenciales sensibles, puedes forzar el commit con --no-verify."
+    exit 1
+fi
+
+echo "Verificación de credenciales completada. No se encontraron credenciales sensibles."
+exit 0
