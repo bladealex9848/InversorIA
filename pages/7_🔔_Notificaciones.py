@@ -519,6 +519,13 @@ class DatabaseManager:
                     f"Noticia relacionada con {news_data.get('symbol')}: {news_data.get('title')}"
                 )
 
+        # Asegurar que siempre haya un resumen
+        if not news_data.get("summary") and news_data.get("title"):
+            news_data["summary"] = (
+                f"Noticia relacionada con {news_data.get('symbol', 'mercado')}: {news_data.get('title')}"
+            )
+            logger.info(f"Generando resumen básico para noticia: {news_data['title']}")
+
         # Si no existe, insertar la noticia
         query = """INSERT INTO market_news
                   (title, summary, source, url, news_date, impact, symbol, created_at)
@@ -526,7 +533,9 @@ class DatabaseManager:
 
         params = (
             news_data.get("title"),
-            news_data.get("summary"),
+            news_data.get(
+                "summary", f"Noticia sobre {news_data.get('symbol', 'mercado')}"
+            ),  # Valor por defecto
             news_data.get("source"),
             news_data.get("url", ""),
             news_data.get("impact", "Medio"),

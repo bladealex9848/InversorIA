@@ -296,24 +296,25 @@ st.markdown(
 
     /* Estilos adicionales para el análisis del experto */
     .expert-container {
-        border: 1px solid #EEEEEE;
+        border: 1px solid var(--border-color, #EEEEEE);
         border-radius: 10px;
         padding: 1rem;
-        background-color: #FAFAFA;
+        background-color: var(--background-color, #FAFAFA);
         margin-top: 2rem;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        color: var(--text-color, #333333);
     }
 
     .expert-header {
         display: flex;
         align-items: center;
         margin-bottom: 1rem;
-        border-bottom: 1px solid #EEEEEE;
+        border-bottom: 1px solid var(--border-color, #EEEEEE);
         padding-bottom: 0.5rem;
     }
 
     .expert-avatar {
-        background-color: #1E88E5;
+        background-color: var(--primary-color, #1E88E5);
         color: white;
         font-weight: bold;
         width: 40px;
@@ -328,11 +329,29 @@ st.markdown(
     .expert-title {
         font-weight: 600;
         font-size: 1.2rem;
-        color: #1E88E5;
+        color: var(--primary-color, #1E88E5);
     }
 
     .expert-content {
         line-height: 1.6;
+        color: var(--text-color, #333333);
+    }
+
+    /* Estilos para tablas en modo oscuro */
+    .dataframe {
+        color: var(--text-color, #333333);
+        background-color: var(--background-color, #ffffff);
+        border-color: var(--border-color, #e1e4e8);
+    }
+
+    .dataframe th {
+        background-color: var(--header-bg-color, #f6f8fa);
+        color: var(--header-text-color, #24292e);
+        border-color: var(--border-color, #e1e4e8);
+    }
+
+    .dataframe td {
+        border-color: var(--border-color, #e1e4e8);
     }
 
     .expert-footer {

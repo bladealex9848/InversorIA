@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 import re
 import json
-import time
 from database_utils import DatabaseManager
 
 # Importar el scraper de Yahoo Finance
@@ -37,17 +36,8 @@ except ImportError:
         "No se pudo importar MarketDataProcessor. Los datos no serán procesados con IA."
     )
 
-# Importar gestor de resúmenes si está disponible
-try:
-    from utils.summary_manager import summary_manager
-
-    SUMMARY_MANAGER_AVAILABLE = True
-except ImportError:
-    SUMMARY_MANAGER_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning(
-        "No se pudo importar SummaryManager. No se mostrarán resúmenes detallados."
-    )
+# Gestor de resúmenes no es necesario aquí, usaremos st.success para mostrar mensajes
+SUMMARY_MANAGER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -203,23 +193,10 @@ class MarketDataManager:
                     f"Ya se guardaron {len(news_ids)} noticias reales, omitiendo noticia principal"
                 )
 
-                # Mostrar resumen de noticias guardadas si el gestor de resúmenes está disponible
-                if SUMMARY_MANAGER_AVAILABLE:
-                    summary_data = {
-                        "Total de noticias": len(news_ids),
-                        "Fuente principal": (
-                            "Yahoo Finance" if yahoo_news else "Datos proporcionados"
-                        ),
-                        "Símbolo": symbol,
-                        "Empresa": company_name,
-                        "Estado": "Completado con éxito",
-                    }
-                    summary_manager.show_summary(
-                        f"news_summary_{symbol}",
-                        f"Noticias guardadas para {symbol}",
-                        summary_data,
-                        icon="📰",
-                    )
+                # Mostrar mensaje de éxito en lugar de usar summary_manager
+                logger.info(
+                    f"Se guardaron {len(news_ids)} noticias para {symbol} ({company_name})"
+                )
 
                 return news_ids
 
@@ -556,58 +533,22 @@ class MarketDataManager:
             }
 
             # Guardar datos de sentimiento
-            start_time = time.time()
             sentiment_id = self.db_manager.save_market_sentiment(sentiment_data)
-            elapsed_time = time.time() - start_time
 
             if sentiment_id:
                 logger.info(f"Datos de sentimiento guardados con ID: {sentiment_id}")
 
-                # Mostrar resumen del sentimiento guardado si el gestor de resúmenes está disponible
-                if SUMMARY_MANAGER_AVAILABLE:
-                    # Preparar datos para el resumen
-                    summary_data = {
-                        "ID": sentiment_id,
-                        "Fecha": (
-                            sentiment_data["date"].strftime("%Y-%m-%d")
-                            if hasattr(sentiment_data["date"], "strftime")
-                            else sentiment_data["date"]
-                        ),
-                        "Sentimiento general": sentiment_data["overall"],
-                        "VIX": sentiment_data["vix"],
-                        "Tendencia S&P500": sentiment_data["sp500_trend"],
-                        "Tiempo de procesamiento": f"{elapsed_time:.2f} segundos",
-                    }
-
-                    # Mostrar resumen
-                    summary_manager.show_summary(
-                        "sentiment_summary",
-                        "Sentimiento de mercado guardado",
-                        summary_data,
-                        icon="📈",
-                    )
+                # Mostrar mensaje de éxito en lugar de usar summary_manager
+                logger.info(
+                    f"Sentimiento de mercado guardado con ID: {sentiment_id} - Sentimiento: {sentiment_data['overall']}"
+                )
             else:
                 logger.error(f"Error al guardar datos de sentimiento")
 
-                # Mostrar error si el gestor de resúmenes está disponible
-                if SUMMARY_MANAGER_AVAILABLE:
-                    error_data = {
-                        "Estado": "Error",
-                        "Mensaje": "No se pudo guardar el sentimiento de mercado",
-                        "Fecha": (
-                            sentiment_data["date"].strftime("%Y-%m-%d")
-                            if hasattr(sentiment_data["date"], "strftime")
-                            else sentiment_data["date"]
-                        ),
-                        "Tiempo transcurrido": f"{elapsed_time:.2f} segundos",
-                    }
-
-                    summary_manager.show_summary(
-                        "sentiment_error",
-                        "Error al guardar sentimiento",
-                        error_data,
-                        icon="❌",
-                    )
+                # Mostrar mensaje de error en lugar de usar summary_manager
+                logger.error(
+                    f"No se pudo guardar el sentimiento de mercado para la fecha {sentiment_data['date']}"
+                )
 
             return sentiment_id
 
