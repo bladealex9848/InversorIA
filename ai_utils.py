@@ -1059,7 +1059,7 @@ class AIExpert:
                         # Configurar cliente OpenAI
                         if "openai" in secrets and "api_key" in secrets["openai"]:
                             openai.api_key = secrets["openai"]["api_key"]
-                            self.client = openai.OpenAI(
+                            self.client = openai.OpenAI(api_key=OPENAI_API_KEY).OpenAI(
                                 api_key=secrets["openai"]["api_key"]
                             )
                             logger.info(
@@ -1067,7 +1067,7 @@ class AIExpert:
                             )
                         elif "OPENAI_API_KEY" in secrets:
                             openai.api_key = secrets["OPENAI_API_KEY"]
-                            self.client = openai.OpenAI(
+                            self.client = openai.OpenAI(api_key=OPENAI_API_KEY).OpenAI(
                                 api_key=secrets["OPENAI_API_KEY"]
                             )
                             logger.info(

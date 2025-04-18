@@ -92,7 +92,7 @@ try:
     )
 
     # Importar el scanner mejorado
-    from enhanced_market_scanner_fixed import render_enhanced_market_scanner
+    from enhanced_market_scanner import render_enhanced_market_scanner
 except Exception as e:
     import_errors.append(f"Error importando trading_dashboard: {str(e)}")
 
@@ -8265,7 +8265,7 @@ def main():
 
                 # Mostrar mensaje de error y sugerencia
                 st.warning(
-                    "No se pudo cargar el scanner mejorado. Por favor, asegúrate de que el archivo enhanced_market_scanner_fixed.py está disponible."
+                    "No se pudo cargar el scanner mejorado. Por favor, asegúrate de que el archivo enhanced_market_scanner.py está disponible."
                 )
 
     except Exception as e:

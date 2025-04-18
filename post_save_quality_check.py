@@ -12,6 +12,8 @@ import time
 from datetime import datetime
 from typing import Dict
 import mysql.connector
+import toml
+import os
 
 # Configurar logging
 logging.basicConfig(
@@ -20,6 +22,47 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+
+# Cargar configuración de OpenAI desde secrets.toml
+def load_openai_config():
+    """
+    Carga la configuración de OpenAI desde secrets.toml
+
+    Returns:
+        dict: Configuración de OpenAI
+    """
+    try:
+        secrets_path = os.path.join(".streamlit", "secrets.toml")
+        if os.path.exists(secrets_path):
+            secrets = toml.load(secrets_path)
+
+            # Buscar la API key en diferentes ubicaciones
+            api_key = None
+            if "OPENAI_API_KEY" in secrets:
+                api_key = secrets["OPENAI_API_KEY"]
+            elif "openai" in secrets and "api_key" in secrets["openai"]:
+                api_key = secrets["openai"]["api_key"]
+            elif "api_keys" in secrets and "OPENAI_API_KEY" in secrets["api_keys"]:
+                api_key = secrets["api_keys"]["OPENAI_API_KEY"]
+
+            # Buscar el modelo en diferentes ubicaciones
+            model = "gpt-3.5-turbo"
+            if "OPENAI_API_MODEL" in secrets:
+                model = secrets["OPENAI_API_MODEL"]
+            elif "openai" in secrets and "model" in secrets["openai"]:
+                model = secrets["openai"]["model"]
+            elif "api_keys" in secrets and "OPENAI_API_MODEL" in secrets["api_keys"]:
+                model = secrets["api_keys"]["OPENAI_API_MODEL"]
+
+            return {"api_key": api_key, "model": model}
+        else:
+            logger.warning(f"No se encontró el archivo {secrets_path}")
+            return {}
+    except Exception as e:
+        logger.error(f"Error cargando configuración de OpenAI: {str(e)}")
+        return {}
+
 
 # Importar módulos propios
 from database_quality_utils import (
@@ -36,11 +79,233 @@ from database_quality_utils import (
 )
 from text_processing import translate_title_to_spanish
 from data_enrichment import get_news_from_yahoo
-from ai_content_generator import (
-    generate_summary_with_ai,
-    generate_sentiment_analysis_with_ai,
-    generate_trading_signal_analysis_with_ai,
-)
+
+# Intentar importar funciones de generación de contenido con IA
+try:
+    from ai_content_generator import (
+        generate_summary_with_ai,
+        generate_sentiment_analysis_with_ai,
+        generate_trading_signal_analysis_with_ai,
+    )
+
+    AI_CONTENT_GENERATOR_AVAILABLE = True
+except ImportError:
+    logger.warning(
+        "No se pudo importar ai_content_generator. Se usarán funciones de respaldo."
+    )
+    AI_CONTENT_GENERATOR_AVAILABLE = False
+
+    # Funciones de respaldo para generar contenido con IA
+    def generate_summary_with_ai(title: str, symbol: str, url: str = None) -> str:
+        """Función de respaldo para generar resumen de noticia"""
+        try:
+            # Cargar configuración de OpenAI
+            config = load_openai_config()
+            api_key = config.get("api_key")
+            model = config.get("model", "gpt-3.5-turbo")
+
+            if not api_key:
+                logger.warning("No se encontró la API key de OpenAI")
+                return f"Resumen generado automáticamente para la noticia: {title}"
+
+            # Inicializar cliente de OpenAI
+            try:
+                import openai
+
+                openai.api_key = api_key
+                client = openai.OpenAI(api_key=api_key)
+                logger.info("Cliente OpenAI inicializado correctamente")
+            except Exception as e:
+                logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
+                return f"Resumen generado automáticamente para la noticia: {title}"
+
+            # Crear prompt para generar el resumen
+            prompt = f"Genera un resumen detallado en español para la siguiente noticia financiera sobre {symbol}. "
+            prompt += f"Título: {title}. "
+            if url:
+                prompt += f"URL: {url}. "
+            prompt += "El resumen debe ser informativo, objetivo y enfocado en los aspectos financieros relevantes para inversores."
+
+            # Generar resumen con OpenAI
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Eres un analista financiero experto especializado en resumir noticias del mercado.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=500,
+                )
+
+                summary = response.choices[0].message.content.strip()
+                logger.info(
+                    f"Resumen generado correctamente para {symbol}: {summary[:50]}..."
+                )
+                return summary
+            except Exception as e:
+                logger.warning(f"Error generando resumen con OpenAI: {str(e)}")
+                return f"Resumen generado automáticamente para la noticia: {title}"
+        except Exception as e:
+            logger.error(f"Error en generate_summary_with_ai: {str(e)}")
+            return f"Resumen generado automáticamente para la noticia: {title}"
+
+    def generate_sentiment_analysis_with_ai(sentiment_data: dict) -> str:
+        """Función de respaldo para generar análisis de sentimiento"""
+        try:
+            # Cargar configuración de OpenAI
+            config = load_openai_config()
+            api_key = config.get("api_key")
+            model = config.get("model", "gpt-3.5-turbo")
+
+            if not api_key:
+                logger.warning("No se encontró la API key de OpenAI")
+                return "Análisis de sentimiento de mercado generado automáticamente."
+
+            # Inicializar cliente de OpenAI
+            try:
+                import openai
+
+                openai.api_key = api_key
+                client = openai.OpenAI(api_key=api_key)
+                logger.info("Cliente OpenAI inicializado correctamente")
+            except Exception as e:
+                logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
+                return "Análisis de sentimiento de mercado generado automáticamente."
+
+            # Crear prompt para generar el análisis
+            prompt = "Genera un análisis detallado del sentimiento de mercado basado en los siguientes datos:\n"
+            prompt += (
+                f"Sentimiento general: {sentiment_data.get('overall', 'Neutral')}\n"
+            )
+            prompt += f"VIX: {sentiment_data.get('vix', 'N/A')}\n"
+            prompt += f"Tendencia S&P 500: {sentiment_data.get('sp500_trend', 'N/A')}\n"
+            prompt += f"Indicadores técnicos: {sentiment_data.get('technical_indicators', 'N/A')}\n"
+            prompt += f"Volumen: {sentiment_data.get('volume', 'N/A')}\n"
+            prompt += f"Notas: {sentiment_data.get('notes', '')}\n"
+            prompt += "El análisis debe ser detallado, objetivo y enfocado en los aspectos relevantes para inversores."
+
+            # Generar análisis con OpenAI
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Eres un analista financiero experto especializado en interpretar el sentimiento del mercado.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=500,
+                )
+
+                analysis = response.choices[0].message.content.strip()
+                logger.info(
+                    f"Análisis de sentimiento generado correctamente: {analysis[:50]}..."
+                )
+                return analysis
+            except Exception as e:
+                logger.warning(f"Error generando análisis con OpenAI: {str(e)}")
+                return "Análisis de sentimiento de mercado generado automáticamente."
+        except Exception as e:
+            logger.error(f"Error en generate_sentiment_analysis_with_ai: {str(e)}")
+            return "Análisis de sentimiento de mercado generado automáticamente."
+
+    def generate_trading_signal_analysis_with_ai(signal_data: dict) -> str:
+        """Función de respaldo para generar análisis experto para una señal de trading"""
+        try:
+            # Cargar configuración de OpenAI
+            config = load_openai_config()
+            api_key = config.get("api_key")
+            model = config.get("model", "gpt-3.5-turbo")
+
+            if not api_key:
+                logger.warning("No se encontró la API key de OpenAI")
+                return "Análisis experto generado automáticamente para la señal de trading."
+
+            # Inicializar cliente de OpenAI
+            try:
+                import openai
+
+                openai.api_key = api_key
+                client = openai.OpenAI(api_key=api_key)
+                logger.info("Cliente OpenAI inicializado correctamente")
+            except Exception as e:
+                logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
+                return "Análisis experto generado automáticamente para la señal de trading."
+
+            # Crear prompt para generar el análisis
+            symbol = signal_data.get("symbol", "")
+            direction = signal_data.get("direction", "")
+            price = signal_data.get("price", 0.0)
+            confidence = signal_data.get("confidence_level", "")
+            strategy = signal_data.get("strategy", "")
+
+            prompt = f"Genera un análisis experto detallado para la siguiente señal de trading:\n"
+            prompt += f"Símbolo: {symbol}\n"
+            prompt += f"Dirección: {direction}\n"
+            prompt += f"Precio: {price}\n"
+            prompt += f"Nivel de confianza: {confidence}\n"
+            prompt += f"Estrategia: {strategy}\n"
+
+            # Agregar información adicional si está disponible
+            if signal_data.get("entry_price"):
+                prompt += f"Precio de entrada: {signal_data.get('entry_price')}\n"
+            if signal_data.get("stop_loss"):
+                prompt += f"Stop loss: {signal_data.get('stop_loss')}\n"
+            if signal_data.get("take_profit"):
+                prompt += f"Take profit: {signal_data.get('take_profit')}\n"
+            if signal_data.get("risk_reward"):
+                prompt += f"Riesgo/Recompensa: {signal_data.get('risk_reward')}\n"
+            if signal_data.get("expiration_date"):
+                prompt += f"Fecha de expiración: {signal_data.get('expiration_date')}\n"
+            if signal_data.get("market_sentiment"):
+                prompt += (
+                    f"Sentimiento de mercado: {signal_data.get('market_sentiment')}\n"
+                )
+            if signal_data.get("technical_indicators"):
+                prompt += (
+                    f"Indicadores técnicos: {signal_data.get('technical_indicators')}\n"
+                )
+            if signal_data.get("fundamental_analysis"):
+                prompt += (
+                    f"Análisis fundamental: {signal_data.get('fundamental_analysis')}\n"
+                )
+            if signal_data.get("latest_news"):
+                prompt += f"Últimas noticias: {signal_data.get('latest_news')}\n"
+
+            prompt += "El análisis debe ser detallado, objetivo y enfocado en los aspectos relevantes para inversores. Incluye recomendaciones específicas y justificación técnica."
+
+            # Generar análisis con OpenAI
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "Eres un trader profesional experto en análisis técnico y fundamental de mercados financieros.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=800,
+                )
+
+                analysis = response.choices[0].message.content.strip()
+                logger.info(
+                    f"Análisis experto generado correctamente para {symbol}: {analysis[:50]}..."
+                )
+                return analysis
+            except Exception as e:
+                logger.warning(f"Error generando análisis experto con OpenAI: {str(e)}")
+                return "Análisis experto generado automáticamente para la señal de trading."
+        except Exception as e:
+            logger.error(f"Error en generate_trading_signal_analysis_with_ai: {str(e)}")
+            return "Análisis experto generado automáticamente para la señal de trading."
 
 
 def check_database_quality(

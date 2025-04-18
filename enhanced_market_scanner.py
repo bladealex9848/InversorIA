@@ -59,6 +59,19 @@ def get_expert_analysis_from_scanner(prompt):
     Returns:
         str: Análisis generado por el modelo
     """
+
+    # Procesar la calidad de los datos después de guardar
+    try:
+        import post_save_quality_check
+
+        # Procesar solo las señales de trading
+        post_save_quality_check.process_quality_after_save(
+            table_name="signals", limit=1
+        )
+        logger.info(f"Procesamiento de calidad completado para la señal")
+    except Exception as e:
+        logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+        logger.warning(f"Traza completa:", exc_info=True)
     try:
         # Intentar usar ai_utils.get_expert_analysis
         try:
@@ -734,18 +747,25 @@ def render_enhanced_market_scanner(
                                 options_signal = row["Options_Signal"]
                                 if "CALL" in options_signal:
                                     signal_color = "#388e3c"  # Verde para CALL
-                                    signal_bg = "#e8f5e9"
+                                    signal_bg = "var(--background-color, #e8f5e9)"
+                                    signal_text_color = "var(--text-color, #388e3c)"
                                 elif "PUT" in options_signal:
                                     signal_color = "#d32f2f"  # Rojo para PUT
-                                    signal_bg = "#ffebee"
+                                    signal_bg = "var(--background-color, #ffebee)"
+                                    signal_text_color = "var(--text-color, #d32f2f)"
                                 else:
                                     signal_color = "#5c6bc0"  # Azul para neutral
-                                    signal_bg = "#e8eaf6"
+                                    signal_bg = "var(--background-color, #e8eaf6)"
+                                    signal_text_color = "var(--text-color, #5c6bc0)"
 
                                 st.markdown(
                                     f"""
+                                <style>
+                                    html[data-theme="light"] {{--background-color: #ffffff; --text-color: {signal_color};}}
+                                    html[data-theme="dark"] {{--background-color: #262730; --text-color: {signal_color};}}
+                                </style>
                                 <div style="background-color: {signal_bg}; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {signal_color};">
-                                    <h4 style="margin-top:0; color: {signal_color};">Estrategia Recomendada: {options_signal}</h4>
+                                    <h4 style="margin-top:0; color: {signal_text_color};">Estrategia Recomendada: {options_signal}</h4>
                                 </div>
                                 """,
                                     unsafe_allow_html=True,
@@ -1006,10 +1026,14 @@ def render_enhanced_market_scanner(
                         if "Última_Noticia" in row and pd.notna(row["Última_Noticia"]):
                             st.markdown(
                                 f"""
-                            <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #e65100;">
-                                <h4 style="margin-top:0; color: #e65100;">📰 Última Noticia</h4>
+                            <style>
+                                html[data-theme="light"] {{--news-bg-color: #fff3e0; --news-text-color: #e65100; --news-source-color: #757575;}}
+                                html[data-theme="dark"] {{--news-bg-color: #3e2723; --news-text-color: #ffab91; --news-source-color: #b0bec5;}}
+                            </style>
+                            <div style="background-color: var(--news-bg-color, #fff3e0); padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid var(--news-text-color, #e65100);">
+                                <h4 style="margin-top:0; color: var(--news-text-color, #e65100);">📰 Última Noticia</h4>
                                 <p style="margin:0; font-weight: bold;">{row["Última_Noticia"]}</p>
-                                <p style="margin:5px 0 0 0; font-size: 0.8em; color: #757575;">Fuente: {row.get('Fuente_Noticia', 'No especificada')}</p>
+                                <p style="margin:5px 0 0 0; font-size: 0.8em; color: var(--news-source-color, #757575);">Fuente: {row.get('Fuente_Noticia', 'No especificada')}</p>
                             </div>
                             """,
                                 unsafe_allow_html=True,
@@ -1021,8 +1045,12 @@ def render_enhanced_market_scanner(
                             ):
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #fff8e1; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #ffa000;">
-                                    <h4 style="margin-top:0; color: #ffa000;">Más Noticias</h4>
+                                <style>
+                                    html[data-theme="light"] {{--more-news-bg-color: #fff8e1; --more-news-text-color: #ffa000;}}
+                                    html[data-theme="dark"] {{--more-news-bg-color: #3e2723; --more-news-text-color: #ffcc80;}}
+                                </style>
+                                <div style="background-color: var(--more-news-bg-color, #fff8e1); padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid var(--more-news-text-color, #ffa000);">
+                                    <h4 style="margin-top:0; color: var(--more-news-text-color, #ffa000);">Más Noticias</h4>
                                     <p style="margin:0;">{row["Noticias_Adicionales"]}</p>
                                 </div>
                                 """,
@@ -1032,9 +1060,13 @@ def render_enhanced_market_scanner(
                             # Añadir botón para buscar más noticias
                             st.markdown(
                                 f"""
+                            <style>
+                                html[data-theme="light"] {{--button-bg-color: #e65100; --button-text-color: white;}}
+                                html[data-theme="dark"] {{--button-bg-color: #ff9800; --button-text-color: black;}}
+                            </style>
                             <div style="text-align: center; margin-top: 20px;">
                                 <a href="https://www.google.com/search?q={row['Symbol']}+stock+news" target="_blank" style="text-decoration: none;">
-                                    <button style="background-color: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                    <button style="background-color: var(--button-bg-color, #e65100); color: var(--button-text-color, white); border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
                                         🔍 Buscar Más Noticias
                                     </button>
                                 </a>
@@ -1048,9 +1080,13 @@ def render_enhanced_market_scanner(
                             # Añadir botón para buscar noticias
                             st.markdown(
                                 f"""
+                            <style>
+                                html[data-theme="light"] {{--button-bg-color: #e65100; --button-text-color: white;}}
+                                html[data-theme="dark"] {{--button-bg-color: #ff9800; --button-text-color: black;}}
+                            </style>
                             <div style="text-align: center; margin-top: 20px;">
                                 <a href="https://www.google.com/search?q={row['Symbol']}+stock+news" target="_blank" style="text-decoration: none;">
-                                    <button style="background-color: #e65100; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                    <button style="background-color: var(--button-bg-color, #e65100); color: var(--button-text-color, white); border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
                                         🔍 Buscar Noticias
                                     </button>
                                 </a>
@@ -1274,9 +1310,13 @@ def render_enhanced_market_scanner(
                             )
                             st.markdown(
                                 f"""
-                            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {symbol_color};">
-                                <h2 style="margin:0; color: {symbol_color};">{asset_row['Symbol']} - {asset_row['Sector']}</h2>
-                                <p style="margin:5px 0 0 0; font-size: 1.1em;">Precio: <b>${asset_row['Precio']:.2f}</b> | Estrategia: <b style="color: {symbol_color};">{asset_row['Estrategia']}</b> | Confianza: <b>{asset_row['Confianza']}</b></p>
+                            <style>
+                                html[data-theme="light"] {{--header-bg-color: #f8f9fa; --header-text-color: {symbol_color};}}
+                                html[data-theme="dark"] {{--header-bg-color: #1e1e1e; --header-text-color: {symbol_color};}}
+                            </style>
+                            <div style="background-color: var(--header-bg-color, #f8f9fa); padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid {symbol_color};">
+                                <h2 style="margin:0; color: var(--header-text-color, {symbol_color});">{asset_row['Symbol']} - {asset_row['Sector']}</h2>
+                                <p style="margin:5px 0 0 0; font-size: 1.1em;">Precio: <b>${asset_row['Precio']:.2f}</b> | Estrategia: <b style="color: var(--header-text-color, {symbol_color});">{asset_row['Estrategia']}</b> | Confianza: <b>{asset_row['Confianza']}</b></p>
                             </div>
                             """,
                                 unsafe_allow_html=True,
@@ -1289,7 +1329,11 @@ def render_enhanced_market_scanner(
                                 # Tarjeta de niveles de trading
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                                <style>
+                                    html[data-theme="light"] {{--card-bg-color: #e9ecef; --stop-color: red; --target-color: green;}}
+                                    html[data-theme="dark"] {{--card-bg-color: #262730; --stop-color: #ff5252; --target-color: #69f0ae;}}
+                                </style>
+                                <div style="background-color: var(--card-bg-color, #e9ecef); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
                                     <h4 style="margin-top:0;">📏 Niveles de Trading</h4>
                                     <table style="width:100%">
                                         <tr>
@@ -1298,11 +1342,11 @@ def render_enhanced_market_scanner(
                                         </tr>
                                         <tr>
                                             <td style="padding: 5px; width: 40%;"><b>Stop Loss:</b></td>
-                                            <td style="padding: 5px; color: red;">${asset_row['Stop']:.2f}</td>
+                                            <td style="padding: 5px; color: var(--stop-color, red);">${asset_row['Stop']:.2f}</td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 5px; width: 40%;"><b>Target:</b></td>
-                                            <td style="padding: 5px; color: green;">${asset_row['Target']:.2f}</td>
+                                            <td style="padding: 5px; color: var(--target-color, green);">${asset_row['Target']:.2f}</td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 5px; width: 40%;"><b>Ratio R/R:</b></td>
@@ -1327,9 +1371,13 @@ def render_enhanced_market_scanner(
                                     )
                                     st.markdown(
                                         f"""
-                                    <div style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid {signal_color};">
+                                    <style>
+                                        html[data-theme="light"] {{--ts-bg-color: #e9ecef; --ts-signal-color: {signal_color};}}
+                                        html[data-theme="dark"] {{--ts-bg-color: #262730; --ts-signal-color: {signal_color};}}
+                                    </style>
+                                    <div style="background-color: var(--ts-bg-color, #e9ecef); padding: 15px; border-radius: 5px; margin-bottom: 15px; border-left: 5px solid {signal_color};">
                                         <h4 style="margin-top:0;">💬 Trading Specialist</h4>
-                                        <p style="font-size: 1.1em; margin: 5px 0;">Señal: <span style="color:{signal_color}; font-weight:bold;">{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span></p>
+                                        <p style="font-size: 1.1em; margin: 5px 0;">Señal: <span style="color:var(--ts-signal-color, {signal_color}); font-weight:bold;">{asset_row['Trading_Specialist']} {asset_row.get('TS_Confianza', '')}</span></p>
                                     </div>
                                     """,
                                         unsafe_allow_html=True,
@@ -1351,10 +1399,14 @@ def render_enhanced_market_scanner(
                                 )
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <style>
+                                    html[data-theme="light"] {{--metric-bg-color: #e9ecef; --rsi-color: {rsi_color};}}
+                                    html[data-theme="dark"] {{--metric-bg-color: #262730; --rsi-color: {rsi_color};}}
+                                </style>
+                                <div style="background-color: var(--metric-bg-color, #e9ecef); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span><b>RSI</b></span>
-                                        <span style="color: {rsi_color}; font-weight: bold;">{rsi_value:.1f}</span>
+                                        <span style="color: var(--rsi-color, {rsi_color}); font-weight: bold;">{rsi_value:.1f}</span>
                                     </div>
                                 </div>
                                 """,
@@ -1370,10 +1422,14 @@ def render_enhanced_market_scanner(
                                 )
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <style>
+                                    html[data-theme="light"] {{--trend-color: {trend_color};}}
+                                    html[data-theme="dark"] {{--trend-color: {trend_color};}}
+                                </style>
+                                <div style="background-color: var(--metric-bg-color, #e9ecef); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span><b>Tendencia</b></span>
-                                        <span style="color: {trend_color}; font-weight: bold;">{trend}</span>
+                                        <span style="color: var(--trend-color, {trend_color}); font-weight: bold;">{trend}</span>
                                     </div>
                                 </div>
                                 """,
@@ -1393,10 +1449,14 @@ def render_enhanced_market_scanner(
                                 )
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <style>
+                                    html[data-theme="light"] {{--strength-color: {strength_color};}}
+                                    html[data-theme="dark"] {{--strength-color: {strength_color};}}
+                                </style>
+                                <div style="background-color: var(--metric-bg-color, #e9ecef); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span><b>Fuerza</b></span>
-                                        <span style="color: {strength_color}; font-weight: bold;">{strength}</span>
+                                        <span style="color: var(--strength-color, {strength_color}); font-weight: bold;">{strength}</span>
                                     </div>
                                 </div>
                                 """,
@@ -1406,7 +1466,7 @@ def render_enhanced_market_scanner(
                                 # Setup
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #e9ecef; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                                <div style="background-color: var(--metric-bg-color, #e9ecef); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span><b>Setup</b></span>
                                         <span style="font-weight: bold;">{asset_row['Setup']}</span>
@@ -1437,8 +1497,12 @@ def render_enhanced_market_scanner(
                                 # Crear una tarjeta moderna para el análisis técnico
                                 st.markdown(
                                     f"""
-                                <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid #0366d6;">
-                                    <h4 style="margin-top:0; color: #0366d6;">Análisis Detallado</h4>
+                                <style>
+                                    html[data-theme="light"] {{--tech-bg-color: #f0f8ff; --tech-text-color: #0366d6;}}
+                                    html[data-theme="dark"] {{--tech-bg-color: #1a237e; --tech-text-color: #82b1ff;}}
+                                </style>
+                                <div style="background-color: var(--tech-bg-color, #f0f8ff); padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 5px solid var(--tech-text-color, #0366d6);">
+                                    <h4 style="margin-top:0; color: var(--tech-text-color, #0366d6);">Análisis Detallado</h4>
                                     <p style="margin-bottom: 10px;">{asset_row["Análisis_Técnico"]}</p>
                                 </div>
                                 """,
@@ -1458,8 +1522,12 @@ def render_enhanced_market_scanner(
                                     with col1:
                                         st.markdown(
                                             f"""
-                                        <div style="background-color: #e6f4ea; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid #34a853;">
-                                            <h5 style="margin-top:0; color: #34a853;">Indicadores Alcistas</h5>
+                                        <style>
+                                            html[data-theme="light"] {{--bull-bg-color: #e6f4ea; --bull-text-color: #34a853;}}
+                                            html[data-theme="dark"] {{--bull-bg-color: #1b5e20; --bull-text-color: #81c784;}}
+                                        </style>
+                                        <div style="background-color: var(--bull-bg-color, #e6f4ea); padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid var(--bull-text-color, #34a853);">
+                                            <h5 style="margin-top:0; color: var(--bull-text-color, #34a853);">Indicadores Alcistas</h5>
                                             <p style="margin:0;">{asset_row["Indicadores_Alcistas"]}</p>
                                         </div>
                                         """,
@@ -1468,8 +1536,12 @@ def render_enhanced_market_scanner(
                                     with col2:
                                         st.markdown(
                                             f"""
-                                        <div style="background-color: #fce8e6; padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid #ea4335;">
-                                            <h5 style="margin-top:0; color: #ea4335;">Indicadores Bajistas</h5>
+                                        <style>
+                                            html[data-theme="light"] {{--bear-bg-color: #fce8e6; --bear-text-color: #ea4335;}}
+                                            html[data-theme="dark"] {{--bear-bg-color: #b71c1c; --bear-text-color: #ef9a9a;}}
+                                        </style>
+                                        <div style="background-color: var(--bear-bg-color, #fce8e6); padding: 10px; border-radius: 5px; margin-bottom: 10px; border-left: 3px solid var(--bear-text-color, #ea4335);">
+                                            <h5 style="margin-top:0; color: var(--bear-text-color, #ea4335);">Indicadores Bajistas</h5>
                                             <p style="margin:0;">{asset_row["Indicadores_Bajistas"]}</p>
                                         </div>
                                         """,
@@ -1489,8 +1561,12 @@ def render_enhanced_market_scanner(
                                         ):
                                             st.markdown(
                                                 f"""
-                                            <div style="background-color: #e6f4ea; padding: 15px; border-radius: 5px; text-align: center;">
-                                                <h5 style="margin-top:0; color: #34a853;">Soporte</h5>
+                                            <style>
+                                                html[data-theme="light"] {{--support-bg-color: #e6f4ea; --support-text-color: #34a853;}}
+                                                html[data-theme="dark"] {{--support-bg-color: #1b5e20; --support-text-color: #81c784;}}
+                                            </style>
+                                            <div style="background-color: var(--support-bg-color, #e6f4ea); padding: 15px; border-radius: 5px; text-align: center;">
+                                                <h5 style="margin-top:0; color: var(--support-text-color, #34a853);">Soporte</h5>
                                                 <p style="font-size: 1.5em; font-weight: bold; margin:0;">${asset_row['Soporte']:.2f}</p>
                                             </div>
                                             """,
@@ -1502,8 +1578,12 @@ def render_enhanced_market_scanner(
                                         ):
                                             st.markdown(
                                                 f"""
-                                            <div style="background-color: #fce8e6; padding: 15px; border-radius: 5px; text-align: center;">
-                                                <h5 style="margin-top:0; color: #ea4335;">Resistencia</h5>
+                                            <style>
+                                                html[data-theme="light"] {{--resistance-bg-color: #fce8e6; --resistance-text-color: #ea4335;}}
+                                                html[data-theme="dark"] {{--resistance-bg-color: #b71c1c; --resistance-text-color: #ef9a9a;}}
+                                            </style>
+                                            <div style="background-color: var(--resistance-bg-color, #fce8e6); padding: 15px; border-radius: 5px; text-align: center;">
+                                                <h5 style="margin-top:0; color: var(--resistance-text-color, #ea4335);">Resistencia</h5>
                                                 <p style="font-size: 1.5em; font-weight: bold; margin:0;">${asset_row['Resistencia']:.2f}</p>
                                             </div>
                                             """,

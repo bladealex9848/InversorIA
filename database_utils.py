@@ -1608,10 +1608,25 @@ def save_market_sentiment(
             return None
 
         # Corregir el campo vix si es 'N/A' o no es numérico
-        if sentiment_data.get("vix") == "N/A" or not isinstance(
-            sentiment_data.get("vix"), (int, float, decimal.Decimal)
-        ):
-            sentiment_data["vix"] = 0.0  # Usar 0.0 como valor por defecto
+        if sentiment_data.get("vix") == "N/A" or sentiment_data.get("vix") is None:
+            # Intentar obtener el valor actual del VIX
+            try:
+                from market_utils import get_vix_level
+
+                vix_value = get_vix_level()
+                if isinstance(vix_value, (int, float, decimal.Decimal)):
+                    sentiment_data["vix"] = float(vix_value)
+                else:
+                    sentiment_data["vix"] = 0.0  # Usar 0.0 como valor por defecto
+            except Exception as e:
+                logger.warning(f"Error obteniendo VIX: {str(e)}")
+                sentiment_data["vix"] = 0.0  # Usar 0.0 como valor por defecto
+        elif not isinstance(sentiment_data.get("vix"), (int, float, decimal.Decimal)):
+            # Intentar convertir a float si es una cadena
+            try:
+                sentiment_data["vix"] = float(sentiment_data.get("vix"))
+            except (ValueError, TypeError):
+                sentiment_data["vix"] = 0.0  # Usar 0.0 como valor por defecto
 
         # Asegurar que la fecha esté presente
         if not sentiment_data.get("date"):
@@ -1709,9 +1724,17 @@ def save_market_sentiment(
                                   sentiment_date = %s
                               WHERE id = %s"""
 
+            # Asegurar que vix sea un valor numérico
+            vix_value = cleaned_data.get("vix", 0.0)
+            if not isinstance(vix_value, (int, float, decimal.Decimal)):
+                try:
+                    vix_value = float(vix_value)
+                except (ValueError, TypeError):
+                    vix_value = 0.0
+
             params = (
                 cleaned_data.get("overall", "Neutral"),
-                cleaned_data.get("vix", 0.0),
+                vix_value,  # Valor numérico asegurado
                 cleaned_data.get("sp500_trend", "N/A"),
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),
@@ -1754,10 +1777,18 @@ def save_market_sentiment(
                            symbol, sentiment, score, source, analysis, sentiment_date, created_at)
                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())"""
 
+            # Asegurar que vix sea un valor numérico
+            vix_value = cleaned_data.get("vix", 0.0)
+            if not isinstance(vix_value, (int, float, decimal.Decimal)):
+                try:
+                    vix_value = float(vix_value)
+                except (ValueError, TypeError):
+                    vix_value = 0.0
+
             params = (
                 cleaned_data.get("date", datetime.now().date()),
                 cleaned_data.get("overall", "Neutral"),
-                cleaned_data.get("vix", 0.0),
+                vix_value,  # Valor numérico asegurado
                 cleaned_data.get("sp500_trend", "N/A"),
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),

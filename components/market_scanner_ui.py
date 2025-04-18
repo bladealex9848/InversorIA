@@ -107,7 +107,20 @@ def render_market_scanner():
                                 # Guardar señal en la base de datos
                                 signal_manager.db_manager.save_signal(signal)
                                 signals_saved += 1
-                        except Exception as e:
+
+                                                    # Procesar la calidad de los datos después de guardar
+                                                    try:
+                                                        import post_save_quality_check
+                                                        
+                                                        # Procesar solo las señales de trading
+                                                        post_save_quality_check.process_quality_after_save(
+                                                            table_name="signals", limit=1
+                                                        )
+                                                        logger.info(f"Procesamiento de calidad completado para la señal")
+                                                    except Exception as e:
+                                                        logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+                                                        logger.warning(f"Traza completa:", exc_info=True)
+                                                            except Exception as e:
                             logger.error(
                                 f"Error guardando señal en la base de datos: {str(e)}"
                             )

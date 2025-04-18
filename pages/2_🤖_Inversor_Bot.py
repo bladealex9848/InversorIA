@@ -52,7 +52,7 @@ if not ASSISTANT_ID:
 assistant_id = ASSISTANT_ID
 
 # Inicialización del cliente de OpenAI
-client = openai
+client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # Título de la aplicación
 st.title("Bienvenido a InversorIA 📈")

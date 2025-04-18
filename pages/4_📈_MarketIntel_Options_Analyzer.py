@@ -409,7 +409,7 @@ def init_openai_client():
 
     # Configurar cliente OpenAI
     client = openai
-    client.api_key = OPENAI_API_KEY
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
     # Inicializar variables de estado para el thread
     if "thread_id" not in st.session_state:
