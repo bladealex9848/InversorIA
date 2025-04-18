@@ -10,8 +10,12 @@ FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
 # Patrones de credenciales sensibles a buscar
 PATTERNS=(
-    # Direcciones IP
+    # Direcciones IP (patrón general)
     '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'
+
+    # Patrones de direcciones IP sensibles (solo fragmentos parciales)
+    '190\.8\.[0-9]{1,3}\.[0-9]{1,3}'
+    '192\.168\.[0-9]{1,3}\.[0-9]{1,3}'
 
     # Contraseñas comunes en código
     'password\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
@@ -25,18 +29,21 @@ PATTERNS=(
     'username\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
     'user\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
 
-    # Nombres de bases de datos específicos
-    'liceopan_enki_sincelejo'
+    # Patrones de bases de datos sensibles (solo fragmentos parciales)
+    'liceopan_[a-z]+'
+    'enki_[a-z]+'
 
-    # Nombres de usuario específicos
-    'liceopan_root'
+    # Patrones de usuarios sensibles (solo fragmentos parciales)
+    'liceopan_[a-z]+'
+    '[a-z]+_root'
 
-    # Contraseñas específicas
-    '@Soporte2020@'
+    # Patrones de contraseñas sensibles (formato general, no contraseñas específicas)
+    '@[A-Z][a-z]+[0-9]{4}@'
+    '[A-Z][a-z]+[0-9]{4}'
 
-    # Servidores de correo específicos
-    'mail\.enki\.care'
-    'info@enki\.care'
+    # Patrones de servidores de correo sensibles (solo dominios parciales)
+    'mail\.[a-z]+\.care'
+    '[a-z]+@[a-z]+\.care'
 
     # Tokens y claves API
     'api[_-]?key\s*=\s*["\x27][^\s][^\x27"]*["\x27]'
