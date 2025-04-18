@@ -1311,7 +1311,8 @@ def save_market_news(
                     news_data["title"] = translated_title.strip()
                     logger.info(f"Título traducido: {news_data['title']}")
 
-            # Traducir y condensar resumen
+            # Generar o traducir el resumen
+            # Si hay un resumen existente, traducirlo
             if news_data.get("summary") and len(news_data.get("summary", "")) > 20:
                 original_summary = news_data.get("summary")
                 prompt = f"Traduce y condensa este resumen de noticia financiera al español de forma profesional y concisa (máximo 200 caracteres): '{original_summary}'"
@@ -1321,8 +1322,36 @@ def save_market_news(
                     logger.info(
                         f"Resumen traducido y condensado: {news_data['summary']}"
                     )
+            # Si no hay resumen o es muy corto, generarlo a partir del título y símbolo
+            elif not news_data.get("summary") or len(news_data.get("summary", "")) < 20:
+                title = news_data.get("title", "")
+                symbol = news_data.get("symbol", "SPY")
+                url = news_data.get("url", "")
+
+                # Generar un prompt para el resumen
+                if url:
+                    prompt = f"Genera un resumen conciso (máximo 200 caracteres) en español para esta noticia financiera sobre {symbol}. Título: '{title}'. URL: {url}"
+                else:
+                    prompt = f"Genera un resumen conciso (máximo 200 caracteres) en español para esta noticia financiera sobre {symbol}. Título: '{title}'"
+
+                generated_summary = get_expert_analysis(prompt)
+                if generated_summary and len(generated_summary) > 20:
+                    news_data["summary"] = generated_summary.strip()
+                    logger.info(f"Resumen generado: {news_data['summary']}")
+                else:
+                    # Generar un resumen básico si falla la generación con IA
+                    news_data["summary"] = f"Noticia relacionada con {symbol}: {title}"
+                    logger.info(f"Resumen básico generado: {news_data['summary']}")
         except Exception as e:
-            logger.warning(f"No se pudo traducir la noticia: {str(e)}")
+            logger.warning(f"No se pudo procesar la noticia con IA: {str(e)}")
+            # Generar un resumen básico si falla la generación con IA
+            if not news_data.get("summary") or len(news_data.get("summary", "")) < 20:
+                title = news_data.get("title", "")
+                symbol = news_data.get("symbol", "SPY")
+                news_data["summary"] = f"Noticia relacionada con {symbol}: {title}"
+                logger.info(
+                    f"Resumen básico generado (fallback): {news_data['summary']}"
+                )
 
         # Limpiar datos de texto
         cleaned_data = {}
