@@ -338,78 +338,11 @@ class DatabaseManager:
 
     def save_market_sentiment(self, sentiment_data):
         """Guarda el sentimiento del mercado en la base de datos"""
-        # Primero verificar si ya existe un registro para la fecha actual
-        check_query = """SELECT id FROM market_sentiment WHERE date = CURDATE()"""
-        result = self.execute_query(check_query)
-
-        # Completar campos adicionales que podrían estar vacíos
-        if not sentiment_data.get("symbol"):
-            sentiment_data["symbol"] = (
-                "SPY"  # Valor por defecto para el mercado general
-            )
-
-        if not sentiment_data.get("sentiment"):
-            sentiment_data["sentiment"] = sentiment_data.get("overall", "Neutral")
-
-        if not sentiment_data.get("score"):
-            # Convertir el sentimiento a un score numérico
-            sentiment_map = {"Alcista": 0.75, "Neutral": 0.5, "Bajista": 0.25}
-            sentiment_data["score"] = sentiment_map.get(
-                sentiment_data.get("overall", "Neutral"), 0.5
-            )
-
-        if not sentiment_data.get("source"):
-            sentiment_data["source"] = "InversorIA Analytics"
-
-        if not sentiment_data.get("analysis"):
-            # Generar un análisis basado en los datos disponibles
-            analysis = f"Análisis de sentimiento de mercado: {sentiment_data.get('overall', 'Neutral')}.\n"
-            if sentiment_data.get("vix"):
-                analysis += f"VIX: {sentiment_data.get('vix')}. "
-            if sentiment_data.get("sp500_trend"):
-                analysis += f"Tendencia S&P 500: {sentiment_data.get('sp500_trend')}. "
-            if sentiment_data.get("technical_indicators"):
-                analysis += f"\nIndicadores técnicos: {sentiment_data.get('technical_indicators')}"
-            if sentiment_data.get("notes"):
-                analysis += f"\nNotas adicionales: {sentiment_data.get('notes')}"
-            sentiment_data["analysis"] = analysis
-
-        if not sentiment_data.get("sentiment_date"):
-            sentiment_data["sentiment_date"] = datetime.now()
-
-        if result and len(result) > 0:
-            # Si existe, actualizar el registro existente
-            query = """UPDATE market_sentiment
-                      SET overall = %s, vix = %s, sp500_trend = %s,
-                          technical_indicators = %s, volume = %s, notes = %s,
-                          symbol = %s, sentiment = %s, score = %s, source = %s,
-                          analysis = %s, sentiment_date = %s
-                      WHERE date = CURDATE()"""
-            logger.info("Actualizando sentimiento del mercado existente para hoy")
-        else:
-            # Si no existe, insertar un nuevo registro
-            query = """INSERT INTO market_sentiment
-                      (date, overall, vix, sp500_trend, technical_indicators, volume, notes,
-                       symbol, sentiment, score, source, analysis, sentiment_date, created_at)
-                      VALUES (CURDATE(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())"""
-            logger.info("Insertando nuevo sentimiento del mercado para hoy")
-
-        params = (
-            sentiment_data.get("overall"),
-            sentiment_data.get("vix"),
-            sentiment_data.get("sp500_trend"),
-            sentiment_data.get("technical_indicators"),
-            sentiment_data.get("volume"),
-            sentiment_data.get("notes", "Generado automáticamente al enviar boletín"),
-            sentiment_data.get("symbol"),
-            sentiment_data.get("sentiment"),
-            sentiment_data.get("score"),
-            sentiment_data.get("source"),
-            sentiment_data.get("analysis"),
-            sentiment_data.get("sentiment_date"),
+        # No guardamos el sentimiento de mercado aquí, ya que se carga al inicio de la aplicación principal
+        logger.info(
+            "Omitiendo guardado de sentimiento de mercado, ya que se carga al inicio de la aplicación principal"
         )
-
-        return self.execute_query(query, params, fetch=False)
+        return None
 
     def save_market_news(self, news_data):
         """Guarda una noticia del mercado en la base de datos"""

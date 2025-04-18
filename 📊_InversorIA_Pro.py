@@ -4320,6 +4320,37 @@ def initialize_session_state():
         st.session_state.assistant_id = assistant_id
         st.session_state.openai_configured = bool(api_key)
 
+    # Cargar y almacenar el sentimiento de mercado diario al iniciar la aplicación
+    if "market_sentiment_loaded" not in st.session_state:
+        try:
+            # Inicializar el analizador de señales en tiempo real
+            real_time_analyzer = RealTimeSignalAnalyzer()
+
+            # Obtener el sentimiento de mercado
+            sentiment_data = real_time_analyzer.get_real_time_market_sentiment()
+
+            # Guardar el sentimiento en la base de datos
+            from database_utils import save_market_sentiment
+
+            sentiment_id = save_market_sentiment(sentiment_data)
+
+            if sentiment_id:
+                logger.info(
+                    f"Sentimiento de mercado diario cargado y almacenado con ID: {sentiment_id}"
+                )
+            else:
+                logger.info(
+                    "El sentimiento de mercado diario ya existe en la base de datos"
+                )
+
+            # Marcar como cargado para no volver a intentarlo
+            st.session_state.market_sentiment_loaded = True
+        except Exception as e:
+            logger.error(
+                f"Error al cargar y almacenar el sentimiento de mercado diario: {str(e)}"
+            )
+            st.session_state.market_sentiment_loaded = False
+
     # Estado para chat
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -7659,12 +7690,11 @@ def main():
                                                     }
                                                 )
 
-                                                # Guardar noticias y sentimiento de mercado
+                                                # Guardar noticias (pero no sentimiento de mercado, ya que se carga al inicio)
                                                 try:
                                                     # Usar database_utils en lugar de market_data_manager (que se movió a legacy_code)
                                                     from database_utils import (
                                                         save_market_news,
-                                                        save_market_sentiment,
                                                         save_trading_signal,
                                                     )
 
@@ -8061,66 +8091,11 @@ def main():
                                                                     "sentiment_date": datetime.now(),
                                                                 }
 
-                                                                # Verificar si ya existe un registro de sentimiento para hoy
-                                                                today = datetime.now().strftime(
-                                                                    "%Y-%m-%d"
+                                                                # No guardamos el sentimiento de mercado aquí, ya que se carga al inicio de la aplicación
+                                                                logger.info(
+                                                                    "Omitiendo guardado de sentimiento de mercado, ya que se carga al inicio de la aplicación"
                                                                 )
-                                                                check_query = "SELECT id FROM market_sentiment WHERE DATE(date) = %s"
-                                                                existing_sentiment = (
-                                                                    None
-                                                                )
-
-                                                                try:
-                                                                    from database_utils import (
-                                                                        DatabaseManager,
-                                                                    )
-
-                                                                    db_manager = (
-                                                                        DatabaseManager()
-                                                                    )
-                                                                    existing_sentiment = db_manager.execute_query(
-                                                                        check_query,
-                                                                        [today],
-                                                                    )
-                                                                except (
-                                                                    Exception
-                                                                ) as db_error:
-                                                                    logger.warning(
-                                                                        f"Error verificando sentimiento existente: {str(db_error)}"
-                                                                    )
-
-                                                                if (
-                                                                    existing_sentiment
-                                                                    and len(
-                                                                        existing_sentiment
-                                                                    )
-                                                                    > 0
-                                                                ):
-                                                                    sentiment_id = existing_sentiment[
-                                                                        0
-                                                                    ].get(
-                                                                        "id"
-                                                                    )
-                                                                    # Mostrar mensaje de que ya existe un registro para hoy
-                                                                    st.success(
-                                                                        f"📈 Sentimiento de mercado ya guardado para hoy con ID: {sentiment_id}"
-                                                                    )
-                                                                    logger.info(
-                                                                        f"Sentimiento de mercado ya existe para hoy con ID: {sentiment_id}"
-                                                                    )
-                                                                else:
-                                                                    # Si no existe, guardar nuevo sentimiento
-                                                                    sentiment_id = save_market_sentiment(
-                                                                        sentiment_data
-                                                                    )
-                                                                    if sentiment_id:
-                                                                        # Mostrar mensaje de éxito
-                                                                        st.success(
-                                                                            f"📈 Sentimiento de mercado guardado con ID: {sentiment_id}"
-                                                                        )
-                                                                        logger.info(
-                                                                            f"Sentimiento de mercado guardado con ID: {sentiment_id}"
-                                                                        )
+                                                                sentiment_id = None
                                                             except (
                                                                 Exception
                                                             ) as sentiment_error:

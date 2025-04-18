@@ -19,6 +19,7 @@ except Exception as e:
 
 logger = logging.getLogger(__name__)
 
+
 class SignalManager:
     """Gestiona las señales de trading y su procesamiento"""
 
@@ -28,7 +29,12 @@ class SignalManager:
         self.real_time_analyzer = RealTimeSignalAnalyzer()
 
     def get_active_signals(
-        self, days_back=7, categories=None, confidence_levels=None, force_realtime=False, refresh=False
+        self,
+        days_back=7,
+        categories=None,
+        confidence_levels=None,
+        force_realtime=False,
+        refresh=False,
     ):
         """Obtiene las señales activas filtradas"""
         # Verificar si hay señales en caché de sesión y no se fuerza actualización
@@ -41,32 +47,36 @@ class SignalManager:
             logger.info(
                 f"Usando {len(st.session_state.cached_signals)} señales desde la caché de sesión"
             )
-            
+
             # Filtrar señales por categoría y nivel de confianza
             filtered_signals = st.session_state.cached_signals
-            
+
             if categories and "Todas" not in categories:
                 if isinstance(categories, str):
                     categories = [categories]
                 filtered_signals = [
-                    signal for signal in filtered_signals
+                    signal
+                    for signal in filtered_signals
                     if signal.get("category") in categories
                 ]
-            
+
             if confidence_levels and len(confidence_levels) > 0:
                 filtered_signals = [
-                    signal for signal in filtered_signals
+                    signal
+                    for signal in filtered_signals
                     if signal.get("confidence_level") in confidence_levels
                 ]
-            
+
             # Filtrar por fecha
             if days_back > 0:
                 cutoff_date = datetime.now() - timedelta(days=days_back)
                 filtered_signals = [
-                    signal for signal in filtered_signals
-                    if isinstance(signal.get("created_at"), datetime) and signal.get("created_at") >= cutoff_date
+                    signal
+                    for signal in filtered_signals
+                    if isinstance(signal.get("created_at"), datetime)
+                    and signal.get("created_at") >= cutoff_date
                 ]
-            
+
             logger.info(f"Se filtraron {len(filtered_signals)} señales de la caché")
             return filtered_signals
 
@@ -101,7 +111,7 @@ class SignalManager:
 
         # Generar señales en tiempo real
         logger.info("Generando señales en tiempo real...")
-        
+
         # Determinar sector para escanear
         sector = "Todas"
         if categories and "Todas" not in categories:
@@ -109,12 +119,12 @@ class SignalManager:
                 sector = categories
             elif len(categories) == 1:
                 sector = categories[0]
-        
+
         # Determinar nivel de confianza
         confidence = "Media"
         if confidence_levels and len(confidence_levels) == 1:
             confidence = confidence_levels[0]
-        
+
         # Escanear mercado en tiempo real
         real_time_signals = self.real_time_analyzer.scan_market_by_sector(
             sector=sector, days=days_back, confidence_threshold=confidence
@@ -158,7 +168,7 @@ class SignalManager:
     def get_market_news(self):
         """Obtiene noticias relevantes del mercado"""
         return self.real_time_analyzer.get_market_news()
-    
+
     def get_detailed_analysis(self, symbol):
         """Obtiene análisis detallado para un símbolo específico"""
         # Primero intentar obtener desde la base de datos
@@ -173,27 +183,31 @@ class SignalManager:
         # Si no hay datos en la base de datos, generar análisis en tiempo real
         logger.info(f"Generando análisis detallado para {symbol} en tiempo real")
         return self.real_time_analyzer.get_detailed_analysis(symbol)
-    
+
     def save_signal(self, signal_data):
         """Guarda una nueva señal en la base de datos"""
         return self.db_manager.save_signal(signal_data)
-    
+
     def save_market_sentiment(self, sentiment_data):
         """Guarda datos de sentimiento de mercado en la base de datos"""
-        return self.db_manager.save_market_sentiment(sentiment_data)
-    
+        # No guardamos el sentimiento de mercado aquí, ya que se carga al inicio de la aplicación principal
+        logger.info(
+            "Omitiendo guardado de sentimiento de mercado, ya que se carga al inicio de la aplicación principal"
+        )
+        return None
+
     def save_market_news(self, news_data):
         """Guarda noticias de mercado en la base de datos"""
         return self.db_manager.save_market_news(news_data)
-    
+
     def process_scanner_signals(self, scanner_results):
         """Procesa señales del scanner y las guarda en la base de datos"""
         if scanner_results is None or scanner_results.empty:
             logger.warning("No hay resultados del scanner para procesar")
             return 0
-        
+
         signals_saved = 0
-        
+
         for _, row in scanner_results.iterrows():
             try:
                 # Determinar dirección
@@ -202,12 +216,12 @@ class SignalManager:
                     direction = "CALL"
                 elif row["Estrategia"] == "PUT":
                     direction = "PUT"
-                
+
                 # Determinar nivel de confianza
                 confidence = "Media"
                 if isinstance(row["Confianza"], str):
                     confidence = row["Confianza"]
-                
+
                 # Crear señal
                 signal = {
                     "symbol": row["Symbol"],
@@ -226,13 +240,13 @@ class SignalManager:
                     "analysis": f"Señal {direction} con confianza {confidence}. RSI: {row.get('RSI', 'N/A')}. R/R: {row.get('R/R', 'N/A')}",
                     "created_at": datetime.now(),
                 }
-                
+
                 # Verificar si la señal ya existe en la base de datos
                 existing_signals = self.db_manager.execute_query(
                     "SELECT id FROM trading_signals WHERE symbol = %s AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)",
                     [signal["symbol"]],
                 )
-                
+
                 if not existing_signals:
                     # Guardar señal en la base de datos
                     self.db_manager.save_signal(signal)
@@ -240,5 +254,5 @@ class SignalManager:
             except Exception as e:
                 logger.error(f"Error procesando señal del scanner: {str(e)}")
                 continue
-        
+
         return signals_saved

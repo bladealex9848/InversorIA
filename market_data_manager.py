@@ -586,23 +586,11 @@ class MarketDataManager:
                 )
                 logger.info("Datos de sentimiento validados y mejorados con IA")
 
-            # Guardar datos de sentimiento
-            sentiment_id = self.db_manager.save_market_sentiment(sentiment_data)
-
-            if sentiment_id:
-                logger.info(f"Datos de sentimiento guardados con ID: {sentiment_id}")
-
-                # Mostrar mensaje de éxito en lugar de usar summary_manager
-                logger.info(
-                    f"Sentimiento de mercado guardado con ID: {sentiment_id} - Sentimiento: {sentiment_data['overall']}"
-                )
-            else:
-                logger.error(f"Error al guardar datos de sentimiento")
-
-                # Mostrar mensaje de error en lugar de usar summary_manager
-                logger.error(
-                    f"No se pudo guardar el sentimiento de mercado para la fecha {sentiment_data['date']}"
-                )
+            # No guardamos el sentimiento de mercado aquí, ya que se carga al inicio de la aplicación principal
+            logger.info(
+                "Omitiendo guardado de sentimiento de mercado, ya que se carga al inicio de la aplicación principal"
+            )
+            sentiment_id = None
 
             return sentiment_id
 
