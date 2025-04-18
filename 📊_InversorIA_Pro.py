@@ -7999,17 +7999,19 @@ def main():
 
                                                             # Intentar parsear el resultado mejorado
                                                             try:
-                                                                try:
-                                                                    improved_data = json.loads(
-                                                                        improved_sentiment
-                                                                    )
-                                                                except (
-                                                                    json.JSONDecodeError
-                                                                ) as e:
+                                                                # Usar la función safe_json_loads de utils/data_utils.py
+                                                                from utils.data_utils import (
+                                                                    safe_json_loads,
+                                                                )
+
+                                                                improved_data = safe_json_loads(
+                                                                    improved_sentiment,
+                                                                    default={},
+                                                                )
+                                                                if not improved_data:
                                                                     logger.warning(
-                                                                        f"Error decodificando JSON: {str(e)}"
+                                                                        "No se pudo decodificar JSON, usando diccionario vacío"
                                                                     )
-                                                                    improved_data = {}
                                                                 if (
                                                                     isinstance(
                                                                         improved_data,
@@ -8226,6 +8228,35 @@ def main():
                                         <p>Los datos han sido almacenados correctamente y estarán disponibles para consultas futuras.</p>
                                     </div>"""
                                     st.markdown(success_msg, unsafe_allow_html=True)
+
+                                    # Ejecutar post_save_quality_check.py para procesar la calidad de los datos
+                                    try:
+                                        import post_save_quality_check
+                                        import sys
+                                        import os
+
+                                        # Asegurar que post_save_quality_check está en el path
+                                        current_dir = os.path.dirname(
+                                            os.path.abspath(__file__)
+                                        )
+                                        if current_dir not in sys.path:
+                                            sys.path.append(current_dir)
+
+                                        # Procesar la calidad de los datos
+                                        result = post_save_quality_check.process_quality_after_save(
+                                            table_name="trading_signals",
+                                            limit=signals_saved,
+                                        )
+
+                                        if result:
+                                            logger.info(
+                                                f"Procesamiento de calidad completado para {signals_saved} señales. Resultado: {result}"
+                                            )
+                                    except Exception as e:
+                                        logger.warning(
+                                            f"Error en el procesamiento de calidad: {str(e)}"
+                                        )
+                                        logger.warning("Traza completa:", exc_info=True)
 
                                 st.session_state.signals_saved = True
             except Exception as e:

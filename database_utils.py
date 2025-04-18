@@ -1345,13 +1345,37 @@ def save_market_news(
             # Por ejemplo, si estamos procesando noticias de un símbolo específico
             context_symbol = None
             import inspect
+            import traceback
 
+            # Obtener el stack completo para buscar el símbolo en cualquier nivel
+            stack = traceback.extract_stack()
             frame = inspect.currentframe().f_back
+
+            # Primero buscar en las variables locales de los frames
             while frame:
                 if "symbol" in frame.f_locals and frame.f_locals["symbol"]:
                     context_symbol = frame.f_locals["symbol"]
+                    logger.info(f"Símbolo encontrado en el contexto: {context_symbol}")
                     break
                 frame = frame.f_back
+
+            # Si no se encontró en los frames, buscar en el stack completo
+            if not context_symbol:
+                for frame_info in stack:
+                    # Buscar patrones como 'symbol="XYZ"' o "symbol='XYZ'" en el código fuente
+                    frame_line = frame_info[3]  # La línea de código
+                    if frame_line and "symbol" in frame_line:
+                        import re
+
+                        symbol_match = re.search(
+                            r'symbol\s*=\s*["\']([A-Z0-9]+)["\']', frame_line
+                        )
+                        if symbol_match:
+                            context_symbol = symbol_match.group(1)
+                            logger.info(
+                                f"Símbolo encontrado en el stack: {context_symbol}"
+                            )
+                            break
 
             if context_symbol and context_symbol in COMPANY_INFO:
                 news_data["symbol"] = context_symbol
@@ -1494,14 +1518,27 @@ def save_market_news(
                 try:
                     # Importar aquí para evitar problemas de importación circular
                     import post_save_quality_check
+                    import sys
+                    import os
+
+                    # Asegurar que post_save_quality_check está en el path
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    if current_dir not in sys.path:
+                        sys.path.append(current_dir)
 
                     # Procesar solo las noticias
-                    post_save_quality_check.process_quality_after_save(
+                    result = post_save_quality_check.process_quality_after_save(
                         table_name="news", limit=1
                     )
-                    logger.info(
-                        f"Procesamiento de calidad completado para la noticia {news_id}"
-                    )
+
+                    if result and result.get("news_processed", 0) > 0:
+                        logger.info(
+                            f"Procesamiento de calidad completado para la noticia {news_id}. Se procesaron {result.get('news_processed', 0)} noticias."
+                        )
+                    else:
+                        logger.warning(
+                            f"No se procesaron noticias en post_save_quality_check"
+                        )
 
                     # Ejecutar update_news_symbols.py para actualizar símbolos
                     try:
@@ -1515,7 +1552,7 @@ def save_market_news(
                         logger.warning(
                             f"Error en la actualización de símbolos: {str(e)}"
                         )
-                        logger.warning(f"Traza completa:", exc_info=True)
+                        logger.warning("Traza completa:", exc_info=True)
 
                     # Mostrar mensaje de confirmación
                     logger.info(
@@ -1523,7 +1560,7 @@ def save_market_news(
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
-                    logger.warning(f"Traza completa:", exc_info=True)
+                    logger.warning("Traza completa:", exc_info=True)
 
             return news_id
         else:
@@ -1872,6 +1909,9 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
 
     # Importar re si no está disponible en este contexto
     import re
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     # Importar datos de company_data.py
     from company_data import COMPANY_INFO
@@ -1880,6 +1920,9 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
     # Patrón 1: Símbolos entre paréntesis como (AAPL), (TSLA), etc.
     parenthesis_pattern = r"\(([A-Z]{1,5})\)"
     matches = re.findall(parenthesis_pattern, title)
+    logger.info(f"Buscando símbolos en título: '{title}'")
+    logger.info(f"Coincidencias de paréntesis: {matches}")
+
     if matches:
         # Verificar que el símbolo no sea una abreviatura común
         common_abbr = [
@@ -1899,20 +1942,35 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
             if match not in common_abbr and len(match) >= 2 and len(match) <= 5:
                 # Verificar si el símbolo existe en COMPANY_INFO
                 if match in COMPANY_INFO:
+                    logger.info(f"Símbolo encontrado en paréntesis: {match}")
                     return match
 
     # Patrón 2: Símbolos con prefijo NYSE: o NASDAQ: como NYSE:AAPL, NASDAQ:TSLA, etc.
     exchange_pattern = r"(NYSE|NASDAQ):\s*([A-Z]{1,5})"
     matches = re.findall(exchange_pattern, title)
+    logger.info(f"Coincidencias de exchange_pattern: {matches}")
     if matches:
         symbol = matches[0][1]  # Devolver el símbolo, no el exchange
         # Verificar si el símbolo existe en COMPANY_INFO
         if symbol in COMPANY_INFO:
+            logger.info(f"Símbolo encontrado con prefijo de exchange: {symbol}")
             return symbol
 
-    # Patrón 3: Buscar símbolos directamente en el texto (palabras en mayúsculas de 2-5 letras)
+    # Patrón 3: Buscar nombres de compañías conocidas en el título y devolver su símbolo
+    for symbol, info in COMPANY_INFO.items():
+        company_name = info.get("name", "")
+        if company_name and len(company_name) > 3:  # Evitar nombres muy cortos
+            # Buscar el nombre de la compañía en el título
+            if company_name.lower() in title.lower():
+                logger.info(
+                    f"Nombre de compañía encontrado: {company_name}, símbolo: {symbol}"
+                )
+                return symbol
+
+    # Patrón 4: Buscar símbolos directamente en el texto (palabras en mayúsculas de 2-5 letras)
     ticker_pattern = r"\b([A-Z]{2,5})\b"
     matches = re.findall(ticker_pattern, title)
+    logger.info(f"Coincidencias de ticker_pattern: {matches}")
     if matches:
         common_words = [
             "CEO",
