@@ -107,6 +107,7 @@ InversorIA/
 ├── company_data.py            # Datos de compañías y símbolos
 ├── check_db.py                # Herramienta para verificar calidad de datos
 ├── update_database_schema.py  # Herramienta para actualizar esquema de base de datos
+├── enhanced_market_scanner_fixed.py # Scanner de mercado mejorado
 ├── scripts/                   # Scripts de utilidad y configuración
 │   ├── setup-repo.sh           # Script para configurar el repositorio
 │   ├── install-hooks.sh        # Script para instalar hooks de Git
