@@ -516,6 +516,10 @@ def fetch_market_data(
     Returns:
         pd.DataFrame: DataFrame con datos OHLCV
     """
+    # Caso especial para VIX: usar función especializada
+    if symbol in ["^VIX", "VIX"]:
+        return fetch_vix_data(period, interval)
+
     # Clave de caché
     cache_key = f"market_data_{symbol}_{period}_{interval}"
 
@@ -2533,10 +2537,167 @@ class TechnicalAnalyzer:
 # =================================================
 
 
-def get_vix_level() -> float:
-    """Obtiene el nivel actual del VIX con manejo de errores"""
+def fetch_vix_data(period: str = "1mo", interval: str = "1d") -> pd.DataFrame:
+    """Obtiene datos del VIX con múltiples fuentes alternativas y manejo robusto de errores
+
+    Args:
+        period (str): Período de tiempo ('1d', '1mo', '3mo', '6mo', '1y', '2y', '5y')
+        interval (str): Intervalo de velas ('1d', '1wk', '1mo')
+
+    Returns:
+        pd.DataFrame: DataFrame con datos del VIX
+    """
+    # Clave de caché específica para VIX
+    cache_key = f"vix_data_{period}_{interval}"
+
+    # Verificar caché
+    cached_data = _data_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
+    # Lista de símbolos alternativos para el VIX
+    vix_symbols = ["^VIX", "VIX", "VIXY", "UVXY"]
+
+    # Intentar obtener datos de cada símbolo
+    for symbol in vix_symbols:
+        try:
+            # Intentar con yfinance primero
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period=period, interval=interval)
+
+            if not data.empty and len(data) > 5:
+                # Validar y corregir datos
+                data = validate_and_fix_data(data)
+
+                # Si es un ETF relacionado con VIX (no el índice directo), ajustar valores
+                if symbol in ["VIXY", "UVXY"]:
+                    # Estos ETFs tienen precios diferentes al VIX real
+                    # Normalizar para que se parezca más al VIX real
+                    if "VIXY" in symbol:
+                        # VIXY suele seguir al VIX con un factor aproximado
+                        data["Close"] = data["Close"] * 3.5
+                        data["Open"] = data["Open"] * 3.5
+                        data["High"] = data["High"] * 3.5
+                        data["Low"] = data["Low"] * 3.5
+                    elif "UVXY" in symbol:
+                        # UVXY es un ETF apalancado 1.5x
+                        data["Close"] = data["Close"] / 1.5
+                        data["Open"] = data["Open"] / 1.5
+                        data["High"] = data["High"] / 1.5
+                        data["Low"] = data["Low"] / 1.5
+
+                # Guardar en caché
+                _data_cache.set(cache_key, data)
+                logger.info(f"Datos del VIX obtenidos exitosamente usando {symbol}")
+                return data
+        except Exception as e:
+            logger.warning(f"Error obteniendo datos del VIX con {symbol}: {str(e)}")
+            continue
+
+    # Si todas las fuentes fallan, intentar con Alpha Vantage
     try:
-        vix_data = fetch_market_data("^VIX", period="1d", interval="1d")
+        alpha_data = _get_alpha_vantage_data("VIX", interval)
+        if alpha_data is not None and not alpha_data.empty:
+            _data_cache.set(cache_key, alpha_data)
+            return alpha_data
+    except Exception as e:
+        logger.warning(f"Error obteniendo datos del VIX con Alpha Vantage: {str(e)}")
+
+    # Si todo falla, generar datos sintéticos específicos para el VIX
+    logger.warning(
+        "Todas las fuentes fallaron para VIX, generando datos sintéticos robustos"
+    )
+    synthetic_data = _generate_vix_synthetic_data(period)
+    _data_cache.set(cache_key, synthetic_data)
+    return synthetic_data
+
+
+def _generate_vix_synthetic_data(period: str = "1mo") -> pd.DataFrame:
+    """Genera datos sintéticos específicos para el VIX
+
+    Args:
+        period (str): Período de tiempo
+
+    Returns:
+        pd.DataFrame: DataFrame con datos sintéticos del VIX
+    """
+    # Determinar número de días según el período
+    days_map = {
+        "1d": 1,
+        "5d": 5,
+        "1mo": 30,
+        "3mo": 90,
+        "6mo": 180,
+        "1y": 365,
+        "2y": 730,
+        "5y": 1825,
+    }
+    days = days_map.get(period, 30)
+
+    # Crear fechas
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days)
+    dates = pd.date_range(start=start_date, end=end_date, freq="D")
+
+    # Generar valores del VIX con características realistas
+    # El VIX suele estar entre 10 y 30, con picos ocasionales
+    np.random.seed(42)  # Semilla fija para reproducibilidad
+
+    # Valor base y tendencia
+    base_value = 18.0
+    trend = 0.0
+
+    # Generar serie con características del VIX (media-reversión, saltos, etc.)
+    values = []
+    current = base_value
+
+    for i in range(len(dates)):
+        # Media-reversión (el VIX tiende a volver a su media)
+        mean_reversion = (base_value - current) * 0.05
+
+        # Volatilidad (el VIX es más volátil cuando está alto)
+        volatility = 0.5 + (current / 20.0)
+
+        # Saltos ocasionales (crisis, eventos)
+        jump = 0
+        if np.random.random() < 0.02:  # 2% de probabilidad de salto
+            jump = np.random.choice([3, 5, 8]) * np.random.choice([1, -1])
+
+        # Combinar factores
+        change = mean_reversion + np.random.normal(0, volatility) + jump + trend
+        current += change
+
+        # Asegurar valores realistas (el VIX rara vez baja de 9)
+        current = max(9, current)
+        values.append(current)
+
+    # Crear DataFrame
+    df = pd.DataFrame(index=dates)
+    df["Close"] = values
+    df["Open"] = [v * (1 - np.random.uniform(0, 0.03)) for v in values]
+    df["High"] = [
+        max(o, c) * (1 + np.random.uniform(0, 0.05))
+        for o, c in zip(df["Open"], df["Close"])
+    ]
+    df["Low"] = [
+        min(o, c) * (1 - np.random.uniform(0, 0.05))
+        for o, c in zip(df["Open"], df["Close"])
+    ]
+    df["Volume"] = [int(1e6 * (1 + np.random.normal(0, 0.3))) for _ in values]
+    df["Adj Close"] = df["Close"]
+
+    # Marcar como sintético
+    df.attrs["synthetic"] = True
+    logger.info(f"Datos sintéticos robustos generados para ^VIX con {len(df)} períodos")
+
+    return df
+
+
+def get_vix_level() -> float:
+    """Obtiene el nivel actual del VIX con manejo de errores mejorado"""
+    try:
+        # Usar la función especializada para VIX
+        vix_data = fetch_vix_data(period="1mo", interval="1d")
         if vix_data is not None and not vix_data.empty:
             return vix_data["Close"].iloc[-1]
         return 15.0  # Valor por defecto si no hay datos

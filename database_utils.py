@@ -1341,42 +1341,60 @@ def save_market_news(
 
         # Caso 2: Si no viene un símbolo, intentar extraerlo del título
         else:
-            # Intentar extraer el símbolo del título
-            extracted_symbol = extract_symbol_from_title(title)
-            if extracted_symbol and extracted_symbol in COMPANY_INFO:
-                news_data["symbol"] = extracted_symbol
+            # Verificar si hay un símbolo en el contexto de la función que llamó a esta
+            # Por ejemplo, si estamos procesando noticias de un símbolo específico
+            context_symbol = None
+            import inspect
+
+            frame = inspect.currentframe().f_back
+            while frame:
+                if "symbol" in frame.f_locals and frame.f_locals["symbol"]:
+                    context_symbol = frame.f_locals["symbol"]
+                    break
+                frame = frame.f_back
+
+            if context_symbol and context_symbol in COMPANY_INFO:
+                news_data["symbol"] = context_symbol
                 logger.info(
-                    f"Símbolo extraído del título: {extracted_symbol} ({COMPANY_INFO[extracted_symbol]['name']})"
+                    f"Usando símbolo del contexto: {context_symbol} ({COMPANY_INFO[context_symbol]['name']})"
                 )
             else:
-                # Intentar usar IA para identificar el símbolo
-                try:
-                    from ai_utils import get_expert_analysis
-
-                    prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en este título de noticia financiera. Responde solo con el símbolo, sin explicaciones: '{title}'"
-                    ai_symbol = get_expert_analysis(prompt).strip().upper()
-
-                    # Verificar si el símbolo identificado por IA es válido
-                    if ai_symbol and ai_symbol in COMPANY_INFO:
-                        news_data["symbol"] = ai_symbol
-                        logger.info(
-                            f"Símbolo identificado por IA: {ai_symbol} ({COMPANY_INFO[ai_symbol]['name']})"
-                        )
-                    else:
-                        # Usar SPY como valor por defecto si no se puede identificar un símbolo
-                        news_data["symbol"] = "SPY"
-                        logger.info(
-                            "No se pudo identificar un símbolo, usando SPY como valor por defecto"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"Error al usar IA para identificar símbolo: {str(e)}"
-                    )
-                    # Usar SPY como valor por defecto
-                    news_data["symbol"] = "SPY"
+                # Intentar extraer el símbolo del título
+                extracted_symbol = extract_symbol_from_title(title)
+                if extracted_symbol and extracted_symbol in COMPANY_INFO:
+                    news_data["symbol"] = extracted_symbol
                     logger.info(
-                        "Error al identificar símbolo, usando SPY como valor por defecto"
+                        f"Símbolo extraído del título: {extracted_symbol} ({COMPANY_INFO[extracted_symbol]['name']})"
                     )
+                else:
+                    # Intentar usar IA para identificar el símbolo
+                    try:
+                        from ai_utils import get_expert_analysis
+
+                        prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en este título de noticia financiera. Responde solo con el símbolo, sin explicaciones: '{title}'"
+                        ai_symbol = get_expert_analysis(prompt).strip().upper()
+
+                        # Verificar si el símbolo identificado por IA es válido
+                        if ai_symbol and ai_symbol in COMPANY_INFO:
+                            news_data["symbol"] = ai_symbol
+                            logger.info(
+                                f"Símbolo identificado por IA: {ai_symbol} ({COMPANY_INFO[ai_symbol]['name']})"
+                            )
+                        else:
+                            # Usar SPY como valor por defecto si no se puede identificar un símbolo
+                            news_data["symbol"] = "SPY"
+                            logger.warning(
+                                "No se pudo identificar un símbolo, usando SPY como valor por defecto"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error al usar IA para identificar símbolo: {str(e)}"
+                        )
+                        # Usar SPY como valor por defecto
+                        news_data["symbol"] = "SPY"
+                        logger.warning(
+                            "Error al identificar símbolo, usando SPY como valor por defecto"
+                        )
 
         # Traducir y condensar el título y resumen al español usando el experto de IA
         try:

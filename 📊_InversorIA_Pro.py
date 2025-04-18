@@ -4338,6 +4338,19 @@ def initialize_session_state():
                 logger.info(
                     f"Sentimiento de mercado diario cargado y almacenado con ID: {sentiment_id}"
                 )
+
+                # Ejecutar post_save_quality_check.py para asegurar que todos los campos estén completos
+                try:
+                    import post_save_quality_check
+
+                    post_save_quality_check.process_quality_after_save(
+                        table_name="market_sentiment", limit=1
+                    )
+                    logger.info(
+                        f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
             else:
                 logger.info(
                     "El sentimiento de mercado diario ya existe en la base de datos"
