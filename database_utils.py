@@ -6,6 +6,7 @@ Este archivo contiene clases y funciones para gestionar la conexión y operacion
 
 import logging
 import mysql.connector
+import decimal
 from datetime import datetime
 import streamlit as st
 from typing import Dict, List, Any, Optional, Union
@@ -1461,8 +1462,8 @@ def save_market_news(
             cleaned_data.get("news_date", datetime.now()),
             cleaned_data.get("impact", "Medio"),
             cleaned_data.get(
-                "symbol", "SPY"
-            ),  # Usar SPY como valor por defecto si no hay símbolo
+                "symbol"
+            ),  # El símbolo ya debería estar establecido en el procesamiento anterior
         )
 
         # Ejecutar consulta
@@ -1482,6 +1483,25 @@ def save_market_news(
                     )
                     logger.info(
                         f"Procesamiento de calidad completado para la noticia {news_id}"
+                    )
+
+                    # Ejecutar update_news_symbols.py para actualizar símbolos
+                    try:
+                        import update_news_symbols
+
+                        updated, skipped = update_news_symbols.update_news_symbols()
+                        logger.info(
+                            f"Actualización de símbolos completada: {updated} registros actualizados, {skipped} sin cambios"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Error en la actualización de símbolos: {str(e)}"
+                        )
+                        logger.warning(f"Traza completa:", exc_info=True)
+
+                    # Mostrar mensaje de confirmación
+                    logger.info(
+                        "Los datos han sido almacenados correctamente en la base de datos y estarán disponibles para consultas futuras."
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
@@ -1531,6 +1551,12 @@ def save_market_sentiment(
         if not sentiment_data.get("overall"):
             logger.error("Error guardando sentimiento: Falta el sentimiento general")
             return None
+
+        # Corregir el campo vix si es 'N/A' o no es numérico
+        if sentiment_data.get("vix") == "N/A" or not isinstance(
+            sentiment_data.get("vix"), (int, float, decimal.Decimal)
+        ):
+            sentiment_data["vix"] = 0.0  # Usar 0.0 como valor por defecto
 
         # Asegurar que la fecha esté presente
         if not sentiment_data.get("date"):
@@ -1630,7 +1656,7 @@ def save_market_sentiment(
 
             params = (
                 cleaned_data.get("overall", "Neutral"),
-                cleaned_data.get("vix", "N/A"),
+                cleaned_data.get("vix", 0.0),
                 cleaned_data.get("sp500_trend", "N/A"),
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),
@@ -1676,7 +1702,7 @@ def save_market_sentiment(
             params = (
                 cleaned_data.get("date", datetime.now().date()),
                 cleaned_data.get("overall", "Neutral"),
-                cleaned_data.get("vix", "N/A"),
+                cleaned_data.get("vix", 0.0),
                 cleaned_data.get("sp500_trend", "N/A"),
                 cleaned_data.get("technical_indicators", "N/A"),
                 cleaned_data.get("volume", "N/A"),

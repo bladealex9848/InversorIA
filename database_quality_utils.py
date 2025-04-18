@@ -155,23 +155,29 @@ def get_empty_sentiment_analysis(
     connection: mysql.connector.MySQLConnection, limit: int = 10
 ) -> List[Dict[str, Any]]:
     """
-    Obtiene registros de sentimiento con análisis vacío
+    Obtiene registros de sentimiento con campos críticos vacíos
 
     Args:
         connection (mysql.connector.MySQLConnection): Conexión a la base de datos
         limit (int): Número máximo de registros a obtener
 
     Returns:
-        List[Dict[str, Any]]: Lista de registros de sentimiento con análisis vacío
+        List[Dict[str, Any]]: Lista de registros de sentimiento con campos críticos vacíos
     """
     try:
         cursor = connection.cursor(dictionary=True)
 
-        # Ejecutar consulta
+        # Ejecutar consulta para obtener registros con cualquier campo crítico vacío
         query = """
-        SELECT id, date, overall, vix, sp500_trend, technical_indicators, volume, notes
+        SELECT id, date, overall, vix, sp500_trend, technical_indicators, volume, notes,
+               symbol, sentiment, score, source, sentiment_date, analysis
         FROM market_sentiment
-        WHERE (analysis IS NULL OR analysis = '')
+        WHERE (analysis IS NULL OR analysis = '') OR
+              (symbol IS NULL OR symbol = '') OR
+              (sentiment IS NULL OR sentiment = '') OR
+              (score IS NULL) OR
+              (source IS NULL OR source = '') OR
+              (sentiment_date IS NULL)
         ORDER BY id DESC
         LIMIT %s
         """
@@ -186,7 +192,7 @@ def get_empty_sentiment_analysis(
         return results
     except Exception as e:
         logger.error(
-            f"Error obteniendo registros de sentimiento con análisis vacío: {str(e)}"
+            f"Error obteniendo registros de sentimiento con campos críticos vacíos: {str(e)}"
         )
         return []
 
@@ -313,35 +319,79 @@ def update_sentiment_analysis(
     connection: mysql.connector.MySQLConnection,
     sentiment_id: int,
     analysis: Optional[str],
+    symbol: Optional[str] = None,
+    sentiment_value: Optional[str] = None,
+    score: Optional[float] = None,
+    source: Optional[str] = None,
+    sentiment_date: Optional[str] = None,
 ) -> bool:
     """
-    Actualiza el análisis de un registro de sentimiento
+    Actualiza los campos de un registro de sentimiento
 
     Args:
         connection (mysql.connector.MySQLConnection): Conexión a la base de datos
         sentiment_id (int): ID del registro de sentimiento
         analysis (Optional[str]): Nuevo análisis o None si no se pudo generar un análisis válido
+        symbol (Optional[str]): Símbolo del activo
+        sentiment_value (Optional[str]): Valor del sentimiento
+        score (Optional[float]): Puntuación del sentimiento
+        source (Optional[str]): Fuente del sentimiento
+        sentiment_date (Optional[str]): Fecha del sentimiento
 
     Returns:
         bool: True si se actualizó correctamente, False en caso contrario
     """
-    # Si el análisis es None, no actualizar y devolver False
-    if analysis is None:
+    # Si todos los campos son None, no actualizar y devolver False
+    if all(
+        field is None
+        for field in [analysis, symbol, sentiment_value, score, source, sentiment_date]
+    ):
         logger.warning(
-            f"No se actualizó el análisis para el sentimiento {sentiment_id} porque el análisis es None"
+            f"No se actualizó el registro de sentimiento {sentiment_id} porque todos los campos son None"
         )
         return False
 
     try:
         cursor = connection.cursor()
 
+        # Construir la consulta dinámicamente según los campos proporcionados
+        query_parts = ["UPDATE market_sentiment SET"]
+        params = []
+
+        # Añadir cada campo a la consulta si no es None
+        if analysis is not None:
+            query_parts.append("analysis = %s,")
+            params.append(analysis)
+
+        if symbol is not None:
+            query_parts.append("symbol = %s,")
+            params.append(symbol)
+
+        if sentiment_value is not None:
+            query_parts.append("sentiment = %s,")
+            params.append(sentiment_value)
+
+        if score is not None:
+            query_parts.append("score = %s,")
+            params.append(score)
+
+        if source is not None:
+            query_parts.append("source = %s,")
+            params.append(source)
+
+        if sentiment_date is not None:
+            query_parts.append("sentiment_date = %s,")
+            params.append(sentiment_date)
+
+        # Añadir updated_at y WHERE
+        query_parts.append("updated_at = NOW() WHERE id = %s")
+        params.append(sentiment_id)
+
+        # Unir las partes de la consulta
+        query = " ".join(query_parts)
+
         # Ejecutar consulta
-        query = """
-        UPDATE market_sentiment
-        SET analysis = %s, updated_at = NOW()
-        WHERE id = %s
-        """
-        cursor.execute(query, (analysis, sentiment_id))
+        cursor.execute(query, params)
 
         # Confirmar cambios
         connection.commit()
@@ -352,7 +402,7 @@ def update_sentiment_analysis(
         return True
     except Exception as e:
         logger.error(
-            f"Error actualizando análisis de sentimiento {sentiment_id}: {str(e)}"
+            f"Error actualizando registro de sentimiento {sentiment_id}: {str(e)}"
         )
         return False
 

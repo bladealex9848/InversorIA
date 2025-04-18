@@ -13,7 +13,8 @@ import os
 import sys
 import toml
 import logging
-from datetime import datetime
+
+# from datetime import datetime  # No se usa actualmente
 from typing import Dict, Any, List, Optional
 
 # Configurar logging
@@ -462,6 +463,26 @@ def get_empty_critical_fields(
                 {
                     "field": "technical_indicators",
                     "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE technical_indicators IS NULL OR technical_indicators = '' LIMIT 10",
+                },
+                {
+                    "field": "symbol",
+                    "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE symbol IS NULL OR symbol = '' LIMIT 10",
+                },
+                {
+                    "field": "sentiment",
+                    "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE sentiment IS NULL OR sentiment = '' LIMIT 10",
+                },
+                {
+                    "field": "score",
+                    "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE score IS NULL LIMIT 10",
+                },
+                {
+                    "field": "source",
+                    "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE source IS NULL OR source = '' LIMIT 10",
+                },
+                {
+                    "field": "sentiment_date",
+                    "query": "SELECT id, date, overall, analysis, created_at FROM market_sentiment WHERE sentiment_date IS NULL LIMIT 10",
                 },
             ],
             "trading_signals": [
