@@ -55,66 +55,92 @@ def process_empty_news_summaries(
     empty_news = get_empty_news_summaries(connection, limit)
 
     if not empty_news:
-        logger.info("No hay noticias con resumen vacío para procesar")
+        print("No hay noticias con resumen vacío para procesar")
         return 0
 
-    logger.info(f"Se encontraron {len(empty_news)} noticias con resumen vacío")
+    print(f"Se encontraron {len(empty_news)} noticias con resumen vacío")
+    print("Detalles de las primeras 5 noticias:")
+    for i, news in enumerate(empty_news[:5]):
+        print(
+            f"  - ID: {news.get('id')}, Título: {news.get('title')[:50]}..., Símbolo: {news.get('symbol')}"
+        )
 
     # Procesar cada noticia
     processed_count = 0
-    for news in empty_news:
+    for i, news in enumerate(empty_news):
         news_id = news.get("id")
         title = news.get("title", "")
         symbol = news.get("symbol", "SPY")
         url = news.get("url", "")
 
-        logger.info(f"Procesando noticia ID {news_id}: {title[:50]}...")
+        print(
+            f"\nProcesando noticia {i+1}/{len(empty_news)} - ID {news_id}: {title[:50]}..."
+        )
 
         # Traducir título si está en inglés
         original_title = title
+        print(f"Traduciendo título: {original_title[:50]}...")
         translated_title = translate_title_to_spanish(title)
         if translated_title != original_title:
-            logger.info(f"Título traducido: {translated_title}")
+            print(f"Título traducido: {translated_title[:50]}...")
 
             # Actualizar título en la base de datos
             if update_news_title(connection, news_id, translated_title):
-                logger.info(f"Título actualizado para noticia ID {news_id}")
+                print(f"Título actualizado para noticia ID {news_id}")
 
                 # Usar el título traducido para generar el resumen
                 title = translated_title
             else:
-                logger.error(f"Error actualizando título para noticia ID {news_id}")
+                print(f"Error actualizando título para noticia ID {news_id}")
 
         # Intentar obtener noticias de Yahoo Finance si no hay URL
         if not url:
+            print(
+                f"No hay URL para la noticia ID {news_id}. Intentando obtener de Yahoo Finance..."
+            )
             yahoo_news = get_news_from_yahoo(symbol, 1)
             if yahoo_news:
                 # Usar la primera noticia como referencia
                 url = yahoo_news[0].get("url", "")
-                logger.info(f"URL obtenida de Yahoo Finance: {url}")
+                print(f"URL obtenida de Yahoo Finance: {url}")
 
                 # Actualizar URL en la base de datos
                 if update_news_url(connection, news_id, url):
-                    logger.info(f"URL actualizada para noticia ID {news_id}")
+                    print(f"URL actualizada para noticia ID {news_id}")
                 else:
-                    logger.error(f"Error actualizando URL para noticia ID {news_id}")
+                    print(f"Error actualizando URL para noticia ID {news_id}")
+            else:
+                print(
+                    f"No se encontraron noticias en Yahoo Finance para el símbolo {symbol}"
+                )
 
         # Generar resumen con IA
-        summary = generate_summary_with_ai(title, symbol, url)
+        print(f"Generando resumen con IA para noticia ID {news_id}...")
+        try:
+            summary = generate_summary_with_ai(title, symbol, url)
+            if summary:
+                print(f"Resumen generado: {summary[:100]}...")
+            else:
+                print("No se pudo generar un resumen válido (resultado None)")
+        except Exception as e:
+            print(f"Error generando resumen con IA: {str(e)}")
+            summary = None
 
         # Actualizar resumen en la base de datos solo si se generó un resumen válido
         if summary is not None:
+            print(
+                f"Actualizando resumen en la base de datos para noticia ID {news_id}..."
+            )
             if update_news_summary(connection, news_id, summary):
-                logger.info(f"Resumen actualizado para noticia ID {news_id}")
+                print(f"Resumen actualizado correctamente para noticia ID {news_id}")
                 processed_count += 1
             else:
-                logger.error(f"Error actualizando resumen para noticia ID {news_id}")
+                print(f"Error actualizando resumen para noticia ID {news_id}")
         else:
-            logger.warning(
-                f"No se pudo generar un resumen válido para la noticia ID {news_id}"
-            )
+            print(f"No se pudo generar un resumen válido para la noticia ID {news_id}")
 
         # Esperar un poco para no sobrecargar la API
+        print("Esperando 1 segundo antes de procesar la siguiente noticia...")
         time.sleep(1)
 
     return processed_count
@@ -177,28 +203,62 @@ def process_empty_sentiment_analysis(
 def main():
     """Función principal"""
     try:
+        # Configurar nivel de logging para ver más información
+        logging.getLogger().setLevel(logging.DEBUG)
+        print("\n" + "=" * 80)
+        print("INICIANDO PROCESAMIENTO DE CALIDAD DE DATOS")
+        print("=" * 80)
+
         # Cargar configuración
+        print("Cargando configuración de base de datos...")
         db_config = load_db_config()
+        print(
+            f"Configuración cargada: {db_config['host']}:{db_config['port']} - {db_config['database']}"
+        )
 
         # Conectar a la base de datos
+        print("Conectando a la base de datos...")
         connection = connect_to_db(db_config)
         if not connection:
             logger.error("No se pudo conectar a la base de datos")
             return
+        print("Conexión establecida correctamente")
+
+        # Verificar noticias con resumen vacío
+        print("\nVerificando noticias con resumen vacío...")
+        empty_news = get_empty_news_summaries(connection, 1000)
+        print(f"Se encontraron {len(empty_news)} noticias con resumen vacío")
 
         # Procesar noticias con resumen vacío (sin límite)
-        news_processed = process_empty_news_summaries(connection, 1000)
-        logger.info(f"Se procesaron {news_processed} noticias con resumen vacío")
+        if empty_news:
+            print("Procesando noticias con resumen vacío...")
+            news_processed = process_empty_news_summaries(connection, 1000)
+            print(f"Se procesaron {news_processed} noticias con resumen vacío")
+        else:
+            news_processed = 0
+            print("No hay noticias con resumen vacío para procesar")
+
+        # Verificar registros de sentimiento con análisis vacío
+        print("\nVerificando registros de sentimiento con análisis vacío...")
+        empty_sentiment = get_empty_sentiment_analysis(connection, 1000)
+        print(
+            f"Se encontraron {len(empty_sentiment)} registros de sentimiento con análisis vacío"
+        )
 
         # Procesar registros de sentimiento con análisis vacío (sin límite)
-        sentiment_processed = process_empty_sentiment_analysis(connection, 1000)
-        logger.info(
-            f"Se procesaron {sentiment_processed} registros de sentimiento con análisis vacío"
-        )
+        if empty_sentiment:
+            print("Procesando registros de sentimiento con análisis vacío...")
+            sentiment_processed = process_empty_sentiment_analysis(connection, 1000)
+            print(
+                f"Se procesaron {sentiment_processed} registros de sentimiento con análisis vacío"
+            )
+        else:
+            sentiment_processed = 0
+            print("No hay registros de sentimiento con análisis vacío para procesar")
 
         # Cerrar conexión
         connection.close()
-        logger.info("Conexión cerrada")
+        print("Conexión cerrada")
 
         # Mostrar resumen
         print("\n" + "=" * 80)
@@ -209,6 +269,9 @@ def main():
         print("=" * 80)
     except Exception as e:
         logger.error(f"Error en la ejecución: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

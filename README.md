@@ -173,6 +173,7 @@ Este script realizará las siguientes acciones:
 
 ### 5. Instalar Dependencias (Si no lo hiciste en el paso anterior)
 ```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 

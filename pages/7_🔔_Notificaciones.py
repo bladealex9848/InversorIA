@@ -78,6 +78,38 @@ with st.spinner(
         """
     )
 
+    # Ejecutar el script database_quality_processor.py al iniciar la página
+    try:
+        # Verificar si tenemos credenciales de OpenAI disponibles
+        has_openai_credentials = False
+        try:
+            # Intentar cargar las credenciales de OpenAI desde secrets.toml
+            if "OPENAI_API_KEY" in st.secrets:
+                has_openai_credentials = True
+                # Pasar las credenciales de OpenAI como variables de entorno
+                env = os.environ.copy()
+                env["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
+                if "OPENAI_API_MODEL" in st.secrets:
+                    env["OPENAI_API_MODEL"] = st.secrets["OPENAI_API_MODEL"]
+
+                # Ejecutar el script con las variables de entorno
+                logger.info("Ejecutando verificación de calidad de datos al iniciar...")
+                subprocess.run(
+                    ["python", "database_quality_processor.py"],
+                    check=True,
+                    env=env,
+                )
+                logger.info(
+                    "Verificación de calidad ejecutada correctamente al iniciar"
+                )
+        except Exception as e:
+            logger.error(
+                f"Error ejecutando verificación de calidad al iniciar: {str(e)}"
+            )
+    except Exception as e:
+        logger.error(f"Error general en verificación de calidad al iniciar: {str(e)}")
+
 # Barra lateral para configuración
 with st.sidebar:
     st.header("Configuración")
