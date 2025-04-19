@@ -42,23 +42,49 @@ class DataValidator:
 
         # Asegurar que el símbolo esté presente
         if not validated_data.get("symbol"):
-            # Intentar extraer el símbolo del título
+            # Intentar extraer el símbolo del título y contenido
             try:
-                from database_utils import extract_symbol_from_title
+                from database_utils import extract_symbol_from_content
 
                 title = validated_data.get("title", "")
-                extracted_symbol = extract_symbol_from_title(title)
+                summary = validated_data.get("summary", "")
+
+                # Buscar el símbolo actual en el contexto
+                import inspect
+
+                current_frame = inspect.currentframe()
+                context_symbol = None
+
+                # Buscar en los frames anteriores si hay un símbolo en el contexto
+                while current_frame:
+                    if (
+                        "symbol" in current_frame.f_locals
+                        and current_frame.f_locals["symbol"]
+                    ):
+                        context_symbol = current_frame.f_locals["symbol"]
+                        break
+                    current_frame = current_frame.f_back
+
+                # Extraer símbolo usando la función mejorada que analiza título y contenido
+                extracted_symbol = extract_symbol_from_content(
+                    title, summary, context_symbol
+                )
 
                 if extracted_symbol:
                     validated_data["symbol"] = extracted_symbol
                     logger.info(
-                        f"Símbolo extraído del título: {extracted_symbol} para noticia: {title[:30]}..."
+                        f"Símbolo extraído del contenido: {extracted_symbol} para noticia: {title[:30]}..."
                     )
                 else:
                     # Intentar usar IA para identificar el símbolo si está disponible
                     if self.ai_expert:
                         try:
-                            prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en este título de noticia financiera. Responde solo con el símbolo, sin explicaciones: '{title}'"
+                            # Usar tanto el título como el resumen para la identificación
+                            content_for_ai = title
+                            if summary:
+                                content_for_ai += "\n" + summary
+
+                            prompt = f"Identifica el símbolo bursátil (ticker) principal mencionado en esta noticia financiera. Responde solo con el símbolo, sin explicaciones:\n'{content_for_ai}'"
                             ai_symbol = (
                                 self.ai_expert.process_text(prompt, max_tokens=50)
                                 .strip()
@@ -75,29 +101,84 @@ class DataValidator:
                                     f"Símbolo identificado por IA: {ai_symbol} para noticia: {title[:30]}..."
                                 )
                             else:
-                                validated_data["symbol"] = "SPY"  # Valor por defecto
-                                logger.warning(
-                                    f"No se pudo identificar un símbolo válido con IA para: {title[:30]}..., usando SPY como valor por defecto"
-                                )
+                                # Usar el símbolo del contexto si está disponible
+                                if context_symbol:
+                                    validated_data["symbol"] = context_symbol
+                                    logger.info(
+                                        f"Usando símbolo del contexto: {context_symbol} para noticia: {title[:30]}..."
+                                    )
+                                else:
+                                    # Intentar identificar índices o sectores mencionados
+                                    indices = {
+                                        "S&P 500": "SPY",
+                                        "S&P500": "SPY",
+                                        "SP500": "SPY",
+                                        "Dow Jones": "DIA",
+                                        "DJIA": "DIA",
+                                        "Nasdaq": "QQQ",
+                                        "Nasdaq 100": "QQQ",
+                                        "Russell 2000": "IWM",
+                                        "VIX": "VIX",
+                                        "Volatilidad": "VIX",
+                                    }
+
+                                    for index_name, index_symbol in indices.items():
+                                        if index_name.lower() in content_for_ai.lower():
+                                            validated_data["symbol"] = index_symbol
+                                            logger.info(
+                                                f"Índice identificado: {index_name}, usando símbolo: {index_symbol} para noticia: {title[:30]}..."
+                                            )
+                                            break
+                                    else:  # Este else pertenece al for, se ejecuta si no se hace break
+                                        # Como último recurso, marcar para revisión manual
+                                        validated_data["symbol"] = (
+                                            "REVIEW"  # Marcar para revisión
+                                        )
+                                        logger.warning(
+                                            f"No se pudo identificar un símbolo para: {title[:30]}... - Marcado para revisión manual"
+                                        )
                         except Exception as e:
                             logger.error(
                                 f"Error al usar IA para identificar símbolo: {str(e)}"
                             )
-                            validated_data["symbol"] = "SPY"  # Valor por defecto
-                            logger.warning(
-                                "Se asignó SPY como símbolo por defecto para una noticia sin símbolo (error en IA)"
-                            )
+                            # Usar el símbolo del contexto si está disponible
+                            if context_symbol:
+                                validated_data["symbol"] = context_symbol
+                                logger.info(
+                                    f"Usando símbolo del contexto después de error: {context_symbol} para noticia: {title[:30]}..."
+                                )
+                            else:
+                                validated_data["symbol"] = (
+                                    "REVIEW"  # Marcar para revisión
+                                )
+                                logger.warning(
+                                    "Error al identificar símbolo - Noticia marcada para revisión manual"
+                                )
                     else:
-                        validated_data["symbol"] = "SPY"  # Valor por defecto
-                        logger.warning(
-                            "Se asignó SPY como símbolo por defecto para una noticia sin símbolo (sin IA disponible)"
-                        )
+                        # Usar el símbolo del contexto si está disponible
+                        if context_symbol:
+                            validated_data["symbol"] = context_symbol
+                            logger.info(
+                                f"Usando símbolo del contexto (sin IA): {context_symbol} para noticia: {title[:30]}..."
+                            )
+                        else:
+                            validated_data["symbol"] = "REVIEW"  # Marcar para revisión
+                            logger.warning(
+                                "No se pudo identificar símbolo (sin IA disponible) - Noticia marcada para revisión manual"
+                            )
             except Exception as e:
-                logger.error(f"Error al extraer símbolo del título: {str(e)}")
-                validated_data["symbol"] = "SPY"  # Valor por defecto
-                logger.warning(
-                    "Se asignó SPY como símbolo por defecto para una noticia sin símbolo (error en extracción)"
-                )
+                logger.error(f"Error al extraer símbolo del contenido: {str(e)}")
+                # Usar el símbolo del contexto si está disponible como último recurso
+                if context_symbol:
+                    validated_data["symbol"] = context_symbol
+                    logger.info(
+                        f"Usando símbolo del contexto después de excepción: {context_symbol} para noticia: {title[:30]}..."
+                    )
+                else:
+                    validated_data["symbol"] = "REVIEW"  # Marcar para revisión
+                    logger.warning(
+                        "Error en extracción de símbolo - Noticia marcada para revisión manual"
+                    )
 
         # Asegurar que la fecha de noticia esté presente
         if not validated_data.get("news_date"):

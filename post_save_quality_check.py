@@ -326,6 +326,13 @@ def check_database_quality(
     empty_news = get_empty_news_summaries(connection, limit=1000)
     result["empty_news_summaries"] = len(empty_news) if empty_news else 0
 
+    # Verificar noticias marcadas para revisión
+    cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT COUNT(*) as count FROM market_news WHERE symbol = 'REVIEW'")
+    review_news = cursor.fetchone()
+    result["news_for_review"] = review_news["count"] if review_news else 0
+    cursor.close()
+
     # Verificar sentimiento con análisis vacío
     empty_sentiment = get_empty_sentiment_analysis(connection, limit=1000)
     result["empty_sentiment_analysis"] = len(empty_sentiment) if empty_sentiment else 0
@@ -624,6 +631,14 @@ def process_quality_after_save(
         logger.info(
             f"Noticias con resumen vacío: {quality_stats['empty_news_summaries']}"
         )
+        if "news_for_review" in quality_stats:
+            logger.info(
+                f"Noticias marcadas para revisión: {quality_stats['news_for_review']}"
+            )
+            if quality_stats["news_for_review"] > 0:
+                logger.warning(
+                    "Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos correctos."
+                )
         logger.info(
             f"Registros de sentimiento con análisis vacío: {quality_stats['empty_sentiment_analysis']}"
         )
@@ -727,6 +742,14 @@ def main():
         print("ESTADÍSTICAS DE CALIDAD DE DATOS")
         print("=" * 80)
         print(f"Noticias con resumen vacío: {quality_stats['empty_news_summaries']}")
+        if "news_for_review" in quality_stats:
+            print(
+                f"Noticias marcadas para revisión: {quality_stats['news_for_review']}"
+            )
+            if quality_stats["news_for_review"] > 0:
+                print(
+                    "\033[93m⚠️  Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos correctos.\033[0m"
+                )
         print(
             f"Registros de sentimiento con análisis vacío: {quality_stats['empty_sentiment_analysis']}"
         )

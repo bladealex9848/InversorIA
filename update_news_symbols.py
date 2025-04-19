@@ -1,10 +1,12 @@
 """
-Script para actualizar los símbolos en la tabla market_news basado en los títulos de las noticias.
+Script para actualizar los símbolos en la tabla market_news basado en los títulos y contenido de las noticias.
+Utiliza la función mejorada extract_symbol_from_content para obtener símbolos más precisos.
 """
 
 import logging
 import sys
-from database_utils import DatabaseManager, extract_symbol_from_title
+from database_utils import DatabaseManager, extract_symbol_from_content
+from company_data import COMPANY_INFO
 
 # Configurar logging
 logging.basicConfig(
@@ -23,16 +25,20 @@ logger.addHandler(handler)
 
 def update_news_symbols():
     """
-    Actualiza los símbolos en la tabla market_news basado en los títulos de las noticias.
+    Actualiza los símbolos en la tabla market_news basado en los títulos y contenido de las noticias.
+    Utiliza la función mejorada extract_symbol_from_content para obtener símbolos más precisos.
+
+    Returns:
+        tuple: (número de registros actualizados, número de registros sin cambios)
     """
     try:
         print("Conectando a la base de datos...")
         db = DatabaseManager()
         print("Conexión establecida")
 
-        # Obtener todas las noticias
+        # Obtener todas las noticias con resumen
         print("Obteniendo noticias...")
-        news = db.execute_query("SELECT id, title, symbol FROM market_news")
+        news = db.execute_query("SELECT id, title, summary, symbol FROM market_news")
         print(f"Se obtuvieron {len(news)} noticias")
 
         updated_count = 0
@@ -43,11 +49,23 @@ def update_news_symbols():
             title = item["title"]
             current_symbol = item["symbol"]
 
-            # Extraer símbolo del título
-            extracted_symbol = extract_symbol_from_title(title)
+            # Extraer símbolo del título y resumen
+            summary = item.get("summary", "")
+            extracted_symbol = extract_symbol_from_content(title, summary)
 
             # Si se extrajo un símbolo y es diferente al actual
             if extracted_symbol and extracted_symbol != current_symbol:
+                # Validar que el símbolo exista en COMPANY_INFO o sea un índice común
+                common_indices = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
+                if (
+                    extracted_symbol not in COMPANY_INFO
+                    and extracted_symbol not in common_indices
+                ):
+                    logger.warning(
+                        f"ID {news_id}: Símbolo extraído '{extracted_symbol}' no válido - Título: {title[:50]}..."
+                    )
+                    # Marcar para revisión manual
+                    extracted_symbol = "REVIEW"
                 # Actualizar el símbolo en la base de datos
                 update_query = "UPDATE market_news SET symbol = %s WHERE id = %s"
                 db.execute_query(update_query, [extracted_symbol, news_id], fetch=False)
@@ -57,7 +75,16 @@ def update_news_symbols():
                 )
                 updated_count += 1
             else:
-                skipped_count += 1
+                # Si el símbolo actual es SPY y no se pudo extraer uno mejor, marcar para revisión manual
+                if current_symbol == "SPY" or not current_symbol:
+                    update_query = "UPDATE market_news SET symbol = %s WHERE id = %s"
+                    db.execute_query(update_query, ["REVIEW", news_id], fetch=False)
+                    logger.info(
+                        f"ID {news_id}: Marcado para revisión manual - Título: {title[:50]}..."
+                    )
+                    updated_count += 1
+                else:
+                    skipped_count += 1
 
         logger.info(
             f"Actualización completada: {updated_count} registros actualizados, {skipped_count} registros sin cambios"

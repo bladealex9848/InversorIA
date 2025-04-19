@@ -1537,7 +1537,7 @@ def save_market_news(
                         )
                     else:
                         logger.warning(
-                            f"No se procesaron noticias en post_save_quality_check"
+                            "No se procesaron noticias en post_save_quality_check"
                         )
 
                     # Ejecutar update_news_symbols.py para actualizar símbolos
@@ -1634,9 +1634,40 @@ def save_market_sentiment(
 
         # Asegurar que los campos adicionales estén presentes
         if not sentiment_data.get("symbol"):
-            sentiment_data["symbol"] = (
-                "SPY"  # Valor por defecto para el mercado general
-            )
+            # Intentar extraer el símbolo del contexto o del contenido
+            try:
+                # Buscar en el contexto actual
+                import inspect
+
+                current_frame = inspect.currentframe()
+                context_symbol = None
+
+                # Buscar en los frames anteriores si hay un símbolo en el contexto
+                while current_frame:
+                    if (
+                        "symbol" in current_frame.f_locals
+                        and current_frame.f_locals["symbol"]
+                    ):
+                        context_symbol = current_frame.f_locals["symbol"]
+                        break
+                    current_frame = current_frame.f_back
+
+                if context_symbol:
+                    sentiment_data["symbol"] = context_symbol
+                    logger.info(
+                        f"Usando símbolo del contexto para sentimiento: {context_symbol}"
+                    )
+                else:
+                    # Si no hay contexto, usar SPY como valor por defecto para el mercado general
+                    sentiment_data["symbol"] = "SPY"
+                    logger.info(
+                        "Usando SPY como valor por defecto para sentimiento de mercado general"
+                    )
+            except Exception as e:
+                logger.warning(f"Error al extraer símbolo del contexto: {str(e)}")
+                sentiment_data["symbol"] = (
+                    "SPY"  # Valor por defecto para el mercado general
+                )
 
         if not sentiment_data.get("sentiment"):
             sentiment_data["sentiment"] = sentiment_data.get("overall", "Neutral")
@@ -1767,7 +1798,7 @@ def save_market_sentiment(
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
-                    logger.warning(f"Traza completa:", exc_info=True)
+                    logger.warning("Traza completa:", exc_info=True)
 
             return sentiment_id
         else:
@@ -1819,7 +1850,7 @@ def save_market_sentiment(
                     )
                 except Exception as e:
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
-                    logger.warning(f"Traza completa:", exc_info=True)
+                    logger.warning("Traza completa:", exc_info=True)
 
             return sentiment_id
 
@@ -1915,7 +1946,7 @@ def save_trading_signal(
                 )
             except Exception as e:
                 logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
-                logger.warning(f"Traza completa:", exc_info=True)
+                logger.warning("Traza completa:", exc_info=True)
 
         return signal_id
 
@@ -1924,34 +1955,68 @@ def save_trading_signal(
         return None
 
 
-def extract_symbol_from_title(title: str) -> Optional[str]:
+def extract_symbol_from_content(
+    text: str, content: str = None, current_context_symbol: str = None
+) -> Optional[str]:
     """
-    Extrae el símbolo de una acción o ETF del título de una noticia.
+    Extrae el símbolo de una acción o ETF del título y/o contenido de una noticia.
     Utiliza company_data.py para validar los símbolos encontrados.
 
     Args:
-        title (str): Título de la noticia
+        text (str): Título de la noticia
+        content (str, optional): Contenido o resumen de la noticia
+        current_context_symbol (str, optional): Símbolo del contexto actual (si se está analizando un símbolo específico)
 
     Returns:
         Optional[str]: Símbolo extraído o None si no se encuentra
     """
-    if not title:
+    if not text and not content and not current_context_symbol:
         return None
 
-    # Importar re si no está disponible en este contexto
+    # Importar módulos necesarios
     import re
     import logging
+    import inspect
 
     logger = logging.getLogger(__name__)
 
     # Importar datos de company_data.py
     from company_data import COMPANY_INFO
 
-    # Buscar patrones comunes de símbolos en el título
+    # Lista de símbolos candidatos con su puntuación de relevancia
+    candidates = {}
+
+    # Si tenemos un símbolo de contexto, añadirlo como candidato con alta puntuación
+    if current_context_symbol and current_context_symbol in COMPANY_INFO:
+        candidates[current_context_symbol] = 5.0
+        logger.info(f"Usando símbolo del contexto actual: {current_context_symbol}")
+
+    # Si no se proporcionó un símbolo de contexto, intentar encontrarlo en el stack
+    if not current_context_symbol:
+        # Obtener el frame actual para buscar el símbolo en el contexto
+        frame = inspect.currentframe().f_back
+
+        # Primero buscar en las variables locales de los frames
+        while frame:
+            if "symbol" in frame.f_locals and frame.f_locals["symbol"]:
+                context_symbol = frame.f_locals["symbol"]
+                if context_symbol in COMPANY_INFO:
+                    candidates[context_symbol] = 4.0
+                    logger.info(f"Símbolo encontrado en el contexto: {context_symbol}")
+                break
+            frame = frame.f_back
+
+    # Combinar título y contenido para análisis si ambos están disponibles
+    all_text = text or ""
+    if content:
+        all_text = f"{all_text} {content}"
+
+    # Buscar patrones comunes de símbolos en el texto
+    logger.info(f"Buscando símbolos en texto: '{text[:100]}...'")
+
     # Patrón 1: Símbolos entre paréntesis como (AAPL), (TSLA), etc.
     parenthesis_pattern = r"\(([A-Z]{1,5})\)"
-    matches = re.findall(parenthesis_pattern, title)
-    logger.info(f"Buscando símbolos en título: '{title}'")
+    matches = re.findall(parenthesis_pattern, all_text)
     logger.info(f"Coincidencias de paréntesis: {matches}")
 
     if matches:
@@ -1968,39 +2033,49 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
             "Q2",
             "Q3",
             "Q4",
+            "AI",
+            "IPO",
+            "ETF",
         ]
         for match in matches:
             if match not in common_abbr and len(match) >= 2 and len(match) <= 5:
                 # Verificar si el símbolo existe en COMPANY_INFO
                 if match in COMPANY_INFO:
+                    # Mayor puntuación si está en el título
+                    score = 3.0 if match in text else 2.0
+                    candidates[match] = candidates.get(match, 0) + score
                     logger.info(f"Símbolo encontrado en paréntesis: {match}")
-                    return match
 
     # Patrón 2: Símbolos con prefijo NYSE: o NASDAQ: como NYSE:AAPL, NASDAQ:TSLA, etc.
     exchange_pattern = r"(NYSE|NASDAQ):\s*([A-Z]{1,5})"
-    matches = re.findall(exchange_pattern, title)
+    matches = re.findall(exchange_pattern, all_text)
     logger.info(f"Coincidencias de exchange_pattern: {matches}")
     if matches:
-        symbol = matches[0][1]  # Devolver el símbolo, no el exchange
-        # Verificar si el símbolo existe en COMPANY_INFO
-        if symbol in COMPANY_INFO:
-            logger.info(f"Símbolo encontrado con prefijo de exchange: {symbol}")
-            return symbol
+        for match in matches:
+            symbol = match[1]  # Devolver el símbolo, no el exchange
+            # Verificar si el símbolo existe en COMPANY_INFO
+            if symbol in COMPANY_INFO:
+                # Mayor puntuación si está en el título
+                score = 3.0 if f"{match[0]}:{symbol}" in text else 2.0
+                candidates[symbol] = candidates.get(symbol, 0) + score
+                logger.info(f"Símbolo encontrado con prefijo de exchange: {symbol}")
 
-    # Patrón 3: Buscar nombres de compañías conocidas en el título y devolver su símbolo
+    # Patrón 3: Buscar nombres de compañías conocidas en el texto y devolver su símbolo
     for symbol, info in COMPANY_INFO.items():
         company_name = info.get("name", "")
         if company_name and len(company_name) > 3:  # Evitar nombres muy cortos
-            # Buscar el nombre de la compañía en el título
-            if company_name.lower() in title.lower():
+            # Buscar el nombre de la compañía en el texto
+            if company_name.lower() in all_text.lower():
+                # Mayor puntuación si está en el título
+                score = 2.5 if company_name.lower() in text.lower() else 1.5
+                candidates[symbol] = candidates.get(symbol, 0) + score
                 logger.info(
                     f"Nombre de compañía encontrado: {company_name}, símbolo: {symbol}"
                 )
-                return symbol
 
     # Patrón 4: Buscar símbolos directamente en el texto (palabras en mayúsculas de 2-5 letras)
     ticker_pattern = r"\b([A-Z]{2,5})\b"
-    matches = re.findall(ticker_pattern, title)
+    matches = re.findall(ticker_pattern, all_text)
     logger.info(f"Coincidencias de ticker_pattern: {matches}")
     if matches:
         common_words = [
@@ -2014,28 +2089,63 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
             "AI",
             "IPO",
             "ETF",
+            "SEC",
+            "FED",
+            "GDP",
+            "CPI",
         ]
         for match in matches:
             if match not in common_words and match in COMPANY_INFO:
-                return match
+                # Mayor puntuación si está en el título
+                score = 2.0 if match in text else 1.0
+                candidates[symbol] = candidates.get(symbol, 0) + score
+                logger.info(f"Símbolo encontrado directamente en el texto: {match}")
 
-    # Patrón 4: Buscar nombres de empresas en el título
-    # Crear un diccionario inverso de nombres de empresas a símbolos
-    company_name_to_symbol = {}
-    for symbol, info in COMPANY_INFO.items():
-        company_name = info.get("name", "")
-        if company_name:
-            # Guardar el nombre completo
-            company_name_to_symbol[company_name] = symbol
-            # Guardar también la primera palabra del nombre (para casos como "Apple Inc." -> "Apple")
-            first_word = company_name.split()[0]
-            if len(first_word) > 2:  # Evitar palabras muy cortas
-                company_name_to_symbol[first_word] = symbol
+    # Patrón 5: Buscar índices comunes si se mencionan en el texto
+    indices = {
+        "S&P 500": "SPY",
+        "S&P500": "SPY",
+        "SP500": "SPY",
+        "Dow Jones": "DIA",
+        "DJIA": "DIA",
+        "Nasdaq": "QQQ",
+        "Nasdaq 100": "QQQ",
+        "Russell 2000": "IWM",
+        "VIX": "VIX",
+        "Volatilidad": "VIX",
+    }
 
-    # Buscar coincidencias de nombres de empresas en el título
-    for company_name, symbol in company_name_to_symbol.items():
-        if company_name in title:
-            return symbol
+    for index_name, index_symbol in indices.items():
+        if index_name.lower() in all_text.lower():
+            # Mayor puntuación si está en el título
+            score = 1.5 if index_name.lower() in text.lower() else 0.8
+            candidates[index_symbol] = candidates.get(index_symbol, 0) + score
+            logger.info(f"Índice encontrado: {index_name}, símbolo: {index_symbol}")
+
+    # Si hay candidatos, devolver el de mayor puntuación
+    if candidates:
+        best_symbol = max(candidates.items(), key=lambda x: x[1])[0]
+        logger.info(
+            f"Mejor símbolo encontrado: {best_symbol} con puntuación {candidates[best_symbol]}"
+        )
+        return best_symbol
 
     # Si no se encuentra ningún símbolo, devolver None
     return None
+
+
+def extract_symbol_from_title(title: str) -> Optional[str]:
+    """
+    Extrae el símbolo de una acción o ETF del título de una noticia.
+    Utiliza company_data.py para validar los símbolos encontrados.
+
+    Esta función es un wrapper para mantener compatibilidad con el código existente.
+    Internamente usa extract_symbol_from_content.
+
+    Args:
+        title (str): Título de la noticia
+
+    Returns:
+        Optional[str]: Símbolo extraído o None si no se encuentra
+    """
+    return extract_symbol_from_content(title)
