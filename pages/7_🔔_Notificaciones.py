@@ -1850,8 +1850,29 @@ class EmailManager:
                             st.warning(
                                 "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
                             )
+                            # Pasar las credenciales de OpenAI como variables de entorno
+                            env = os.environ.copy()
+                            if "OPENAI_API_KEY" in st.secrets:
+                                env["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+                            elif (
+                                "openai" in st.secrets
+                                and "api_key" in st.secrets["openai"]
+                            ):
+                                env["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
+
+                            if "OPENAI_API_MODEL" in st.secrets:
+                                env["OPENAI_API_MODEL"] = st.secrets["OPENAI_API_MODEL"]
+                            elif (
+                                "openai" in st.secrets
+                                and "model" in st.secrets["openai"]
+                            ):
+                                env["OPENAI_API_MODEL"] = st.secrets["openai"]["model"]
+
+                            # Ejecutar el script con las variables de entorno
                             subprocess.run(
-                                ["python", "database_quality_processor.py"], check=True
+                                ["python", "database_quality_processor.py"],
+                                check=True,
+                                env=env,
                             )
                             logger.info(
                                 "Verificación de calidad ejecutada correctamente"
@@ -3593,8 +3614,25 @@ with tab1:
                         st.warning(
                             "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
                         )
+                        # Pasar las credenciales de OpenAI como variables de entorno
+                        env = os.environ.copy()
+                        if "OPENAI_API_KEY" in st.secrets:
+                            env["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+                        elif (
+                            "openai" in st.secrets and "api_key" in st.secrets["openai"]
+                        ):
+                            env["OPENAI_API_KEY"] = st.secrets["openai"]["api_key"]
+
+                        if "OPENAI_API_MODEL" in st.secrets:
+                            env["OPENAI_API_MODEL"] = st.secrets["OPENAI_API_MODEL"]
+                        elif "openai" in st.secrets and "model" in st.secrets["openai"]:
+                            env["OPENAI_API_MODEL"] = st.secrets["openai"]["model"]
+
+                        # Ejecutar el script con las variables de entorno
                         subprocess.run(
-                            ["python", "database_quality_processor.py"], check=True
+                            ["python", "database_quality_processor.py"],
+                            check=True,
+                            env=env,
                         )
                         logger.info("Verificación de calidad ejecutada correctamente")
                         # Intentar obtener el resumen actualizado

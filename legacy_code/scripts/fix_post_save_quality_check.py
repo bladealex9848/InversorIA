@@ -17,6 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def fix_post_save_quality_check():
     """
     Corrige los problemas con post_save_quality_check.py
@@ -26,13 +27,13 @@ def fix_post_save_quality_check():
         if not os.path.exists("post_save_quality_check.py"):
             logger.error("El archivo post_save_quality_check.py no existe")
             return False
-            
+
         logger.info("Corrigiendo problemas con post_save_quality_check.py...")
-        
+
         # 2. Corregir el problema con OPENAI_API_KEY en post_save_quality_check.py
         with open("post_save_quality_check.py", "r", encoding="utf-8") as file:
             content = file.read()
-            
+
         # Verificar si ya se ha corregido el problema
         if "import toml" in content and "secrets = toml.load" in content:
             logger.info("El archivo post_save_quality_check.py ya ha sido corregido")
@@ -40,9 +41,9 @@ def fix_post_save_quality_check():
             # Agregar importación de toml y carga de secrets.toml
             new_content = content.replace(
                 "import mysql.connector",
-                "import mysql.connector\nimport toml\nimport os"
+                "import mysql.connector\nimport toml\nimport os",
             )
-            
+
             # Agregar función para cargar la API key de OpenAI
             openai_config_code = """
 # Cargar configuración de OpenAI desde secrets.toml
@@ -68,7 +69,7 @@ def load_openai_config():
                 api_key = secrets["api_keys"]["OPENAI_API_KEY"]
                 
             # Buscar el modelo en diferentes ubicaciones
-            model = "gpt-3.5-turbo"
+            model = "gpt-4.1-nano"
             if "OPENAI_API_MODEL" in secrets:
                 model = secrets["OPENAI_API_MODEL"]
             elif "openai" in secrets and "model" in secrets["openai"]:
@@ -87,13 +88,13 @@ def load_openai_config():
         logger.error(f"Error cargando configuración de OpenAI: {str(e)}")
         return {}
 """
-            
+
             # Insertar el código después de la definición del logger
             new_content = new_content.replace(
                 "logger = logging.getLogger(__name__)",
-                "logger = logging.getLogger(__name__)" + openai_config_code
+                "logger = logging.getLogger(__name__)" + openai_config_code,
             )
-            
+
             # Corregir las funciones que generan contenido con IA
             # Primero, buscar generate_summary_with_ai
             if "def generate_summary_with_ai" in new_content:
@@ -102,9 +103,9 @@ def load_openai_config():
                 end_index = new_content.find("def ", start_index + 1)
                 if end_index == -1:
                     end_index = len(new_content)
-                    
+
                 old_function = new_content[start_index:end_index]
-                
+
                 # Crear la nueva función
                 new_function = """def generate_summary_with_ai(title, symbol, url=None):
     \"\"\"
@@ -122,7 +123,7 @@ def load_openai_config():
         # Cargar configuración de OpenAI
         config = load_openai_config()
         api_key = config.get("api_key")
-        model = config.get("model", "gpt-3.5-turbo")
+        model = config.get("model", "gpt-4.1-nano")
         
         if not api_key:
             logger.warning("No se encontró la API key de OpenAI")
@@ -167,20 +168,22 @@ def load_openai_config():
         logger.error(f"Error en generate_summary_with_ai: {str(e)}")
         return "Resumen generado automáticamente para la noticia: " + title
 """
-                
+
                 # Reemplazar la función antigua con la nueva
                 new_content = new_content.replace(old_function, new_function)
-                
+
             # Corregir generate_sentiment_analysis_with_ai
             if "def generate_sentiment_analysis_with_ai" in new_content:
                 # Encontrar la función completa
-                start_index = new_content.find("def generate_sentiment_analysis_with_ai")
+                start_index = new_content.find(
+                    "def generate_sentiment_analysis_with_ai"
+                )
                 end_index = new_content.find("def ", start_index + 1)
                 if end_index == -1:
                     end_index = len(new_content)
-                    
+
                 old_function = new_content[start_index:end_index]
-                
+
                 # Crear la nueva función
                 new_function = """def generate_sentiment_analysis_with_ai(sentiment_data):
     \"\"\"
@@ -196,7 +199,7 @@ def load_openai_config():
         # Cargar configuración de OpenAI
         config = load_openai_config()
         api_key = config.get("api_key")
-        model = config.get("model", "gpt-3.5-turbo")
+        model = config.get("model", "gpt-4.1-nano")
         
         if not api_key:
             logger.warning("No se encontró la API key de OpenAI")
@@ -244,20 +247,22 @@ def load_openai_config():
         logger.error(f"Error en generate_sentiment_analysis_with_ai: {str(e)}")
         return "Análisis de sentimiento de mercado generado automáticamente."
 """
-                
+
                 # Reemplazar la función antigua con la nueva
                 new_content = new_content.replace(old_function, new_function)
-                
+
             # Corregir generate_trading_signal_analysis_with_ai
             if "def generate_trading_signal_analysis_with_ai" in new_content:
                 # Encontrar la función completa
-                start_index = new_content.find("def generate_trading_signal_analysis_with_ai")
+                start_index = new_content.find(
+                    "def generate_trading_signal_analysis_with_ai"
+                )
                 end_index = new_content.find("def ", start_index + 1)
                 if end_index == -1:
                     end_index = len(new_content)
-                    
+
                 old_function = new_content[start_index:end_index]
-                
+
                 # Crear la nueva función
                 new_function = """def generate_trading_signal_analysis_with_ai(signal_data):
     \"\"\"
@@ -273,7 +278,7 @@ def load_openai_config():
         # Cargar configuración de OpenAI
         config = load_openai_config()
         api_key = config.get("api_key")
-        model = config.get("model", "gpt-3.5-turbo")
+        model = config.get("model", "gpt-4.1-nano")
         
         if not api_key:
             logger.warning("No se encontró la API key de OpenAI")
@@ -347,21 +352,23 @@ def load_openai_config():
         logger.error(f"Error en generate_trading_signal_analysis_with_ai: {str(e)}")
         return "Análisis experto generado automáticamente para la señal de trading."
 """
-                
+
                 # Reemplazar la función antigua con la nueva
                 new_content = new_content.replace(old_function, new_function)
-            
+
             # Guardar los cambios
             with open("post_save_quality_check.py", "w", encoding="utf-8") as file:
                 file.write(new_content)
-                
+
             logger.info("Se ha corregido post_save_quality_check.py")
-        
+
         # 3. Verificar si post_save_quality_check.py se llama desde enhanced_market_scanner_fixed.py
         if os.path.exists("enhanced_market_scanner_fixed.py"):
-            with open("enhanced_market_scanner_fixed.py", "r", encoding="utf-8") as file:
+            with open(
+                "enhanced_market_scanner_fixed.py", "r", encoding="utf-8"
+            ) as file:
                 content = file.read()
-                
+
             if "post_save_quality_check" not in content:
                 # Buscar un lugar adecuado para agregar la llamada
                 if "save_signal" in content:
@@ -372,15 +379,19 @@ def load_openai_config():
                         next_def_index = content.find("def ", save_signal_index + 1)
                         if next_def_index == -1:
                             next_def_index = len(content)
-                            
+
                         # Buscar el return de la función
-                        return_index = content.rfind("return", save_signal_index, next_def_index)
+                        return_index = content.rfind(
+                            "return", save_signal_index, next_def_index
+                        )
                         if return_index != -1:
                             # Buscar el final de la línea
                             end_line_index = content.find("\n", return_index)
                             if end_line_index != -1:
                                 # Agregar la llamada a post_save_quality_check.py
-                                new_content = content[:end_line_index + 1] + """
+                                new_content = (
+                                    content[: end_line_index + 1]
+                                    + """
                                 # Procesar la calidad de los datos después de guardar
                                 try:
                                     import post_save_quality_check
@@ -393,36 +404,55 @@ def load_openai_config():
                                 except Exception as e:
                                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
                                     logger.warning(f"Traza completa:", exc_info=True)
-                                """ + content[end_line_index + 1:]
-                                
+                                """
+                                    + content[end_line_index + 1 :]
+                                )
+
                                 # Guardar los cambios
-                                with open("enhanced_market_scanner_fixed.py", "w", encoding="utf-8") as file:
+                                with open(
+                                    "enhanced_market_scanner_fixed.py",
+                                    "w",
+                                    encoding="utf-8",
+                                ) as file:
                                     file.write(new_content)
-                                    
-                                logger.info("Se ha agregado la llamada a post_save_quality_check.py en enhanced_market_scanner_fixed.py")
-        
+
+                                logger.info(
+                                    "Se ha agregado la llamada a post_save_quality_check.py en enhanced_market_scanner_fixed.py"
+                                )
+
         # 4. Verificar si post_save_quality_check.py se llama desde components/market_scanner_ui.py
         if os.path.exists("components/market_scanner_ui.py"):
             with open("components/market_scanner_ui.py", "r", encoding="utf-8") as file:
                 content = file.read()
-                
+
             if "post_save_quality_check" not in content:
                 # Buscar un lugar adecuado para agregar la llamada
                 if "save_signal" in content:
                     # Buscar la función que guarda señales
-                    save_signal_index = content.find("signal_manager.db_manager.save_signal")
+                    save_signal_index = content.find(
+                        "signal_manager.db_manager.save_signal"
+                    )
                     if save_signal_index != -1:
                         # Buscar el final de la línea
                         end_line_index = content.find("\n", save_signal_index)
                         if end_line_index != -1:
                             # Buscar la línea que incrementa signals_saved
-                            signals_saved_index = content.find("signals_saved += 1", save_signal_index)
-                            if signals_saved_index != -1 and signals_saved_index < save_signal_index + 200:
+                            signals_saved_index = content.find(
+                                "signals_saved += 1", save_signal_index
+                            )
+                            if (
+                                signals_saved_index != -1
+                                and signals_saved_index < save_signal_index + 200
+                            ):
                                 # Buscar el final de la línea
-                                signals_saved_end_index = content.find("\n", signals_saved_index)
+                                signals_saved_end_index = content.find(
+                                    "\n", signals_saved_index
+                                )
                                 if signals_saved_end_index != -1:
                                     # Agregar la llamada a post_save_quality_check.py
-                                    new_content = content[:signals_saved_end_index + 1] + """
+                                    new_content = (
+                                        content[: signals_saved_end_index + 1]
+                                        + """
                                                     # Procesar la calidad de los datos después de guardar
                                                     try:
                                                         import post_save_quality_check
@@ -435,21 +465,30 @@ def load_openai_config():
                                                     except Exception as e:
                                                         logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
                                                         logger.warning(f"Traza completa:", exc_info=True)
-                                    """ + content[signals_saved_end_index + 1:]
-                                    
+                                    """
+                                        + content[signals_saved_end_index + 1 :]
+                                    )
+
                                     # Guardar los cambios
-                                    with open("components/market_scanner_ui.py", "w", encoding="utf-8") as file:
+                                    with open(
+                                        "components/market_scanner_ui.py",
+                                        "w",
+                                        encoding="utf-8",
+                                    ) as file:
                                         file.write(new_content)
-                                        
-                                    logger.info("Se ha agregado la llamada a post_save_quality_check.py en components/market_scanner_ui.py")
-        
+
+                                    logger.info(
+                                        "Se ha agregado la llamada a post_save_quality_check.py en components/market_scanner_ui.py"
+                                    )
+
         logger.info("Correcciones completadas")
         return True
-        
+
     except Exception as e:
         logger.error(f"Error en fix_post_save_quality_check: {str(e)}")
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     if fix_post_save_quality_check():

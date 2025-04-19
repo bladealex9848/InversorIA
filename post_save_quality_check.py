@@ -24,44 +24,65 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# Cargar configuración de OpenAI desde secrets.toml
+# Importar módulo de credenciales de OpenAI
+try:
+    from openai_credentials import (
+        OPENAI_API_KEY,
+        OPENAI_API_MODEL,
+        initialize_openai_client,
+    )
+
+    logger.info("Módulo de credenciales de OpenAI importado correctamente")
+    OPENAI_CREDENTIALS_AVAILABLE = True
+except ImportError:
+    logger.warning("No se pudo importar el módulo de credenciales de OpenAI")
+    OPENAI_CREDENTIALS_AVAILABLE = False
+
+
+# Cargar configuración de OpenAI
 def load_openai_config():
     """
-    Carga la configuración de OpenAI desde secrets.toml
+    Carga la configuración de OpenAI
 
     Returns:
         dict: Configuración de OpenAI
     """
-    try:
-        secrets_path = os.path.join(".streamlit", "secrets.toml")
-        if os.path.exists(secrets_path):
-            secrets = toml.load(secrets_path)
+    if OPENAI_CREDENTIALS_AVAILABLE:
+        return {"api_key": OPENAI_API_KEY, "model": OPENAI_API_MODEL}
+    else:
+        # Fallback al método anterior
+        try:
+            secrets_path = os.path.join(".streamlit", "secrets.toml")
+            if os.path.exists(secrets_path):
+                secrets = toml.load(secrets_path)
 
-            # Buscar la API key en diferentes ubicaciones
-            api_key = None
-            if "OPENAI_API_KEY" in secrets:
-                api_key = secrets["OPENAI_API_KEY"]
-            elif "openai" in secrets and "api_key" in secrets["openai"]:
-                api_key = secrets["openai"]["api_key"]
-            elif "api_keys" in secrets and "OPENAI_API_KEY" in secrets["api_keys"]:
-                api_key = secrets["api_keys"]["OPENAI_API_KEY"]
+                # Buscar la API key en diferentes ubicaciones
+                api_key = None
+                if "OPENAI_API_KEY" in secrets:
+                    api_key = secrets["OPENAI_API_KEY"]
+                elif "openai" in secrets and "api_key" in secrets["openai"]:
+                    api_key = secrets["openai"]["api_key"]
+                elif "api_keys" in secrets and "OPENAI_API_KEY" in secrets["api_keys"]:
+                    api_key = secrets["api_keys"]["OPENAI_API_KEY"]
 
-            # Buscar el modelo en diferentes ubicaciones
-            model = "gpt-3.5-turbo"
-            if "OPENAI_API_MODEL" in secrets:
-                model = secrets["OPENAI_API_MODEL"]
-            elif "openai" in secrets and "model" in secrets["openai"]:
-                model = secrets["openai"]["model"]
-            elif "api_keys" in secrets and "OPENAI_API_MODEL" in secrets["api_keys"]:
-                model = secrets["api_keys"]["OPENAI_API_MODEL"]
+                # Buscar el modelo en diferentes ubicaciones
+                model = "gpt-4.1-nano"
+                if "OPENAI_API_MODEL" in secrets:
+                    model = secrets["OPENAI_API_MODEL"]
+                elif "openai" in secrets and "model" in secrets["openai"]:
+                    model = secrets["openai"]["model"]
+                elif (
+                    "api_keys" in secrets and "OPENAI_API_MODEL" in secrets["api_keys"]
+                ):
+                    model = secrets["api_keys"]["OPENAI_API_MODEL"]
 
-            return {"api_key": api_key, "model": model}
-        else:
-            logger.warning(f"No se encontró el archivo {secrets_path}")
+                return {"api_key": api_key, "model": model}
+            else:
+                logger.warning(f"No se encontró el archivo {secrets_path}")
+                return {}
+        except Exception as e:
+            logger.error(f"Error cargando configuración de OpenAI: {str(e)}")
             return {}
-    except Exception as e:
-        logger.error(f"Error cargando configuración de OpenAI: {str(e)}")
-        return {}
 
 
 # Importar módulos propios
@@ -103,7 +124,7 @@ except ImportError:
             # Cargar configuración de OpenAI
             config = load_openai_config()
             api_key = config.get("api_key")
-            model = config.get("model", "gpt-3.5-turbo")
+            model = config.get("model", "gpt-4.1-nano")
 
             if not api_key:
                 logger.warning("No se encontró la API key de OpenAI")
@@ -111,11 +132,19 @@ except ImportError:
 
             # Inicializar cliente de OpenAI
             try:
-                import openai
+                if OPENAI_CREDENTIALS_AVAILABLE:
+                    client = initialize_openai_client()
+                else:
+                    import openai
 
-                openai.api_key = api_key
-                client = openai.OpenAI(api_key=api_key)
-                logger.info("Cliente OpenAI inicializado correctamente")
+                    openai.api_key = api_key
+                    client = openai.OpenAI(api_key=api_key)
+
+                if client:
+                    logger.info("Cliente OpenAI inicializado correctamente")
+                else:
+                    logger.warning("No se pudo inicializar el cliente OpenAI")
+                    return f"Resumen generado automáticamente para la noticia: {title}"
             except Exception as e:
                 logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
                 return f"Resumen generado automáticamente para la noticia: {title}"
@@ -160,7 +189,7 @@ except ImportError:
             # Cargar configuración de OpenAI
             config = load_openai_config()
             api_key = config.get("api_key")
-            model = config.get("model", "gpt-3.5-turbo")
+            model = config.get("model", "gpt-4.1-nano")
 
             if not api_key:
                 logger.warning("No se encontró la API key de OpenAI")
@@ -168,11 +197,21 @@ except ImportError:
 
             # Inicializar cliente de OpenAI
             try:
-                import openai
+                if OPENAI_CREDENTIALS_AVAILABLE:
+                    client = initialize_openai_client()
+                else:
+                    import openai
 
-                openai.api_key = api_key
-                client = openai.OpenAI(api_key=api_key)
-                logger.info("Cliente OpenAI inicializado correctamente")
+                    openai.api_key = api_key
+                    client = openai.OpenAI(api_key=api_key)
+
+                if client:
+                    logger.info("Cliente OpenAI inicializado correctamente")
+                else:
+                    logger.warning("No se pudo inicializar el cliente OpenAI")
+                    return (
+                        "Análisis de sentimiento de mercado generado automáticamente."
+                    )
             except Exception as e:
                 logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
                 return "Análisis de sentimiento de mercado generado automáticamente."
@@ -222,7 +261,7 @@ except ImportError:
             # Cargar configuración de OpenAI
             config = load_openai_config()
             api_key = config.get("api_key")
-            model = config.get("model", "gpt-3.5-turbo")
+            model = config.get("model", "gpt-4.1-nano")
 
             if not api_key:
                 logger.warning("No se encontró la API key de OpenAI")
@@ -230,11 +269,19 @@ except ImportError:
 
             # Inicializar cliente de OpenAI
             try:
-                import openai
+                if OPENAI_CREDENTIALS_AVAILABLE:
+                    client = initialize_openai_client()
+                else:
+                    import openai
 
-                openai.api_key = api_key
-                client = openai.OpenAI(api_key=api_key)
-                logger.info("Cliente OpenAI inicializado correctamente")
+                    openai.api_key = api_key
+                    client = openai.OpenAI(api_key=api_key)
+
+                if client:
+                    logger.info("Cliente OpenAI inicializado correctamente")
+                else:
+                    logger.warning("No se pudo inicializar el cliente OpenAI")
+                    return "Análisis experto generado automáticamente para la señal de trading."
             except Exception as e:
                 logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
                 return "Análisis experto generado automáticamente para la señal de trading."

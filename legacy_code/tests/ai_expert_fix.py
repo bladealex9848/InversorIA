@@ -69,7 +69,7 @@ class StandaloneAIExpert:
         """
         self.client = None
         self.assistant_id = None
-        self.model = "gpt-3.5-turbo"  # Modelo por defecto
+        self.model = "gpt-4.1-nano"  # Modelo por defecto
 
         try:
             # Importar OpenAI

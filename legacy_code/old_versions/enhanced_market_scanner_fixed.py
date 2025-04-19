@@ -2442,7 +2442,7 @@ def render_enhanced_market_scanner(
 
                                         # Realizar solicitud a OpenAI
                                         response = openai_client.chat.completions.create(
-                                            model="gpt-3.5-turbo",
+                                            model="gpt-4.1-nano",
                                             messages=[
                                                 {
                                                     "role": "system",
