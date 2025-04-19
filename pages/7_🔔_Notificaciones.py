@@ -1826,41 +1826,68 @@ class EmailManager:
 
                 # Si no hay resumen, ejecutar post_save_quality_check.py y mostrar un mensaje
                 if not summary or len(summary.strip()) < 10:
-                    # Ejecutar post_save_quality_check.py para procesar noticias sin resumen
+                    # Verificar si tenemos credenciales de OpenAI disponibles
+                    has_openai_credentials = False
                     try:
-                        st.warning(
-                            "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
-                        )
-                        subprocess.run(
-                            ["python", "post_save_quality_check.py"], check=True
-                        )
-                        logger.info("Verificación de calidad ejecutada correctamente")
-                        # Intentar obtener el resumen actualizado
-                        if item.get("id"):
-                            # Consultar la noticia actualizada
-                            db_manager = DatabaseManager()
-                            updated_news = db_manager.execute_query(
-                                "SELECT summary FROM market_news WHERE id = %s",
-                                [item.get("id")],
+                        # Intentar cargar las credenciales de OpenAI desde secrets.toml
+                        if "OPENAI_API_KEY" in st.secrets:
+                            has_openai_credentials = True
+                        elif (
+                            "openai" in st.secrets and "api_key" in st.secrets["openai"]
+                        ):
+                            has_openai_credentials = True
+                        elif (
+                            "api_keys" in st.secrets
+                            and "OPENAI_API_KEY" in st.secrets["api_keys"]
+                        ):
+                            has_openai_credentials = True
+                    except Exception:
+                        has_openai_credentials = False
+
+                    if has_openai_credentials:
+                        # Ejecutar post_save_quality_check.py para procesar noticias sin resumen
+                        try:
+                            st.warning(
+                                "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
                             )
-                            if (
-                                updated_news
-                                and len(updated_news) > 0
-                                and updated_news[0].get("summary")
-                            ):
-                                summary = updated_news[0].get("summary")
-                                logger.info(
-                                    f"Resumen actualizado para noticia ID {item.get('id')}"
+                            subprocess.run(
+                                ["python", "database_quality_processor.py"], check=True
+                            )
+                            logger.info(
+                                "Verificación de calidad ejecutada correctamente"
+                            )
+                            # Intentar obtener el resumen actualizado
+                            if item.get("id"):
+                                # Consultar la noticia actualizada
+                                db_manager = DatabaseManager()
+                                updated_news = db_manager.execute_query(
+                                    "SELECT summary FROM market_news WHERE id = %s",
+                                    [item.get("id")],
                                 )
+                                if (
+                                    updated_news
+                                    and len(updated_news) > 0
+                                    and updated_news[0].get("summary")
+                                ):
+                                    summary = updated_news[0].get("summary")
+                                    logger.info(
+                                        f"Resumen actualizado para noticia ID {item.get('id')}"
+                                    )
+                                else:
+                                    summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
                             else:
                                 summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
-                        else:
-                            summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
-                    except Exception as e:
-                        logger.error(
-                            f"Error ejecutando verificación de calidad: {str(e)}"
+                        except Exception as e:
+                            logger.error(
+                                f"Error ejecutando verificación de calidad: {str(e)}"
+                            )
+                            summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+                    else:
+                        # No hay credenciales de OpenAI disponibles
+                        st.warning(
+                            "No se pueden generar resúmenes automáticamente porque no hay credenciales de OpenAI configuradas. Por favor, configure las credenciales en secrets.toml."
                         )
-                        summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+                        summary = "No hay resumen disponible para esta noticia. Se requieren credenciales de OpenAI para generar resúmenes automáticamente."
 
                 html += f"""
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 20px; background-color: #ffffff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -3541,40 +3568,67 @@ with tab1:
             else:
                 symbol_badge = ""
 
-            # Verificar si hay resumen y ejecutar post_save_quality_check.py si es necesario
+            # Verificar si hay resumen y ejecutar database_quality_processor.py si es necesario
             summary = item.get("summary", "")
             if not summary or len(summary.strip()) < 10:
-                # Ejecutar post_save_quality_check.py para procesar noticias sin resumen
+                # Verificar si tenemos credenciales de OpenAI disponibles
+                has_openai_credentials = False
                 try:
-                    st.warning(
-                        "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
-                    )
-                    subprocess.run(["python", "post_save_quality_check.py"], check=True)
-                    logger.info("Verificación de calidad ejecutada correctamente")
-                    # Intentar obtener el resumen actualizado
-                    if item.get("id"):
-                        # Consultar la noticia actualizada
-                        db_manager = DatabaseManager()
-                        updated_news = db_manager.execute_query(
-                            "SELECT summary FROM market_news WHERE id = %s",
-                            [item.get("id")],
+                    # Intentar cargar las credenciales de OpenAI desde secrets.toml
+                    if "OPENAI_API_KEY" in st.secrets:
+                        has_openai_credentials = True
+                    elif "openai" in st.secrets and "api_key" in st.secrets["openai"]:
+                        has_openai_credentials = True
+                    elif (
+                        "api_keys" in st.secrets
+                        and "OPENAI_API_KEY" in st.secrets["api_keys"]
+                    ):
+                        has_openai_credentials = True
+                except Exception:
+                    has_openai_credentials = False
+
+                if has_openai_credentials:
+                    # Ejecutar database_quality_processor.py para procesar noticias sin resumen
+                    try:
+                        st.warning(
+                            "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
                         )
-                        if (
-                            updated_news
-                            and len(updated_news) > 0
-                            and updated_news[0].get("summary")
-                        ):
-                            summary = updated_news[0].get("summary")
-                            logger.info(
-                                f"Resumen actualizado para noticia ID {item.get('id')}"
+                        subprocess.run(
+                            ["python", "database_quality_processor.py"], check=True
+                        )
+                        logger.info("Verificación de calidad ejecutada correctamente")
+                        # Intentar obtener el resumen actualizado
+                        if item.get("id"):
+                            # Consultar la noticia actualizada
+                            db_manager = DatabaseManager()
+                            updated_news = db_manager.execute_query(
+                                "SELECT summary FROM market_news WHERE id = %s",
+                                [item.get("id")],
                             )
+                            if (
+                                updated_news
+                                and len(updated_news) > 0
+                                and updated_news[0].get("summary")
+                            ):
+                                summary = updated_news[0].get("summary")
+                                logger.info(
+                                    f"Resumen actualizado para noticia ID {item.get('id')}"
+                                )
+                            else:
+                                summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
                         else:
                             summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
-                    else:
-                        summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
-                except Exception as e:
-                    logger.error(f"Error ejecutando verificación de calidad: {str(e)}")
-                    summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+                    except Exception as e:
+                        logger.error(
+                            f"Error ejecutando verificación de calidad: {str(e)}"
+                        )
+                        summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+                else:
+                    # No hay credenciales de OpenAI disponibles
+                    st.warning(
+                        "No se pueden generar resúmenes automáticamente porque no hay credenciales de OpenAI configuradas. Por favor, configure las credenciales en secrets.toml."
+                    )
+                    summary = "No hay resumen disponible para esta noticia. Se requieren credenciales de OpenAI para generar resúmenes automáticamente."
 
             st.markdown(
                 f"""
