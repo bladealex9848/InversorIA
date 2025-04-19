@@ -42,6 +42,7 @@ import logging
 import base64
 import re
 import mysql.connector
+import decimal
 
 # Las importaciones relacionadas con el envío de correos electrónicos han sido eliminadas
 # ya que esta funcionalidad se ha movido a la página de Notificaciones
@@ -122,6 +123,9 @@ class NumpyEncoder(json.JSONEncoder):
     """Encoder personalizado para manejar diversos tipos de datos NumPy y Pandas"""
 
     def default(self, obj):
+        # Definir client como None para evitar errores
+        client = None
+
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -1654,23 +1658,39 @@ class RealTimeSignalAnalyzer:
             sp500_trend = "Neutral"
 
             # Obtener datos del VIX
-            vix_value = "N/A"
+            vix_value = 0.0
             vix_status = "N/A"
             try:
-                # Intentar importar get_vix_level desde market_utils
-                vix_value = get_vix_level()
-
-                # Interpretar el valor
-                if vix_value < 15:
-                    vix_status = "Volatilidad Muy Baja"
-                elif vix_value < 20:
-                    vix_status = "Volatilidad Baja"
-                elif vix_value < 30:
-                    vix_status = "Volatilidad Moderada"
-                elif vix_value < 40:
-                    vix_status = "Volatilidad Alta"
+                # Obtener el valor numérico del VIX usando get_vix_level desde market_utils
+                vix_numeric = get_vix_level()
+                if isinstance(vix_numeric, (int, float, decimal.Decimal)):
+                    vix_value = float(vix_numeric)
+                    # Determinar el estado del VIX basado en su valor
+                    if vix_value < 15:
+                        vix_status = "Volatilidad Muy Baja"
+                    elif vix_value < 20:
+                        vix_status = "Volatilidad Baja"
+                    elif vix_value < 30:
+                        vix_status = "Volatilidad Moderada"
+                    elif vix_value < 40:
+                        vix_status = "Volatilidad Alta"
+                    else:
+                        vix_status = "Volatilidad Extrema"
+                    logger.info(
+                        f"VIX obtenido correctamente: {vix_value} ({vix_status})"
+                    )
                 else:
-                    vix_status = "Volatilidad Extrema"
+                    logger.warning(f"El valor del VIX no es numérico: {vix_numeric}")
+                    # Intentar obtener datos del VIX directamente
+                    vix_df = fetch_market_data("^VIX", period="30d")
+                    if vix_df is not None and not vix_df.empty:
+                        vix_value = round(float(vix_df["Close"].iloc[-1]), 2)
+                        if vix_value < 20:
+                            vix_status = "Volatilidad Baja"
+                        elif vix_value < 30:
+                            vix_status = "Volatilidad Moderada"
+                        else:
+                            vix_status = "Volatilidad Alta"
             except Exception as vix_error:
                 logger.warning(f"Error obteniendo datos del VIX: {str(vix_error)}")
                 # Intentar obtener datos del VIX directamente
@@ -1757,12 +1777,23 @@ class RealTimeSignalAnalyzer:
 
             # Crear objeto de sentimiento
             sentiment = {
+                "date": datetime.now().date(),
                 "overall": overall,
-                "vix": f"{vix_value} - {vix_status}",
+                "vix": vix_value,  # Guardar el valor numérico del VIX
                 "sp500_trend": sp500_trend,
-                "technical_indicators": f"{int(bullish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Alcistas, {int(bearish_count/(bullish_count+bearish_count)*100) if (bullish_count+bearish_count) > 0 else 0}% Bajistas",
+                "technical_indicators": f"Alcistas: {bullish_count}, Bajistas: {bearish_count}",
                 "volume": volume_status,
-                "notes": f"Datos en tiempo real - {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                "notes": f"Datos en tiempo real - {datetime.now().strftime('%d/%m/%Y %H:%M')} - VIX: {vix_value} ({vix_status})",
+                "created_at": datetime.now(),
+                "symbol": "SPY",  # Símbolo por defecto para el mercado general
+                "sentiment": overall,  # Usar el sentimiento general como valor de sentimiento
+                "score": (
+                    0.75
+                    if overall == "Alcista"
+                    else (0.25 if overall == "Bajista" else 0.5)
+                ),  # Convertir sentimiento a score
+                "source": "InversorIA Analytics",
+                "analysis": f"Análisis de sentimiento de mercado: {overall}. VIX: {vix_value} ({vix_status}). Tendencia S&P 500: {sp500_trend}. Indicadores técnicos: Alcistas: {bullish_count}, Bajistas: {bearish_count}.",
             }
 
             return sentiment
@@ -7567,6 +7598,9 @@ def main():
                                             }
 
                                         # Si tenemos acceso a OpenAI, procesar con el experto
+                                        # Verificar si openai está disponible y si tenemos la API key
+                                        import sys
+
                                         if (
                                             "openai" in sys.modules
                                             and st.session_state.get("openai_api_key")
@@ -7713,6 +7747,31 @@ def main():
 
                                                     # Procesar noticias con IA para mejorar calidad y asegurar fuentes confiables
                                                     news_ids = []
+                                                    # Verificar si tenemos acceso a OpenAI y si hay noticias para procesar
+                                                    # Definir client y assistant_id en este ámbito para evitar errores
+                                                    client = None
+                                                    assistant_id = None
+
+                                                    # Verificar si tenemos acceso a OpenAI
+                                                    if (
+                                                        "openai" in sys.modules
+                                                        and st.session_state.get(
+                                                            "openai_api_key"
+                                                        )
+                                                    ):
+                                                        import openai
+
+                                                        client = openai.OpenAI(
+                                                            api_key=st.session_state.get(
+                                                                "openai_api_key"
+                                                            )
+                                                        )
+                                                        assistant_id = (
+                                                            st.session_state.get(
+                                                                "assistant_id"
+                                                            )
+                                                        )
+
                                                     if (
                                                         signal.get("news")
                                                         and client

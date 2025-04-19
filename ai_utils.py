@@ -61,6 +61,9 @@ logger = logging.getLogger(__name__)
 
 def format_patterns_for_prompt(patterns, symbol, price=None):
     """Formatea los patrones técnicos para incluirlos en el prompt del asistente IA"""
+    # Definir client como None para evitar errores
+    client = None
+
     if not patterns:
         return "No se detectaron patrones técnicos significativos."
 

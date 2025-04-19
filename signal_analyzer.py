@@ -9,6 +9,7 @@ import logging
 import streamlit as st
 import pandas as pd
 import numpy as np
+import decimal
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
@@ -30,6 +31,7 @@ except Exception as e:
     COMPANY_INFO = {}
 
 logger = logging.getLogger(__name__)
+
 
 class RealTimeSignalAnalyzer:
     """Analiza el mercado en tiempo real para generar señales de trading"""
@@ -371,13 +373,27 @@ class RealTimeSignalAnalyzer:
             sp500_trend = "Neutral"
 
             # Obtener datos del VIX
-            vix_value = "N/A"
+            vix_value = 0.0
             vix_status = "N/A"
             try:
-                # Intentar importar get_vix_level desde market_utils
-                vix_value = get_vix_level()
-                if vix_value:
-                    vix_status = vix_value.get("status", "N/A")
+                # Obtener el valor numérico del VIX usando get_vix_level desde market_utils
+                vix_numeric = get_vix_level()
+                if isinstance(vix_numeric, (int, float, decimal.Decimal)):
+                    vix_value = float(vix_numeric)
+                    # Determinar el estado del VIX basado en su valor
+                    if vix_value > 30:
+                        vix_status = "Alta"
+                    elif vix_value > 20:
+                        vix_status = "Elevada"
+                    elif vix_value < 15:
+                        vix_status = "Baja"
+                    else:
+                        vix_status = "Normal"
+                    logger.info(
+                        f"VIX obtenido correctamente: {vix_value} ({vix_status})"
+                    )
+                else:
+                    logger.warning(f"El valor del VIX no es numérico: {vix_numeric}")
             except Exception as vix_error:
                 logger.warning(f"Error obteniendo datos del VIX: {str(vix_error)}")
 
@@ -433,12 +449,22 @@ class RealTimeSignalAnalyzer:
             sentiment = {
                 "date": datetime.now().date(),
                 "overall": overall,
-                "vix": vix_status,
+                "vix": vix_value,  # Guardar el valor numérico del VIX
                 "sp500_trend": sp500_trend,
                 "technical_indicators": f"Alcistas: {bullish_count}, Bajistas: {bearish_count}",
                 "volume": volume_status,
-                "notes": f"Análisis generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+                "notes": f"Análisis generado el {datetime.now().strftime('%d/%m/%Y %H:%M')} - VIX: {vix_value} ({vix_status})",
                 "created_at": datetime.now(),
+                "symbol": "SPY",  # Símbolo por defecto para el mercado general
+                "sentiment": overall,  # Usar el sentimiento general como valor de sentimiento
+                "score": (
+                    0.75
+                    if overall == "Alcista"
+                    else (0.25 if overall == "Bajista" else 0.5)
+                ),  # Convertir sentimiento a score
+                "source": "InversorIA Analytics",
+                "analysis": f"Análisis de sentimiento de mercado: {overall}. VIX: {vix_value} ({vix_status}). Tendencia S&P 500: {sp500_trend}. Indicadores técnicos: Alcistas: {bullish_count}, Bajistas: {bearish_count}.",
+                "sentiment_date": datetime.now(),
             }
 
             # Limpiar mensaje de estado
