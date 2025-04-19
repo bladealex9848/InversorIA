@@ -78,37 +78,70 @@ with st.spinner(
         """
     )
 
-    # Ejecutar el script database_quality_processor.py al iniciar la página
+    # Ejecutar el script database_quality_processor.py solo cuando sea necesario
     try:
-        # Verificar si tenemos credenciales de OpenAI disponibles
-        has_openai_credentials = False
-        try:
-            # Intentar cargar las credenciales de OpenAI desde secrets.toml
-            if "OPENAI_API_KEY" in st.secrets:
-                has_openai_credentials = True
-                # Pasar las credenciales de OpenAI como variables de entorno
-                env = os.environ.copy()
-                env["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+        # Verificar si ya se ejecutó la verificación de calidad recientemente
+        if "last_quality_check" not in st.session_state:
+            st.session_state.last_quality_check = None
 
-                if "OPENAI_API_MODEL" in st.secrets:
-                    env["OPENAI_API_MODEL"] = st.secrets["OPENAI_API_MODEL"]
+        last_quality_check = st.session_state.last_quality_check
+        current_time = datetime.now()
 
-                # Ejecutar el script con las variables de entorno
-                logger.info("Ejecutando verificación de calidad de datos al iniciar...")
-                subprocess.run(
-                    ["python", "database_quality_processor.py"],
-                    check=True,
-                    env=env,
-                )
-                logger.info(
-                    "Verificación de calidad ejecutada correctamente al iniciar"
-                )
-        except Exception as e:
-            logger.error(
-                f"Error ejecutando verificación de calidad al iniciar: {str(e)}"
+        # Solo ejecutar la verificación cada 30 minutos como máximo
+        if (
+            last_quality_check is None
+            or (current_time - last_quality_check).total_seconds() > 1800
+        ):
+            # Verificar si tenemos credenciales de OpenAI disponibles
+            has_openai_credentials = False
+            try:
+                # Intentar cargar las credenciales de OpenAI desde secrets.toml
+                if "OPENAI_API_KEY" in st.secrets:
+                    has_openai_credentials = True
+                    # Pasar las credenciales de OpenAI como variables de entorno
+                    env = os.environ.copy()
+                    env["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
+                    if "OPENAI_API_MODEL" in st.secrets:
+                        env["OPENAI_API_MODEL"] = st.secrets["OPENAI_API_MODEL"]
+
+                    # Verificar si hay registros que necesitan procesamiento
+                    # Importamos la clase DatabaseManager aquí para evitar problemas de importación circular
+                    from database_utils import DatabaseManager
+
+                    db_manager = DatabaseManager()
+                    empty_summaries = db_manager.execute_query(
+                        "SELECT COUNT(*) as count FROM market_news WHERE summary IS NULL OR summary = ''"
+                    )
+
+                    if empty_summaries and empty_summaries[0]["count"] > 0:
+                        # Solo ejecutar si hay registros que procesar
+                        logger.info(
+                            f"Ejecutando verificación de calidad de datos... {empty_summaries[0]['count']} registros con resumen vacío"
+                        )
+                        subprocess.run(
+                            ["python", "database_quality_processor.py"],
+                            check=True,
+                            env=env,
+                        )
+                        logger.info("Verificación de calidad ejecutada correctamente")
+                    else:
+                        logger.info(
+                            "No hay registros que requieran procesamiento de calidad"
+                        )
+
+                    # Actualizar la última vez que se ejecutó la verificación
+                    st.session_state.last_quality_check = current_time
+            except Exception as e:
+                logger.error(f"Error ejecutando verificación de calidad: {str(e)}")
+        else:
+            # Calcular cuánto tiempo ha pasado desde la última verificación
+            minutes_ago = int((current_time - last_quality_check).total_seconds() / 60)
+            logger.info(
+                f"Omitiendo verificación de calidad, se ejecutó hace {minutes_ago} minutos"
             )
     except Exception as e:
-        logger.error(f"Error general en verificación de calidad al iniciar: {str(e)}")
+        logger.error(f"Error general en verificación de calidad: {str(e)}")
 
 # Barra lateral para configuración
 with st.sidebar:
@@ -214,11 +247,8 @@ with st.sidebar:
 # Añadir directorio raíz al path para importar módulos del proyecto principal
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# Importar clases y funciones propias
-from database_utils import NewsletterSubscriberManager
-
-# Inicializar gestor de suscriptores
-subscriber_manager = NewsletterSubscriberManager()
+# Importar clases y funciones propias ya se hizo en la línea 189
+# Gestor de suscriptores ya inicializado en la línea 191
 
 
 # Clase para gestionar la conexión a la base de datos
@@ -407,6 +437,7 @@ class DatabaseManager:
     def connect(self):
         """Establece conexión con la base de datos"""
         if not self.db_config:
+            logger.error("No hay configuración de base de datos disponible")
             return False
 
         try:
@@ -417,10 +448,32 @@ class DatabaseManager:
                 )
                 return True
 
-            self.connection = mysql.connector.connect(**self.db_config)
+            # Verificar si ya hay una conexión activa
+            if (
+                self.connection
+                and hasattr(self.connection, "is_connected")
+                and self.connection.is_connected()
+            ):
+                logger.info("Reutilizando conexión existente a la base de datos")
+                return True
+
+            # Crear nueva conexión
+            self.connection = mysql.connector.connect(
+                **self.db_config,
+                autocommit=False,  # Desactivar autocommit para mejor control de transacciones
+                buffered=True,  # Usar cursores con buffer para mejor rendimiento
+                connection_timeout=10,  # Timeout de conexión en segundos
+                use_pure=True,  # Usar implementación pura de Python para mejor compatibilidad
+            )
+            logger.info(
+                f"Nueva conexión establecida con la base de datos {self.db_config['database']}"
+            )
             return True
+        except mysql.connector.Error as e:
+            logger.error(f"Error de MySQL conectando a la base de datos: {str(e)}")
+            return False
         except Exception as e:
-            logger.error(f"Error conectando a la base de datos: {str(e)}")
+            logger.error(f"Error general conectando a la base de datos: {str(e)}")
             return False
 
     def disconnect(self):
@@ -439,7 +492,7 @@ class DatabaseManager:
         # Intentar conectar a la base de datos
         if not self.connect():
             logger.error("No se pudo conectar a la base de datos")
-            return None
+            return [] if fetch else None
 
         try:
             # Verificar si estamos en modo sin conexión
@@ -457,30 +510,52 @@ class DatabaseManager:
                     )
                     return None
 
-            # Ejecutar consulta real
-            cursor = self.connection.cursor(dictionary=True)
-            logger.info(f"Ejecutando consulta: {query}")
-            logger.info(f"Parámetros: {params}")
+            # Crear cursor con buffer para mejor rendimiento
+            cursor = self.connection.cursor(dictionary=True, buffered=True)
 
-            cursor.execute(query, params or ())
+            # Ejecutar consulta con manejo de errores mejorado
+            try:
+                logger.info(f"Ejecutando consulta: {query[:200]}...")
+                if params:
+                    logger.info(f"Parámetros: {str(params)[:200]}...")
 
-            if fetch:
-                result = cursor.fetchall()
-                logger.info(f"Consulta devuelve {len(result)} resultados")
-            else:
-                self.connection.commit()
-                result = cursor.rowcount
-                logger.info(f"Consulta afectó {result} filas")
+                cursor.execute(query, params or ())
 
-            cursor.close()
-            return result
-        except mysql.connector.Error as e:
-            logger.error(f"Error de MySQL: {str(e)}\nQuery: {query}")
-            return None
+                if fetch:
+                    result = cursor.fetchall()
+                    logger.info(f"Consulta devuelve {len(result)} resultados")
+                else:
+                    self.connection.commit()
+                    result = cursor.lastrowid or cursor.rowcount
+                    logger.info(
+                        f"Consulta afectó {cursor.rowcount} filas, ID: {cursor.lastrowid}"
+                    )
+
+                return result
+            except mysql.connector.Error as db_error:
+                # Manejar errores específicos de la base de datos
+                logger.error(
+                    f"Error de MySQL: {str(db_error)}\nQuery: {query[:200]}..."
+                )
+                if not fetch:
+                    # Intentar hacer rollback en caso de error en operación de escritura
+                    try:
+                        self.connection.rollback()
+                        logger.info("Rollback realizado correctamente")
+                    except Exception as rollback_error:
+                        logger.error(f"Error en rollback: {str(rollback_error)}")
+                return [] if fetch else None
+            finally:
+                # Cerrar cursor en cualquier caso
+                cursor.close()
         except Exception as e:
-            logger.error(f"Error ejecutando consulta: {str(e)}\nQuery: {query}")
-            return None
+            # Capturar cualquier otro error no relacionado con la base de datos
+            logger.error(
+                f"Error general ejecutando consulta: {str(e)}\nQuery: {query[:200]}..."
+            )
+            return [] if fetch else None
         finally:
+            # Cerrar conexión solo si no estamos en una transacción
             self.disconnect()
 
     def get_signals(
@@ -599,16 +674,30 @@ class DatabaseManager:
             email_data.get("error_message"),
         )
 
-        # Ejecutar la consulta y obtener el ID insertado
-        cursor = self.connection.cursor()
-        cursor.execute(query, params)
-        self.connection.commit()
+        try:
+            # Asegurarnos de tener una conexión activa
+            if not self.connect():
+                logger.error(
+                    "No se pudo conectar a la base de datos para registrar el envío de correo"
+                )
+                return None
 
-        # Obtener el ID del registro insertado
-        log_id = cursor.lastrowid
-        cursor.close()
+            # Ejecutar la consulta y obtener el ID insertado
+            cursor = self.connection.cursor()
+            cursor.execute(query, params)
+            self.connection.commit()
 
-        return log_id
+            # Obtener el ID del registro insertado
+            log_id = cursor.lastrowid
+            cursor.close()
+
+            return log_id
+        except Exception as e:
+            logger.error(f"Error al registrar el envío de correo: {str(e)}")
+            return None
+        finally:
+            # Asegurarnos de cerrar la conexión
+            self.disconnect()
 
     def update_email_log(self, log_id, update_data):
         """Actualiza un registro de envío de correo electrónico"""
@@ -791,182 +880,12 @@ class DatabaseManager:
 class EmailManager:
     """Gestiona el envío de correos electrónicos con boletines de trading"""
 
+    # Usar la clase NewsletterSubscriberManager de database_utils.py
+    # Esta clase ya está importada al inicio del archivo
+    # from database_utils import NewsletterSubscriberManager
 
-# Clase para gestionar los suscriptores del boletín
-class NewsletterSubscriberManager:
-    """Gestiona los suscriptores del boletín de trading"""
 
-    def __init__(self):
-        """Inicializa el gestor de suscriptores"""
-        self.db_manager = DatabaseManager()
-
-    def get_all_subscribers(self, active_only=True):
-        """Obtiene todos los suscriptores"""
-        query = """SELECT * FROM newsletter_subscribers
-                  WHERE 1=1"""
-
-        if active_only:
-            query += " AND active = 1"
-
-        query += " ORDER BY subscription_date DESC"
-
-        return self.db_manager.execute_query(query)
-
-    def get_subscriber_by_email(self, email):
-        """Obtiene un suscriptor por su correo electrónico"""
-        query = """SELECT * FROM newsletter_subscribers
-                  WHERE email = %s
-                  LIMIT 1"""
-        params = [email]
-
-        result = self.db_manager.execute_query(query, params)
-        return result[0] if result and len(result) > 0 else None
-
-    def get_subscriber_by_id(self, subscriber_id):
-        """Obtiene un suscriptor por su ID"""
-        query = """SELECT * FROM newsletter_subscribers
-                  WHERE id = %s
-                  LIMIT 1"""
-        params = [subscriber_id]
-
-        result = self.db_manager.execute_query(query, params)
-        return result[0] if result and len(result) > 0 else None
-
-    def add_subscriber(self, email, name="", last_name="", company=""):
-        """Añade un nuevo suscriptor"""
-        # Verificar si ya existe
-        existing = self.get_subscriber_by_email(email)
-        if existing:
-            # Si existe pero está inactivo, activarlo
-            if not existing.get("active", True):
-                return self.update_subscriber(existing["id"], {"active": True})
-            return False
-
-        query = """INSERT INTO newsletter_subscribers
-                  (email, name, last_name, company, active, subscription_date, send_count)
-                  VALUES (%s, %s, %s, %s, 1, NOW(), 0)"""
-        params = [email, name, last_name, company]
-
-        return self.db_manager.execute_query(query, params, fetch=False)
-
-    def update_subscriber(self, subscriber_id, update_data):
-        """Actualiza los datos de un suscriptor"""
-        if not subscriber_id or not update_data:
-            return False
-
-        # Construir la consulta de actualización
-        update_fields = []
-        params = []
-
-        for field, value in update_data.items():
-            if field in [
-                "email",
-                "name",
-                "last_name",
-                "company",
-                "active",
-                "send_count",
-            ]:
-                update_fields.append(f"{field} = %s")
-                params.append(value)
-
-        if not update_fields:
-            return False
-
-        query = f"""UPDATE newsletter_subscribers
-                  SET {', '.join(update_fields)}
-                  WHERE id = %s"""
-        params.append(subscriber_id)
-
-        return self.db_manager.execute_query(query, params, fetch=False)
-
-    def delete_subscriber(self, subscriber_id):
-        """Elimina un suscriptor"""
-        query = """DELETE FROM newsletter_subscribers
-                  WHERE id = %s"""
-        params = [subscriber_id]
-
-        return self.db_manager.execute_query(query, params, fetch=False)
-
-    def log_newsletter_send(
-        self,
-        subscriber_id,
-        email_log_id,
-        status="success",
-        error_message=None,
-        pdf_attached=False,
-        signals_included=None,
-    ):
-        """Registra el envío de un boletín a un suscriptor"""
-        query = """INSERT INTO newsletter_send_logs
-                  (subscriber_id, email_log_id, send_date, status, error_message, pdf_attached, signals_included)
-                  VALUES (%s, %s, NOW(), %s, %s, %s, %s)"""
-        params = [
-            subscriber_id,
-            email_log_id,
-            status,
-            error_message,
-            pdf_attached,
-            signals_included,
-        ]
-
-        # Actualizar contador de envíos y fecha del último envío
-        if status == "success":
-            update_query = """UPDATE newsletter_subscribers
-                          SET send_count = send_count + 1, last_sent_date = NOW()
-                          WHERE id = %s"""
-            self.db_manager.execute_query(update_query, [subscriber_id], fetch=False)
-
-        return self.db_manager.execute_query(query, params, fetch=False)
-
-    def get_send_logs(self, subscriber_id, limit=10):
-        """Obtiene los registros de envío de un suscriptor"""
-        query = """SELECT * FROM newsletter_send_logs
-                  WHERE subscriber_id = %s
-                  ORDER BY send_date DESC
-                  LIMIT %s"""
-        params = [subscriber_id, limit]
-
-        return self.db_manager.execute_query(query, params)
-
-    def import_subscribers_from_csv(self, csv_file_path):
-        """Importa suscriptores desde un archivo CSV"""
-        added = 0
-        errors = 0
-        error_messages = []
-
-        try:
-            with open(csv_file_path, "r") as file:
-                csv_reader = csv.DictReader(file)
-                for row in csv_reader:
-                    # Verificar que tenga el campo email
-                    if "email" not in row or not row["email"]:
-                        errors += 1
-                        error_messages.append(f"Fila sin correo electrónico: {row}")
-                        continue
-
-                    # Intentar añadir el suscriptor
-                    try:
-                        if self.add_subscriber(
-                            email=row["email"],
-                            name=row.get("name", ""),
-                            last_name=row.get("last_name", ""),
-                            company=row.get("company", ""),
-                        ):
-                            added += 1
-                        else:
-                            # Si ya existe, no se considera error
-                            logger.info(f"El suscriptor {row['email']} ya existe")
-                    except Exception as e:
-                        errors += 1
-                        error_messages.append(
-                            f"Error añadiendo {row['email']}: {str(e)}"
-                        )
-        except Exception as e:
-            errors += 1
-            error_messages.append(f"Error procesando archivo CSV: {str(e)}")
-
-        return added, errors, error_messages
+# Estos métodos ya están implementados en la clase NewsletterSubscriberManager de database_utils.py
 
 
 class EmailManager:
@@ -4281,6 +4200,21 @@ with tab4:
             )
 
         # Obtener suscriptores
+        # Si se solicita actualizar, limpiar la caché primero
+        if refresh_subscribers and hasattr(st, "session_state"):
+            # Limpiar todas las claves de caché de suscriptores
+            keys_to_remove = [
+                k
+                for k in st.session_state.keys()
+                if k.startswith("cached_subscribers_")
+            ]
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+                    logger.info(f"Caché de suscriptores invalidada: {key}")
+            st.success("Lista de suscriptores actualizada")
+
+        # Obtener suscriptores (la caché se maneja internamente en la clase)
         subscribers = subscriber_manager.get_all_subscribers(
             active_only=not show_inactive
         )
@@ -4400,26 +4334,68 @@ with tab4:
                         # Botón para activar/desactivar
                         if selected_subscriber.get("active", True):
                             if st.button("❌ Desactivar", key="deactivate_subscriber"):
-                                if subscriber_manager.update_subscriber(
-                                    selected_subscriber["id"], {"active": False}
-                                ):
-                                    st.success(
-                                        f"Suscriptor {selected_email} desactivado correctamente"
-                                    )
-                                    st.rerun()
-                                else:
-                                    st.error("Error al desactivar el suscriptor")
+                                # Guardar el ID del suscriptor y la acción en session_state para procesarlo una sola vez
+                                if "subscriber_action" not in st.session_state:
+                                    st.session_state.subscriber_action = {
+                                        "id": selected_subscriber["id"],
+                                        "action": "deactivate",
+                                        "email": selected_email,
+                                    }
+                                    # Realizar la acción
+                                    if subscriber_manager.update_subscriber(
+                                        selected_subscriber["id"], {"active": False}
+                                    ):
+                                        st.success(
+                                            f"Suscriptor {selected_email} desactivado correctamente"
+                                        )
+                                        # Limpiar la caché de suscriptores para forzar una recarga
+                                        if hasattr(st, "session_state"):
+                                            # Limpiar todas las claves de caché de suscriptores
+                                            keys_to_remove = [
+                                                k
+                                                for k in st.session_state.keys()
+                                                if k.startswith("cached_subscribers_")
+                                            ]
+                                            for key in keys_to_remove:
+                                                if key in st.session_state:
+                                                    del st.session_state[key]
+                                        # Recargar sin ejecutar todo el código nuevamente
+                                        st.rerun()
+                                    else:
+                                        st.error("Error al desactivar el suscriptor")
+                                        del st.session_state.subscriber_action
                         else:
                             if st.button("✅ Activar", key="activate_subscriber"):
-                                if subscriber_manager.update_subscriber(
-                                    selected_subscriber["id"], {"active": True}
-                                ):
-                                    st.success(
-                                        f"Suscriptor {selected_email} activado correctamente"
-                                    )
-                                    st.rerun()
-                                else:
-                                    st.error("Error al activar el suscriptor")
+                                # Guardar el ID del suscriptor y la acción en session_state para procesarlo una sola vez
+                                if "subscriber_action" not in st.session_state:
+                                    st.session_state.subscriber_action = {
+                                        "id": selected_subscriber["id"],
+                                        "action": "activate",
+                                        "email": selected_email,
+                                    }
+                                    # Realizar la acción
+                                    if subscriber_manager.update_subscriber(
+                                        selected_subscriber["id"], {"active": True}
+                                    ):
+                                        st.success(
+                                            f"Suscriptor {selected_email} activado correctamente"
+                                        )
+                                        # Limpiar la caché de suscriptores para forzar una recarga
+                                        if hasattr(st, "session_state"):
+                                            # Limpiar todas las claves de caché de suscriptores
+                                            keys_to_remove = [
+                                                k
+                                                for k in st.session_state.keys()
+                                                if k.startswith("cached_subscribers_")
+                                            ]
+                                            for key in keys_to_remove:
+                                                if key in st.session_state:
+                                                    del st.session_state[key]
+                                        # Recargar sin ejecutar todo el código nuevamente
+                                        st.rerun()
+                                    else:
+                                        st.error("Error al activar el suscriptor")
+                                        del st.session_state.subscriber_action
 
                     with col2:
                         # Botón para editar

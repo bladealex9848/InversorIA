@@ -4353,12 +4353,24 @@ def initialize_session_state():
 
     # Cargar y almacenar el sentimiento de mercado diario al iniciar la aplicación
     if "market_sentiment_loaded" not in st.session_state:
+        # Crear un contenedor para mostrar el progreso
+        market_sentiment_container = st.empty()
+        market_sentiment_container.info(
+            "⏳ Inicializando análisis de sentimiento de mercado..."
+        )
+
         try:
             # Inicializar el analizador de señales en tiempo real
+            market_sentiment_container.info(
+                "⏳ Analizando condiciones actuales del mercado..."
+            )
             real_time_analyzer = RealTimeSignalAnalyzer()
 
             # Obtener el sentimiento de mercado
             sentiment_data = real_time_analyzer.get_real_time_market_sentiment()
+            market_sentiment_container.info(
+                "✅ Análisis de mercado completado. Guardando datos..."
+            )
 
             # Guardar el sentimiento en la base de datos
             from database_utils import save_market_sentiment
@@ -4366,30 +4378,52 @@ def initialize_session_state():
             sentiment_id = save_market_sentiment(sentiment_data)
 
             if sentiment_id:
+                market_sentiment_container.success(
+                    f"✅ Sentimiento de mercado actualizado correctamente (ID: {sentiment_id})"
+                )
                 logger.info(
                     f"Sentimiento de mercado diario cargado y almacenado con ID: {sentiment_id}"
                 )
 
                 # Ejecutar post_save_quality_check.py para asegurar que todos los campos estén completos
                 try:
+                    market_sentiment_container.info(
+                        "⏳ Realizando control de calidad de datos..."
+                    )
                     import post_save_quality_check
 
                     post_save_quality_check.process_quality_after_save(
                         table_name="market_sentiment", limit=1
                     )
+                    market_sentiment_container.success(
+                        "✅ Control de calidad completado correctamente"
+                    )
                     logger.info(
                         f"Procesamiento de calidad completado para el sentimiento {sentiment_id}"
                     )
                 except Exception as e:
+                    market_sentiment_container.warning(
+                        f"⚠️ Advertencia en el control de calidad: {str(e)}"
+                    )
                     logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
             else:
+                market_sentiment_container.info(
+                    "ℹ️ El sentimiento de mercado ya está actualizado"
+                )
                 logger.info(
                     "El sentimiento de mercado diario ya existe en la base de datos"
                 )
 
             # Marcar como cargado para no volver a intentarlo
             st.session_state.market_sentiment_loaded = True
+
+            # Limpiar el contenedor después de 3 segundos
+            time.sleep(3)
+            market_sentiment_container.empty()
         except Exception as e:
+            market_sentiment_container.error(
+                f"❌ Error al procesar el sentimiento de mercado: {str(e)}"
+            )
             logger.error(
                 f"Error al cargar y almacenar el sentimiento de mercado diario: {str(e)}"
             )

@@ -659,17 +659,45 @@ def process_quality_after_save(
     """
     result = {"news_processed": 0, "sentiment_processed": 0, "signals_processed": 0}
 
+    # Intentar importar streamlit para mostrar mensajes de progreso
+    try:
+        import streamlit as st
+
+        has_streamlit = True
+        # Crear un contenedor para mostrar el progreso
+        quality_container = st.empty()
+        quality_container.info("⏳ Iniciando control de calidad de datos...")
+    except ImportError:
+        has_streamlit = False
+        quality_container = None
+
     try:
         # Cargar configuración
         db_config = load_db_config()
+
+        # Mostrar mensaje de progreso
+        if has_streamlit:
+            quality_container.info("⏳ Conectando a la base de datos...")
 
         # Conectar a la base de datos
         connection = connect_to_db(db_config)
         if not connection:
             logger.error("No se pudo conectar a la base de datos")
+            if has_streamlit:
+                quality_container.error(
+                    "❌ Error: No se pudo conectar a la base de datos"
+                )
+                # Limpiar el contenedor después de 3 segundos
+                import time
+
+                time.sleep(3)
+                quality_container.empty()
             return result
 
         # Verificar la calidad de los datos
+        if has_streamlit:
+            quality_container.info("⏳ Analizando calidad de los datos...")
+
         quality_stats = check_database_quality(connection)
 
         # Mostrar estadísticas de calidad
@@ -698,10 +726,18 @@ def process_quality_after_save(
         # Procesar los datos según la tabla seleccionada
         if table_name in ["news", "all"] and quality_stats["empty_news_summaries"] > 0:
             # Procesar noticias con resumen vacío
+            if has_streamlit:
+                quality_container.info("⏳ Procesando noticias con resumen vacío...")
+
             result["news_processed"] = process_empty_news_summaries(connection, limit)
             logger.info(
                 f"Se procesaron {result['news_processed']} noticias con resumen vacío"
             )
+
+            if has_streamlit and result["news_processed"] > 0:
+                quality_container.success(
+                    f"✅ Se completaron {result['news_processed']} resúmenes de noticias"
+                )
 
         # Procesar noticias con símbolos marcados para revisión
         if (
@@ -710,6 +746,11 @@ def process_quality_after_save(
         ):
             try:
                 # Intentar procesar automáticamente con IA avanzada
+                if has_streamlit:
+                    quality_container.info(
+                        f"⏳ Procesando {quality_stats.get('news_for_review', 0)} noticias marcadas para revisión..."
+                    )
+
                 from review_news_symbols import batch_review
                 import sys
                 import os
@@ -735,10 +776,20 @@ def process_quality_after_save(
                     logger.warning(
                         "Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos manualmente."
                     )
+
+                    if has_streamlit:
+                        quality_container.warning(
+                            f"⚠️ Quedan {remaining_count} noticias que requieren revisión manual"
+                        )
                 else:
                     logger.info(
                         "Todas las noticias fueron procesadas correctamente con IA avanzada."
                     )
+
+                    if has_streamlit:
+                        quality_container.success(
+                            "✅ Todas las noticias fueron procesadas correctamente"
+                        )
 
                 result["news_symbols_processed"] = (
                     quality_stats.get("news_for_review", 0) - remaining_count
@@ -750,11 +801,21 @@ def process_quality_after_save(
                     "Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos correctos."
                 )
 
+                if has_streamlit:
+                    quality_container.error(
+                        f"❌ Error en la corrección automática de símbolos: {str(e)}"
+                    )
+
         if (
             table_name in ["sentiment", "all"]
             and quality_stats["empty_sentiment_analysis"] > 0
         ):
             # Procesar registros de sentimiento con análisis vacío
+            if has_streamlit:
+                quality_container.info(
+                    "⏳ Procesando registros de sentimiento de mercado..."
+                )
+
             result["sentiment_processed"] = process_empty_sentiment_analysis(
                 connection, limit
             )
@@ -762,17 +823,32 @@ def process_quality_after_save(
                 f"Se procesaron {result['sentiment_processed']} registros de sentimiento con análisis vacío"
             )
 
+            if has_streamlit and result["sentiment_processed"] > 0:
+                quality_container.success(
+                    f"✅ Se completaron {result['sentiment_processed']} análisis de sentimiento de mercado"
+                )
+
         if (
             table_name in ["signals", "all"]
             and quality_stats["empty_trading_signals_analysis"] > 0
         ):
             # Procesar señales de trading con análisis experto vacío
+            if has_streamlit:
+                quality_container.info(
+                    "⏳ Procesando señales de trading con análisis incompleto..."
+                )
+
             result["signals_processed"] = process_empty_trading_signals_analysis(
                 connection, limit
             )
             logger.info(
                 f"Se procesaron {result['signals_processed']} señales de trading con análisis experto vacío"
             )
+
+            if has_streamlit and result["signals_processed"] > 0:
+                quality_container.success(
+                    f"✅ Se completaron {result['signals_processed']} análisis expertos para señales de trading"
+                )
 
         # Cerrar conexión
         connection.close()
@@ -793,9 +869,40 @@ def process_quality_after_save(
         logger.info(f"Señales de trading procesadas: {result['signals_processed']}")
         logger.info("=" * 80)
 
+        # Mostrar mensaje final
+        total_processed = (
+            result["news_processed"]
+            + result.get("news_symbols_processed", 0)
+            + result["sentiment_processed"]
+            + result["signals_processed"]
+        )
+        if has_streamlit:
+            if total_processed > 0:
+                quality_container.success(
+                    f"✅ Control de calidad completado: {total_processed} registros procesados"
+                )
+            else:
+                quality_container.info(
+                    "ℹ️ No se requirió procesamiento adicional de datos"
+                )
+
+            # Limpiar el contenedor después de 3 segundos
+            import time
+
+            time.sleep(3)
+            quality_container.empty()
+
         return result
     except Exception as e:
         logger.error(f"Error en la ejecución: {str(e)}")
+        # Mostrar error
+        if has_streamlit:
+            quality_container.error(f"❌ Error en el control de calidad: {str(e)}")
+            # Limpiar el contenedor después de 3 segundos
+            import time
+
+            time.sleep(3)
+            quality_container.empty()
         return result
 
 

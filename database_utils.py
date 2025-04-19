@@ -2229,16 +2229,29 @@ class NewsletterSubscriberManager:
             logger.error(f"Error asegurando tablas de suscriptores: {str(e)}")
             return False
 
-    def get_all_subscribers(self, active_only: bool = True) -> List[Dict[str, Any]]:
+    def get_all_subscribers(
+        self, active_only: bool = True, force_refresh: bool = False
+    ) -> List[Dict[str, Any]]:
         """
         Obtiene todos los suscriptores del boletín
 
         Args:
             active_only (bool): Si es True, solo devuelve suscriptores activos
+            force_refresh (bool): Si es True, fuerza una recarga desde la base de datos
 
         Returns:
             List[Dict[str, Any]]: Lista de suscriptores
         """
+        # Usar caché de sesión si está disponible y no se fuerza la recarga
+        cache_key = f"cached_subscribers_{active_only}"
+
+        if hasattr(st, "session_state") and not force_refresh:
+            if cache_key in st.session_state:
+                logger.info(
+                    f"Usando suscriptores en caché ({len(st.session_state[cache_key])} registros)"
+                )
+                return st.session_state[cache_key]
+
         try:
             query = "SELECT * FROM newsletter_subscribers"
             params = []
@@ -2249,6 +2262,9 @@ class NewsletterSubscriberManager:
             query += " ORDER BY name, last_name, email"
 
             subscribers = self.db_manager.execute_query(query, params)
+            logger.info(
+                f"Obtenidos {len(subscribers)} suscriptores de la base de datos"
+            )
 
             # Convertir el campo preferences de JSON a diccionario
             for subscriber in subscribers:
@@ -2263,6 +2279,13 @@ class NewsletterSubscriberManager:
                         subscriber["preferences"] = {}
                 elif not subscriber.get("preferences"):
                     subscriber["preferences"] = {}
+
+            # Guardar en caché si está disponible
+            if hasattr(st, "session_state"):
+                st.session_state[cache_key] = subscribers
+                logger.info(
+                    f"Suscriptores guardados en caché ({len(subscribers)} registros)"
+                )
 
             return subscribers
         except Exception as e:
@@ -2391,6 +2414,9 @@ class NewsletterSubscriberManager:
             subscriber_id = self.db_manager.execute_query(query, params, fetch=False)
             logger.info(f"Nuevo suscriptor añadido: {email}")
 
+            # Invalidar caché de suscriptores
+            self._invalidate_subscribers_cache()
+
             return subscriber_id
         except Exception as e:
             logger.error(f"Error añadiendo suscriptor: {str(e)}")
@@ -2437,10 +2463,29 @@ class NewsletterSubscriberManager:
             self.db_manager.execute_query(query, params, fetch=False)
             logger.info(f"Suscriptor actualizado: ID {subscriber_id}")
 
+            # Invalidar caché de suscriptores
+            self._invalidate_subscribers_cache()
+
             return True
         except Exception as e:
             logger.error(f"Error actualizando suscriptor: {str(e)}")
             return False
+
+    def _invalidate_subscribers_cache(self):
+        """
+        Invalida la caché de suscriptores para forzar una recarga en la próxima solicitud
+        """
+        if hasattr(st, "session_state"):
+            # Eliminar todas las claves de caché de suscriptores
+            keys_to_remove = [
+                k
+                for k in st.session_state.keys()
+                if k.startswith("cached_subscribers_")
+            ]
+            for key in keys_to_remove:
+                if key in st.session_state:
+                    del st.session_state[key]
+                    logger.info(f"Caché de suscriptores invalidada: {key}")
 
     def delete_subscriber(self, subscriber_id: int) -> bool:
         """
@@ -2464,6 +2509,9 @@ class NewsletterSubscriberManager:
 
             self.db_manager.execute_query(query, params, fetch=False)
             logger.info(f"Suscriptor eliminado: ID {subscriber_id}")
+
+            # Invalidar caché de suscriptores
+            self._invalidate_subscribers_cache()
 
             return True
         except Exception as e:
@@ -2642,225 +2690,14 @@ class NewsletterSubscriberManager:
             logger.error(f"Error importando suscriptores desde CSV: {str(e)}")
             return 0, 1, [str(e)]
 
+    # El método add_subscriber ya está definido arriba
 
-class NewsletterSubscriberManager:
-    """Gestiona los suscriptores del boletín"""
+    # El método update_subscriber ya está definido arriba
 
-    def __init__(self):
-        """Inicializa el gestor de suscriptores"""
-        self.db_manager = DatabaseManager()
+    # El método delete_subscriber ya está definido arriba
 
-    def get_all_subscribers(self, active_only=True):
-        """Obtiene todos los suscriptores
+    # El método log_newsletter_send ya está definido arriba
 
-        Args:
-            active_only (bool, optional): Si es True, solo devuelve suscriptores activos. Defaults to True.
+    # El método get_send_logs ya está definido arriba
 
-        Returns:
-            List[Dict[str, Any]]: Lista de suscriptores
-        """
-        query = "SELECT * FROM newsletter_subscribers"
-        params = []
-
-        if active_only:
-            query += " WHERE active = 1"
-
-        query += " ORDER BY subscription_date DESC"
-
-        return self.db_manager.execute_query(query, params)
-
-    def get_subscriber_by_email(self, email):
-        """Obtiene un suscriptor por su correo electrónico
-
-        Args:
-            email (str): Correo electrónico del suscriptor
-
-        Returns:
-            Dict[str, Any]: Datos del suscriptor o None si no existe
-        """
-        query = "SELECT * FROM newsletter_subscribers WHERE email = %s LIMIT 1"
-        params = [email]
-
-        result = self.db_manager.execute_query(query, params)
-        return result[0] if result and len(result) > 0 else None
-
-    def add_subscriber(self, email, name="", last_name="", company=""):
-        """Añade un nuevo suscriptor
-
-        Args:
-            email (str): Correo electrónico del suscriptor
-            name (str, optional): Nombre del suscriptor. Defaults to "".
-            last_name (str, optional): Apellido del suscriptor. Defaults to "".
-            company (str, optional): Empresa del suscriptor. Defaults to "".
-
-        Returns:
-            bool: True si se añadió correctamente, False en caso contrario
-        """
-        # Verificar si ya existe
-        existing = self.get_subscriber_by_email(email)
-        if existing:
-            logger.warning(f"El suscriptor {email} ya existe")
-            return False
-
-        # Añadir nuevo suscriptor
-        query = """INSERT INTO newsletter_subscribers
-                  (email, name, last_name, company, active, subscription_date)
-                  VALUES (%s, %s, %s, %s, 1, NOW())"""
-        params = [email, name, last_name, company]
-
-        result = self.db_manager.execute_query(query, params, fetch=False)
-        return result is not None
-
-    def update_subscriber(self, subscriber_id, update_data):
-        """Actualiza los datos de un suscriptor
-
-        Args:
-            subscriber_id (int): ID del suscriptor
-            update_data (Dict[str, Any]): Datos a actualizar
-
-        Returns:
-            bool: True si se actualizó correctamente, False en caso contrario
-        """
-        if not update_data:
-            logger.warning("No hay datos para actualizar")
-            return False
-
-        # Construir consulta de actualización
-        update_fields = []
-        params = []
-
-        for field, value in update_data.items():
-            update_fields.append(f"{field} = %s")
-            params.append(value)
-
-        if not update_fields:
-            logger.warning("No hay campos válidos para actualizar")
-            return False
-
-        query = f"UPDATE newsletter_subscribers SET {', '.join(update_fields)} WHERE id = %s"
-        params.append(subscriber_id)
-
-        result = self.db_manager.execute_query(query, params, fetch=False)
-        return result is not None
-
-    def delete_subscriber(self, subscriber_id):
-        """Elimina un suscriptor
-
-        Args:
-            subscriber_id (int): ID del suscriptor
-
-        Returns:
-            bool: True si se eliminó correctamente, False en caso contrario
-        """
-        query = "DELETE FROM newsletter_subscribers WHERE id = %s"
-        params = [subscriber_id]
-
-        result = self.db_manager.execute_query(query, params, fetch=False)
-        return result is not None
-
-    def log_newsletter_send(
-        self,
-        subscriber_id,
-        email_log_id=None,
-        status="success",
-        error_message=None,
-        pdf_attached=False,
-        signals_included=None,
-    ):
-        """Registra el envío de un boletín a un suscriptor
-
-        Args:
-            subscriber_id (int): ID del suscriptor
-            email_log_id (int, optional): ID del registro de correo. Defaults to None.
-            status (str, optional): Estado del envío. Defaults to "success".
-            error_message (str, optional): Mensaje de error. Defaults to None.
-            pdf_attached (bool, optional): Si se adjuntó un PDF. Defaults to False.
-            signals_included (str, optional): Señales incluidas en el boletín. Defaults to None.
-
-        Returns:
-            bool: True si se registró correctamente, False en caso contrario
-        """
-        query = """INSERT INTO newsletter_send_logs
-                  (subscriber_id, email_log_id, send_date, status, error_message, pdf_attached, signals_included)
-                  VALUES (%s, %s, NOW(), %s, %s, %s, %s)"""
-        params = [
-            subscriber_id,
-            email_log_id,
-            status,
-            error_message,
-            pdf_attached,
-            signals_included,
-        ]
-
-        result = self.db_manager.execute_query(query, params, fetch=False)
-
-        # Actualizar contador de envíos y fecha del último envío
-        if result is not None and status == "success":
-            update_query = """UPDATE newsletter_subscribers
-                            SET send_count = send_count + 1, last_sent_date = NOW()
-                            WHERE id = %s"""
-            update_params = [subscriber_id]
-            self.db_manager.execute_query(update_query, update_params, fetch=False)
-
-        return result is not None
-
-    def get_send_logs(self, subscriber_id, limit=10):
-        """Obtiene los registros de envíos a un suscriptor
-
-        Args:
-            subscriber_id (int): ID del suscriptor
-            limit (int, optional): Límite de registros a devolver. Defaults to 10.
-
-        Returns:
-            List[Dict[str, Any]]: Lista de registros de envíos
-        """
-        query = """SELECT * FROM newsletter_send_logs
-                  WHERE subscriber_id = %s
-                  ORDER BY send_date DESC
-                  LIMIT %s"""
-        params = [subscriber_id, limit]
-
-        return self.db_manager.execute_query(query, params)
-
-    def import_subscribers_from_csv(self, csv_file_path):
-        """Importa suscriptores desde un archivo CSV
-
-        Args:
-            csv_file_path (str): Ruta al archivo CSV
-
-        Returns:
-            Tuple[int, int, List[str]]: (Número de suscriptores añadidos, número de errores, lista de errores)
-        """
-        try:
-            added = 0
-            errors = 0
-            error_messages = []
-
-            with open(csv_file_path, "r", encoding="utf-8") as file:
-                reader = csv.DictReader(file)
-
-                for row in reader:
-                    email = row.get("email", "").strip()
-
-                    if not email or "@" not in email:
-                        errors += 1
-                        error_messages.append(f"Correo inválido: {email}")
-                        continue
-
-                    name = row.get("name", "").strip()
-                    last_name = row.get("last_name", "").strip()
-                    company = row.get("company", "").strip()
-
-                    # Intentar añadir el suscriptor
-                    result = self.add_subscriber(email, name, last_name, company)
-
-                    if result:
-                        added += 1
-                    else:
-                        errors += 1
-                        error_messages.append(f"Error añadiendo: {email}")
-
-            return added, errors, error_messages
-        except Exception as e:
-            logger.error(f"Error importando suscriptores desde CSV: {str(e)}")
-            return 0, 1, [str(e)]
+    # El método import_subscribers_from_csv ya está definido arriba
