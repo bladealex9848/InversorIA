@@ -96,11 +96,57 @@ from database_quality_utils import (
     update_news_url,
     update_sentiment_analysis,
     get_empty_trading_signals_analysis,
+    get_error_trading_signals_analysis,
     update_trading_signal_analysis,
     get_empty_news_symbols,
 )
 from text_processing import translate_title_to_spanish
 from data_enrichment import get_news_from_yahoo
+
+
+# Función para generar análisis de respaldo para señales de trading
+def generate_fallback_analysis(signal_data: dict) -> str:
+    """Genera un análisis básico de respaldo para una señal de trading"""
+    symbol = signal_data.get("symbol", "desconocido")
+    direction = signal_data.get("direction", "NEUTRAL")
+    price = signal_data.get("price", 0.0)
+    confidence = signal_data.get("confidence_level", "Media")
+
+    # Crear un análisis básico con la información disponible
+    basic_analysis = f"Análisis experto para {symbol}: "
+
+    if direction == "CALL":
+        basic_analysis += (
+            f"Se observa una señal ALCISTA con nivel de confianza {confidence}. "
+        )
+        basic_analysis += (
+            f"El precio actual de {price} muestra potencial de crecimiento. "
+        )
+        if confidence == "Alta":
+            basic_analysis += "Se recomienda considerar una posición de compra con stop loss ajustado. "
+        else:
+            basic_analysis += (
+                "Se sugiere esperar confirmación adicional antes de tomar posiciones. "
+            )
+    elif direction == "PUT":
+        basic_analysis += (
+            f"Se observa una señal BAJISTA con nivel de confianza {confidence}. "
+        )
+        basic_analysis += f"El precio actual de {price} muestra signos de debilidad. "
+        if confidence == "Alta":
+            basic_analysis += "Se recomienda considerar una posición de venta con stop loss ajustado. "
+        else:
+            basic_analysis += (
+                "Se sugiere esperar confirmación adicional antes de tomar posiciones. "
+            )
+    else:
+        basic_analysis += "La señal actual es NEUTRAL. Se recomienda esperar a una mejor configuración de mercado. "
+
+    basic_analysis += "Este análisis fue generado automáticamente como respaldo."
+
+    logger.info(f"Generado análisis básico de respaldo para {symbol}")
+    return basic_analysis
+
 
 # Intentar importar funciones de generación de contenido con IA
 try:
@@ -257,6 +303,45 @@ except ImportError:
 
     def generate_trading_signal_analysis_with_ai(signal_data: dict) -> str:
         """Función de respaldo para generar análisis experto para una señal de trading"""
+        # Verificar si hay un error previo relacionado con progress_bars
+        error_message = signal_data.get("expert_analysis", "")
+        if error_message and "st.session_state has no attribute" in error_message:
+            logger.warning(f"Detectado error previo de session_state: {error_message}")
+            # Generar un análisis básico basado en los datos disponibles
+            symbol = signal_data.get("symbol", "desconocido")
+            direction = signal_data.get("direction", "NEUTRAL")
+            price = signal_data.get("price", 0.0)
+            confidence = signal_data.get("confidence_level", "Media")
+
+            # Crear un análisis básico con la información disponible
+            basic_analysis = f"Análisis experto para {symbol}: "
+
+            if direction == "CALL":
+                basic_analysis += f"Se observa una señal ALCISTA con nivel de confianza {confidence}. "
+                basic_analysis += (
+                    f"El precio actual de {price} muestra potencial de crecimiento. "
+                )
+                if confidence == "Alta":
+                    basic_analysis += "Se recomienda considerar una posición de compra con stop loss ajustado. "
+                else:
+                    basic_analysis += "Se sugiere esperar confirmación adicional antes de tomar posiciones. "
+            elif direction == "PUT":
+                basic_analysis += f"Se observa una señal BAJISTA con nivel de confianza {confidence}. "
+                basic_analysis += (
+                    f"El precio actual de {price} muestra signos de debilidad. "
+                )
+                if confidence == "Alta":
+                    basic_analysis += "Se recomienda considerar una posición de venta con stop loss ajustado. "
+                else:
+                    basic_analysis += "Se sugiere esperar confirmación adicional antes de tomar posiciones. "
+            else:
+                basic_analysis += "La señal actual es NEUTRAL. Se recomienda esperar a una mejor configuración de mercado. "
+
+            basic_analysis += "Este análisis fue generado automáticamente como respaldo debido a un error en el sistema de IA."
+
+            logger.info(f"Generado análisis básico de respaldo para {symbol}")
+            return basic_analysis
+
         try:
             # Cargar configuración de OpenAI
             config = load_openai_config()
@@ -265,7 +350,7 @@ except ImportError:
 
             if not api_key:
                 logger.warning("No se encontró la API key de OpenAI")
-                return "Análisis experto generado automáticamente para la señal de trading."
+                return generate_fallback_analysis(signal_data)
 
             # Inicializar cliente de OpenAI
             try:
@@ -281,10 +366,10 @@ except ImportError:
                     logger.info("Cliente OpenAI inicializado correctamente")
                 else:
                     logger.warning("No se pudo inicializar el cliente OpenAI")
-                    return "Análisis experto generado automáticamente para la señal de trading."
+                    return generate_fallback_analysis(signal_data)
             except Exception as e:
                 logger.warning(f"Error inicializando cliente OpenAI: {str(e)}")
-                return "Análisis experto generado automáticamente para la señal de trading."
+                return generate_fallback_analysis(signal_data)
 
             # Crear prompt para generar el análisis
             symbol = signal_data.get("symbol", "")
@@ -305,20 +390,27 @@ except ImportError:
                 prompt += f"Precio de entrada: {signal_data.get('entry_price')}\n"
             if signal_data.get("stop_loss"):
                 prompt += f"Stop loss: {signal_data.get('stop_loss')}\n"
-            if signal_data.get("take_profit"):
-                prompt += f"Take profit: {signal_data.get('take_profit')}\n"
+            if signal_data.get("take_profit") or signal_data.get("target_price"):
+                target = signal_data.get("take_profit") or signal_data.get(
+                    "target_price"
+                )
+                prompt += f"Take profit/Target: {target}\n"
             if signal_data.get("risk_reward"):
                 prompt += f"Riesgo/Recompensa: {signal_data.get('risk_reward')}\n"
             if signal_data.get("expiration_date"):
                 prompt += f"Fecha de expiración: {signal_data.get('expiration_date')}\n"
-            if signal_data.get("market_sentiment"):
-                prompt += (
-                    f"Sentimiento de mercado: {signal_data.get('market_sentiment')}\n"
+            if signal_data.get("market_sentiment") or signal_data.get("sentiment"):
+                sentiment = signal_data.get("market_sentiment") or signal_data.get(
+                    "sentiment", "neutral"
                 )
-            if signal_data.get("technical_indicators"):
-                prompt += (
-                    f"Indicadores técnicos: {signal_data.get('technical_indicators')}\n"
-                )
+                prompt += f"Sentimiento de mercado: {sentiment}\n"
+            if signal_data.get("technical_indicators") or signal_data.get(
+                "technical_analysis"
+            ):
+                tech_indicators = signal_data.get(
+                    "technical_indicators"
+                ) or signal_data.get("technical_analysis", "")
+                prompt += f"Indicadores técnicos: {tech_indicators}\n"
             if signal_data.get("fundamental_analysis"):
                 prompt += (
                     f"Análisis fundamental: {signal_data.get('fundamental_analysis')}\n"
@@ -350,10 +442,10 @@ except ImportError:
                 return analysis
             except Exception as e:
                 logger.warning(f"Error generando análisis experto con OpenAI: {str(e)}")
-                return "Análisis experto generado automáticamente para la señal de trading."
+                return generate_fallback_analysis(signal_data)
         except Exception as e:
             logger.error(f"Error en generate_trading_signal_analysis_with_ai: {str(e)}")
-            return "Análisis experto generado automáticamente para la señal de trading."
+            return generate_fallback_analysis(signal_data)
 
 
 def check_database_quality(
@@ -389,6 +481,12 @@ def check_database_quality(
     empty_signals = get_empty_trading_signals_analysis(connection, limit=1000)
     result["empty_trading_signals_analysis"] = (
         len(empty_signals) if empty_signals else 0
+    )
+
+    # Verificar señales de trading con errores en el análisis experto
+    error_signals = get_error_trading_signals_analysis(connection, limit=1000)
+    result["error_trading_signals_analysis"] = (
+        len(error_signals) if error_signals else 0
     )
 
     return result
@@ -592,7 +690,7 @@ def process_empty_trading_signals_analysis(
     connection: mysql.connector.MySQLConnection, limit: int = 10
 ) -> int:
     """
-    Procesa señales de trading con análisis experto vacío
+    Procesa señales de trading con análisis experto vacío o con errores
 
     Args:
         connection (mysql.connector.MySQLConnection): Conexión a la base de datos
@@ -604,22 +702,40 @@ def process_empty_trading_signals_analysis(
     # Obtener señales de trading con análisis experto vacío
     empty_signals = get_empty_trading_signals_analysis(connection, limit)
 
-    if not empty_signals:
+    # Obtener señales con errores en el análisis experto
+    error_signals = get_error_trading_signals_analysis(connection, limit)
+
+    # Combinar ambas listas, eliminando duplicados por ID
+    all_signals = {signal.get("id"): signal for signal in empty_signals}
+    for signal in error_signals:
+        if signal.get("id") not in all_signals:
+            all_signals[signal.get("id")] = signal
+
+    signals_to_process = list(all_signals.values())
+
+    if not signals_to_process:
         logger.info(
-            "No hay señales de trading con análisis experto vacío para procesar"
+            "No hay señales de trading con análisis experto vacío o con errores para procesar"
         )
         return 0
 
     logger.info(
-        f"Se encontraron {len(empty_signals)} señales de trading con análisis experto vacío"
+        f"Se encontraron {len(signals_to_process)} señales de trading con análisis experto vacío o con errores"
     )
 
     # Procesar cada señal
     processed_count = 0
-    for signal in empty_signals:
+    for signal in signals_to_process:
         signal_id = signal.get("id")
 
         logger.info(f"Procesando señal ID {signal_id}...")
+
+        # Verificar si hay un error en el análisis experto
+        expert_analysis = signal.get("expert_analysis", "")
+        if expert_analysis and "st.session_state has no attribute" in expert_analysis:
+            logger.warning(
+                f"Se detectó un error en el análisis experto de la señal ID {signal_id}: {expert_analysis[:100]}..."
+            )
 
         # Generar análisis con IA
         analysis = generate_trading_signal_analysis_with_ai(signal)
@@ -721,6 +837,10 @@ def process_quality_after_save(
         logger.info(
             f"Señales de trading con análisis experto vacío: {quality_stats['empty_trading_signals_analysis']}"
         )
+        if "error_trading_signals_analysis" in quality_stats:
+            logger.info(
+                f"Señales de trading con errores en el análisis: {quality_stats['error_trading_signals_analysis']}"
+            )
         logger.info("=" * 80)
 
         # Procesar los datos según la tabla seleccionada
@@ -828,27 +948,45 @@ def process_quality_after_save(
                     f"✅ Se completaron {result['sentiment_processed']} análisis de sentimiento de mercado"
                 )
 
-        if (
-            table_name in ["signals", "all"]
-            and quality_stats["empty_trading_signals_analysis"] > 0
-        ):
-            # Procesar señales de trading con análisis experto vacío
-            if has_streamlit:
-                quality_container.info(
-                    "⏳ Procesando señales de trading con análisis incompleto..."
+        # Procesar señales de trading con análisis experto vacío o con errores
+        if table_name in ["signals", "all"]:
+            signals_to_process = False
+            process_message = ""
+
+            # Verificar si hay señales con análisis vacío
+            if quality_stats["empty_trading_signals_analysis"] > 0:
+                signals_to_process = True
+                process_message = "análisis vacío"
+
+            # Verificar si hay señales con errores en el análisis
+            if (
+                "error_trading_signals_analysis" in quality_stats
+                and quality_stats["error_trading_signals_analysis"] > 0
+            ):
+                signals_to_process = True
+                if process_message:
+                    process_message += " o con errores"
+                else:
+                    process_message = "errores en el análisis"
+
+            if signals_to_process:
+                # Procesar señales de trading con análisis experto vacío o con errores
+                if has_streamlit:
+                    quality_container.info(
+                        f"⏳ Procesando señales de trading con {process_message}..."
+                    )
+
+                result["signals_processed"] = process_empty_trading_signals_analysis(
+                    connection, limit
+                )
+                logger.info(
+                    f"Se procesaron {result['signals_processed']} señales de trading con {process_message}"
                 )
 
-            result["signals_processed"] = process_empty_trading_signals_analysis(
-                connection, limit
-            )
-            logger.info(
-                f"Se procesaron {result['signals_processed']} señales de trading con análisis experto vacío"
-            )
-
-            if has_streamlit and result["signals_processed"] > 0:
-                quality_container.success(
-                    f"✅ Se completaron {result['signals_processed']} análisis expertos para señales de trading"
-                )
+                if has_streamlit and result["signals_processed"] > 0:
+                    quality_container.success(
+                        f"✅ Se completaron {result['signals_processed']} análisis expertos para señales de trading"
+                    )
 
         # Cerrar conexión
         connection.close()
@@ -1039,12 +1177,28 @@ def main():
             )
 
         if args.table in ["signals", "all"]:
-            # Procesar señales de trading con análisis experto vacío
+            # Procesar señales de trading con análisis experto vacío o con errores
+            process_message = ""
+
+            # Verificar si hay señales con análisis vacío
+            if quality_stats["empty_trading_signals_analysis"] > 0:
+                process_message = "análisis vacío"
+
+            # Verificar si hay señales con errores en el análisis
+            if (
+                "error_trading_signals_analysis" in quality_stats
+                and quality_stats["error_trading_signals_analysis"] > 0
+            ):
+                if process_message:
+                    process_message += " o con errores"
+                else:
+                    process_message = "errores en el análisis"
+
             signals_processed = process_empty_trading_signals_analysis(
                 connection, args.limit
             )
             logger.info(
-                f"Se procesaron {signals_processed} señales de trading con análisis experto vacío"
+                f"Se procesaron {signals_processed} señales de trading con {process_message}"
             )
 
         # Cerrar conexión

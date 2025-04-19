@@ -611,6 +611,55 @@ def get_empty_trading_signals_analysis(
         return []
 
 
+def get_error_trading_signals_analysis(
+    connection: mysql.connector.MySQLConnection, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Obtiene señales de trading con errores en el análisis experto
+
+    Args:
+        connection (mysql.connector.MySQLConnection): Conexión a la base de datos
+        limit (int): Número máximo de registros a obtener
+
+    Returns:
+        List[Dict[str, Any]]: Lista de señales de trading con errores en el análisis experto
+    """
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Ejecutar consulta para buscar análisis que contengan mensajes de error comunes
+        query = """
+        SELECT id, symbol, price, direction, confidence_level, timeframe, strategy,
+               category, analysis, technical_analysis, support_level, resistance_level,
+               rsi, trend, trend_strength, volatility, options_signal, options_analysis,
+               trading_specialist_signal, trading_specialist_confidence, sentiment,
+               sentiment_score, signal_date, latest_news, news_source, additional_news,
+               expert_analysis
+        FROM trading_signals
+        WHERE expert_analysis LIKE '%%Error%%' OR
+              expert_analysis LIKE '%%error%%' OR
+              expert_analysis LIKE '%%st.session_state%%' OR
+              expert_analysis LIKE '%%AttributeError%%' OR
+              expert_analysis LIKE '%%Exception%%'
+        ORDER BY id DESC
+        LIMIT %s
+        """
+        cursor.execute(query, (limit,))
+
+        # Obtener resultados
+        results = cursor.fetchall()
+
+        # Cerrar cursor
+        cursor.close()
+
+        return results
+    except Exception as e:
+        logger.error(
+            f"Error obteniendo señales de trading con errores en el análisis experto: {str(e)}"
+        )
+        return []
+
+
 def update_trading_signal_analysis(
     connection: mysql.connector.MySQLConnection,
     signal_id: int,

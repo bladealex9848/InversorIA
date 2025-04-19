@@ -4478,6 +4478,16 @@ def initialize_session_state():
     if "active_chart" not in st.session_state:
         st.session_state.active_chart = None
 
+    # Inicializar contenedores para barras de progreso y mensajes
+    if "progress_bars" not in st.session_state:
+        st.session_state.progress_bars = {}
+
+    if "status_messages" not in st.session_state:
+        st.session_state.status_messages = {}
+
+    if "progress_details" not in st.session_state:
+        st.session_state.progress_details = {}
+
     # Inicializar estado para el scanner de mercado
     if "data_cache" not in st.session_state:
         st.session_state.data_cache = DataCache()
