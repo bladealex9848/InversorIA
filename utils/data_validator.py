@@ -130,13 +130,48 @@ class DataValidator:
                                             )
                                             break
                                     else:  # Este else pertenece al for, se ejecuta si no se hace break
-                                        # Como último recurso, marcar para revisión manual
-                                        validated_data["symbol"] = (
-                                            "REVIEW"  # Marcar para revisión
-                                        )
-                                        logger.warning(
-                                            f"No se pudo identificar un símbolo para: {title[:30]}... - Marcado para revisión manual"
-                                        )
+                                        # Intentar usar IA avanzada si está disponible
+                                        try:
+                                            # Importar la función de IA avanzada
+                                            from review_news_symbols import (
+                                                ai_advanced_symbol_extraction,
+                                            )
+
+                                            logger.info(
+                                                f"Intentando identificar símbolo con IA avanzada para: {title[:30]}..."
+                                            )
+                                            advanced_symbol = (
+                                                ai_advanced_symbol_extraction(
+                                                    title, summary
+                                                )
+                                            )
+
+                                            if advanced_symbol:
+                                                validated_data["symbol"] = (
+                                                    advanced_symbol
+                                                )
+                                                logger.info(
+                                                    f"Símbolo identificado por IA avanzada: {advanced_symbol} para noticia: {title[:30]}..."
+                                                )
+                                            else:
+                                                # Como último recurso, marcar para revisión manual
+                                                validated_data["symbol"] = (
+                                                    "REVIEW"  # Marcar para revisión
+                                                )
+                                                logger.warning(
+                                                    f"No se pudo identificar un símbolo para: {title[:30]}... - Marcado para revisión manual"
+                                                )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"Error al usar IA avanzada: {str(e)}"
+                                            )
+                                            # Como último recurso, marcar para revisión manual
+                                            validated_data["symbol"] = (
+                                                "REVIEW"  # Marcar para revisión
+                                            )
+                                            logger.warning(
+                                                f"No se pudo identificar un símbolo para: {title[:30]}... - Marcado para revisión manual"
+                                            )
                         except Exception as e:
                             logger.error(
                                 f"Error al usar IA para identificar símbolo: {str(e)}"

@@ -12,6 +12,7 @@ import sys
 import os
 import pandas as pd
 from datetime import datetime
+import time
 
 # Configurar logging
 logging.basicConfig(
@@ -29,16 +30,27 @@ os.makedirs("logs", exist_ok=True)
 
 # Importar utilidades de base de datos
 try:
-    from database_utils import DatabaseManager
+    from database_utils import DatabaseManager, extract_symbol_from_content
     from company_data import COMPANY_INFO
+    
+    # Intentar importar funciones de IA
+    try:
+        from ai_utils import get_expert_analysis
+        AI_AVAILABLE = True
+    except ImportError:
+        logger.warning("No se pudo importar ai_utils. La corrección automática con IA avanzada no estará disponible.")
+        AI_AVAILABLE = False
 except ImportError as e:
     logger.error(f"Error importando módulos necesarios: {str(e)}")
     sys.exit(1)
 
 
-def get_news_for_review():
+def get_news_for_review(limit=100):
     """
     Obtiene las noticias marcadas para revisión manual (symbol = 'REVIEW')
+    
+    Args:
+        limit (int): Límite de noticias a obtener
     
     Returns:
         list: Lista de noticias que necesitan revisión
@@ -50,9 +62,10 @@ def get_news_for_review():
         FROM market_news
         WHERE symbol = 'REVIEW'
         ORDER BY news_date DESC
+        LIMIT %s
         """
         
-        news = db.execute_query(query)
+        news = db.execute_query(query, [limit])
         logger.info(f"Se encontraron {len(news)} noticias para revisar")
         return news
     except Exception as e:
@@ -72,9 +85,10 @@ def update_news_symbol(news_id, symbol):
         bool: True si se actualizó correctamente, False en caso contrario
     """
     try:
-        # Validar que el símbolo exista en COMPANY_INFO
-        if symbol not in COMPANY_INFO and symbol not in ["SPY", "QQQ", "DIA", "IWM", "VIX"]:
-            logger.warning(f"El símbolo {symbol} no existe en COMPANY_INFO")
+        # Validar que el símbolo exista en COMPANY_INFO o sea un índice común
+        common_indices = ["SPY", "QQQ", "DIA", "IWM", "VIX", "REVIEW"]
+        if symbol not in COMPANY_INFO and symbol not in common_indices:
+            logger.warning(f"El símbolo {symbol} no existe en COMPANY_INFO ni es un índice común")
             return False
             
         db = DatabaseManager()
@@ -227,9 +241,66 @@ def interactive_review():
             print(f"Error: {str(e)}")
 
 
-def batch_review():
+def ai_advanced_symbol_extraction(title, summary=None, url=None):
+    """
+    Utiliza IA avanzada para extraer el símbolo de una noticia
+    
+    Args:
+        title (str): Título de la noticia
+        summary (str, optional): Resumen de la noticia
+        url (str, optional): URL de la noticia
+        
+    Returns:
+        str: Símbolo extraído o None si no se pudo extraer
+    """
+    if not AI_AVAILABLE:
+        logger.warning("IA avanzada no disponible para extracción de símbolos")
+        return None
+        
+    try:
+        # Crear prompt para la IA
+        content = f"Título: {title}\n"
+        if summary:
+            content += f"Resumen: {summary}\n"
+        if url:
+            content += f"URL: {url}\n"
+            
+        prompt = f"""Analiza esta noticia financiera y determina el símbolo bursátil (ticker) principal al que se refiere.
+        
+        {content}
+        
+        Responde SOLO con el símbolo bursátil en formato de 1-5 letras mayúsculas (como AAPL, MSFT, TSLA, SPY, QQQ).
+        Si la noticia se refiere a un índice, usa su ETF correspondiente (S&P 500 = SPY, Nasdaq = QQQ, Dow Jones = DIA).
+        Si no puedes identificar un símbolo específico, responde con 'DESCONOCIDO'.
+        No incluyas explicaciones, solo el símbolo."""
+        
+        # Obtener respuesta de la IA
+        ai_response = get_expert_analysis(prompt).strip().upper()
+        
+        # Validar la respuesta
+        if ai_response == "DESCONOCIDO":
+            return None
+            
+        if len(ai_response) <= 5 and ai_response.isalpha():
+            # Verificar si el símbolo existe en COMPANY_INFO o es un índice común
+            common_indices = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
+            if ai_response in COMPANY_INFO or ai_response in common_indices:
+                logger.info(f"IA avanzada identificó el símbolo: {ai_response}")
+                return ai_response
+                
+        logger.warning(f"IA avanzada devolvió un símbolo no válido: {ai_response}")
+        return None
+    except Exception as e:
+        logger.error(f"Error en extracción avanzada con IA: {str(e)}")
+        return None
+
+
+def batch_review(use_advanced_ai=True):
     """
     Realiza una revisión por lotes de las noticias marcadas para revisión
+    
+    Args:
+        use_advanced_ai (bool): Si es True, utiliza IA avanzada para extraer símbolos
     """
     news = get_news_for_review()
     if not news:
@@ -241,25 +312,39 @@ def batch_review():
     # Mostrar un resumen
     print(f"\nSe encontraron {len(df)} noticias para revisar")
     
-    # Intentar asignar símbolos automáticamente basados en patrones comunes
-    from database_utils import extract_symbol_from_content
-    
+    # Intentar asignar símbolos automáticamente
     updated_count = 0
-    for index, row in df.iterrows():
+    ai_updated_count = 0
+    
+    for _, row in df.iterrows():
         title = row["title"]
         summary = row.get("summary", "")
+        url = row.get("url", "")
         
-        # Intentar extraer símbolo del contenido
+        # Paso 1: Intentar extraer símbolo con el método estándar
         extracted_symbol = extract_symbol_from_content(title, summary)
+        
+        # Paso 2: Si no se pudo extraer un símbolo y se solicitó IA avanzada, intentar con IA
+        if not extracted_symbol and use_advanced_ai and AI_AVAILABLE:
+            print(f"Analizando con IA avanzada: {title[:50]}...")
+            extracted_symbol = ai_advanced_symbol_extraction(title, summary, url)
+            if extracted_symbol:
+                ai_updated_count += 1
         
         if extracted_symbol:
             # Actualizar en la base de datos
             success = update_news_symbol(row["id"], extracted_symbol)
             if success:
                 updated_count += 1
-                print(f"ID {row['id']}: Asignado símbolo {extracted_symbol} - {title[:50]}...")
+                source = "IA avanzada" if not extract_symbol_from_content(title, summary) else "análisis estándar"
+                print(f"ID {row['id']}: Asignado símbolo {extracted_symbol} mediante {source} - {title[:50]}...")
+                # Pequeña pausa para no sobrecargar la API si se usa IA
+                if use_advanced_ai and AI_AVAILABLE:
+                    time.sleep(0.5)
     
     print(f"\nSe actualizaron automáticamente {updated_count} de {len(df)} noticias")
+    if use_advanced_ai and AI_AVAILABLE:
+        print(f"De las cuales {ai_updated_count} fueron identificadas con IA avanzada")
     
     # Si quedan noticias sin asignar, sugerir revisión manual
     remaining = len(df) - updated_count
@@ -277,8 +362,9 @@ def main():
     
     while True:
         print("\nOpciones:")
-        print("1. Revisión interactiva")
-        print("2. Revisión automática por lotes")
+        print("1. Revisión interactiva (manual)")
+        print("2. Revisión automática con IA avanzada (recomendada)")
+        print("3. Revisión automática básica (sin IA avanzada)")
         print("0. Salir")
         
         choice = input("\nSeleccione una opción: ")
@@ -286,7 +372,13 @@ def main():
         if choice == "1":
             interactive_review()
         elif choice == "2":
-            batch_review()
+            if AI_AVAILABLE:
+                batch_review(use_advanced_ai=True)
+            else:
+                print("\n⚠️ La IA avanzada no está disponible. Se usará el método básico.")
+                batch_review(use_advanced_ai=False)
+        elif choice == "3":
+            batch_review(use_advanced_ai=False)
         elif choice == "0":
             break
         else:

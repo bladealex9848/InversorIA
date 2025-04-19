@@ -76,6 +76,7 @@ from database_quality_utils import (
     update_sentiment_analysis,
     get_empty_trading_signals_analysis,
     update_trading_signal_analysis,
+    get_empty_news_symbols,
 )
 from text_processing import translate_title_to_spanish
 from data_enrichment import get_news_from_yahoo
@@ -655,6 +656,53 @@ def process_quality_after_save(
                 f"Se procesaron {result['news_processed']} noticias con resumen vacío"
             )
 
+        # Procesar noticias con símbolos marcados para revisión
+        if (
+            table_name in ["news", "all"]
+            and quality_stats.get("news_for_review", 0) > 0
+        ):
+            try:
+                # Intentar procesar automáticamente con IA avanzada
+                from review_news_symbols import batch_review
+                import sys
+                import os
+
+                logger.info(
+                    f"Procesando {quality_stats.get('news_for_review', 0)} noticias marcadas para revisión..."
+                )
+
+                # Ejecutar en modo silencioso (sin interacción con el usuario)
+                original_stdout = sys.stdout
+                sys.stdout = open(os.devnull, "w")
+                batch_review(use_advanced_ai=True)
+                sys.stdout = original_stdout
+
+                # Verificar cuántas noticias quedan por revisar
+                remaining = get_empty_news_symbols(connection, limit=1000)
+                remaining_count = len(remaining) if remaining else 0
+
+                if remaining_count > 0:
+                    logger.warning(
+                        f"Quedan {remaining_count} noticias que requieren revisión manual."
+                    )
+                    logger.warning(
+                        "Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos manualmente."
+                    )
+                else:
+                    logger.info(
+                        "Todas las noticias fueron procesadas correctamente con IA avanzada."
+                    )
+
+                result["news_symbols_processed"] = (
+                    quality_stats.get("news_for_review", 0) - remaining_count
+                )
+                result["news_symbols_remaining"] = remaining_count
+            except Exception as e:
+                logger.error(f"Error en la corrección automática de símbolos: {str(e)}")
+                logger.warning(
+                    "Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos correctos."
+                )
+
         if (
             table_name in ["sentiment", "all"]
             and quality_stats["empty_sentiment_analysis"] > 0
@@ -687,7 +735,11 @@ def process_quality_after_save(
         logger.info("=" * 80)
         logger.info("RESUMEN DE PROCESAMIENTO")
         logger.info("=" * 80)
-        logger.info(f"Noticias procesadas: {result['news_processed']}")
+        logger.info(f"Noticias con resumen procesadas: {result['news_processed']}")
+        if "news_symbols_processed" in result:
+            logger.info(
+                f"Noticias con símbolos procesadas: {result['news_symbols_processed']}"
+            )
         logger.info(
             f"Registros de sentimiento procesados: {result['sentiment_processed']}"
         )
@@ -774,6 +826,55 @@ def main():
             news_processed = process_empty_news_summaries(connection, args.limit)
             logger.info(f"Se procesaron {news_processed} noticias con resumen vacío")
 
+            # Procesar noticias con símbolos marcados para revisión
+            if quality_stats.get("news_for_review", 0) > 0:
+                try:
+                    # Intentar procesar automáticamente con IA avanzada
+                    from review_news_symbols import batch_review
+                    import sys
+                    import os
+
+                    print(
+                        f"\nProcesando {quality_stats.get('news_for_review', 0)} noticias marcadas para revisión..."
+                    )
+
+                    # Ejecutar en modo silencioso (sin interacción con el usuario)
+                    original_stdout = sys.stdout
+                    sys.stdout = open(os.devnull, "w")
+                    batch_review(use_advanced_ai=True)
+                    sys.stdout = original_stdout
+
+                    # Verificar cuántas noticias quedan por revisar
+                    remaining = get_empty_news_symbols(connection, limit=1000)
+                    remaining_count = len(remaining) if remaining else 0
+
+                    if remaining_count > 0:
+                        print(
+                            f"\033[93m⚠️  Quedan {remaining_count} noticias que requieren revisión manual.\033[0m"
+                        )
+                        print(
+                            "\033[93m⚠️  Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos manualmente.\033[0m"
+                        )
+                    else:
+                        print(
+                            "\033[92m✅ Todas las noticias fueron procesadas correctamente con IA avanzada.\033[0m"
+                        )
+
+                    news_symbols_processed = (
+                        quality_stats.get("news_for_review", 0) - remaining_count
+                    )
+                    print(f"Símbolos de noticias procesados: {news_symbols_processed}")
+                except Exception as e:
+                    logger.error(
+                        f"Error en la corrección automática de símbolos: {str(e)}"
+                    )
+                    print(
+                        "\033[91m❌ Error en la corrección automática de símbolos.\033[0m"
+                    )
+                    print(
+                        "\033[93m⚠️  Ejecute 'python review_news_symbols.py' para revisar y asignar símbolos correctos.\033[0m"
+                    )
+
         if args.table in ["sentiment", "all"]:
             # Procesar registros de sentimiento con análisis vacío
             sentiment_processed = process_empty_sentiment_analysis(
@@ -800,7 +901,9 @@ def main():
         print("\n" + "=" * 80)
         print("RESUMEN DE PROCESAMIENTO")
         print("=" * 80)
-        print(f"Noticias procesadas: {news_processed}")
+        print(f"Noticias con resumen procesadas: {news_processed}")
+        if "news_symbols_processed" in locals():
+            print(f"Noticias con símbolos procesadas: {news_symbols_processed}")
         print(f"Registros de sentimiento procesados: {sentiment_processed}")
         print(f"Señales de trading procesadas: {signals_processed}")
         print("=" * 80)

@@ -529,6 +529,44 @@ def get_empty_fields_count(
         return {}
 
 
+def get_empty_news_symbols(
+    connection: mysql.connector.MySQLConnection, limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Obtiene noticias con símbolos marcados para revisión (symbol = 'REVIEW')
+
+    Args:
+        connection (mysql.connector.MySQLConnection): Conexión a la base de datos
+        limit (int): Número máximo de registros a obtener
+
+    Returns:
+        List[Dict[str, Any]]: Lista de noticias con símbolos para revisión
+    """
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Ejecutar consulta
+        query = """
+        SELECT id, title, summary, source, url, news_date, symbol
+        FROM market_news
+        WHERE symbol = 'REVIEW'
+        ORDER BY news_date DESC
+        LIMIT %s
+        """
+        cursor.execute(query, (limit,))
+
+        # Obtener resultados
+        results = cursor.fetchall()
+
+        # Cerrar cursor
+        cursor.close()
+
+        return results
+    except Exception as e:
+        logger.error(f"Error obteniendo noticias con símbolos para revisión: {str(e)}")
+        return []
+
+
 def get_empty_trading_signals_analysis(
     connection: mysql.connector.MySQLConnection, limit: int = 10
 ) -> List[Dict[str, Any]]:
