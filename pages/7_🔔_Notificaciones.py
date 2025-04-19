@@ -279,11 +279,30 @@ class DatabaseManager:
 
     def create_tables(self):
         """Crea las tablas necesarias si no existen"""
+        # Verificar si ya se han creado las tablas en esta sesión o en la aplicación
+        if hasattr(self, "_tables_created") and self._tables_created:
+            return
+
+        # Verificar si ya se han creado las tablas en la sesión de Streamlit
+        if "db_tables_created" in st.session_state:
+            self._tables_created = True
+            return
+
         try:
-            # Verificar si ya se han creado las tablas en esta sesión
-            if hasattr(self, "_tables_created") and self._tables_created:
-                logger.info("Las tablas ya fueron verificadas en esta sesión")
+            # Verificar si las tablas existen
+            tables_exist = self.check_tables_exist()
+
+            if tables_exist:
+                logger.info("Las tablas ya existen en la base de datos")
+                self._tables_created = True
+                st.session_state.db_tables_created = True
                 return
+
+            # Mostrar mensaje de que se están creando las tablas
+            tables_container = st.empty()
+            tables_container.warning(
+                "⚠️ Las tablas necesarias no existen en la base de datos. Creando tablas..."
+            )
 
             # Tabla para señales de trading
             self.execute_query(
@@ -427,12 +446,51 @@ class DatabaseManager:
                 """
             )
 
-            # Marcar que las tablas ya fueron creadas en esta sesión
+            # Marcar que las tablas ya fueron creadas
             self._tables_created = True
+            st.session_state.db_tables_created = True
 
-            logger.info("Tablas creadas o verificadas correctamente")
+            # Mostrar mensaje de éxito
+            tables_container.success("✅ Tablas creadas correctamente")
+            import time
+
+            time.sleep(3)
+            tables_container.empty()
+
+            logger.info("Tablas creadas correctamente")
         except Exception as e:
             logger.error(f"Error creando tablas: {str(e)}")
+            if "tables_container" in locals():
+                tables_container.error(f"❌ Error creando tablas: {str(e)}")
+
+    def check_tables_exist(self):
+        """Verifica si las tablas necesarias existen en la base de datos"""
+        try:
+            # Conectar a la base de datos
+            if not self.connect():
+                return False
+
+            # Verificar si las tablas existen
+            cursor = self.connection.cursor()
+            cursor.execute("SHOW TABLES")
+            tables = [table[0] for table in cursor.fetchall()]
+            cursor.close()
+
+            # Lista de tablas necesarias
+            required_tables = [
+                "trading_signals",
+                "market_sentiment",
+                "market_news",
+                "email_logs",
+                "newsletter_subscribers",
+                "newsletter_send_logs",
+            ]
+
+            # Verificar si todas las tablas necesarias existen
+            return all(table in tables for table in required_tables)
+        except Exception as e:
+            logger.error(f"Error verificando tablas: {str(e)}")
+            return False
 
     def connect(self):
         """Establece conexión con la base de datos"""
@@ -862,15 +920,26 @@ class DatabaseManager:
                   (title, summary, source, url, news_date, impact, symbol, created_at)
                   VALUES (%s, %s, %s, %s, NOW(), %s, %s, NOW())"""
 
+        # Asegurar que el resumen nunca esté vacío
+        title = news_data.get("title", "")
+        summary = news_data.get("summary", "")
+        symbol = news_data.get("symbol", "mercado")
+
+        # Verificar si el resumen está vacío o es muy corto
+        if not summary or len(summary.strip()) < 5:
+            # Generar un resumen básico como último recurso
+            summary = f"Noticia relacionada con {symbol}: {title}"
+            logger.warning(
+                f"Generando resumen de emergencia para noticia en Notificaciones.py: {summary}"
+            )
+
         params = (
-            news_data.get("title"),
-            news_data.get(
-                "summary", f"Noticia sobre {news_data.get('symbol', 'mercado')}"
-            ),  # Valor por defecto
+            title,
+            summary,  # Usar el resumen verificado
             news_data.get("source"),
             news_data.get("url", ""),
             news_data.get("impact", "Medio"),
-            news_data.get("symbol"),
+            symbol,
         )
 
         return self.execute_query(query, params, fetch=False)
@@ -4237,7 +4306,7 @@ with tab4:
                 df_subscribers["Último Envío"] = df_subscribers["last_sent_date"].apply(
                     lambda x: (
                         x.strftime("%d/%m/%Y")
-                        if isinstance(x, datetime) and x is not None
+                        if isinstance(x, datetime) and x is not None and pd.notna(x)
                         else "Nunca"
                     )
                 )
@@ -4316,12 +4385,24 @@ with tab4:
                             st.write(
                                 f"**Estado:** {'Activo' if selected_subscriber.get('active') else 'Inactivo'}"
                             )
-                            st.write(
-                                f"**Fecha de suscripción:** {selected_subscriber.get('subscription_date').strftime('%d/%m/%Y') if selected_subscriber.get('subscription_date') else 'N/A'}"
+                            sub_date = selected_subscriber.get("subscription_date")
+                            sub_date_formatted = (
+                                sub_date.strftime("%d/%m/%Y")
+                                if sub_date
+                                and isinstance(sub_date, datetime)
+                                and pd.notna(sub_date)
+                                else "N/A"
                             )
-                            st.write(
-                                f"**Último envío:** {selected_subscriber.get('last_sent_date').strftime('%d/%m/%Y') if selected_subscriber.get('last_sent_date') else 'Nunca'}"
+                            st.write(f"**Fecha de suscripción:** {sub_date_formatted}")
+                            last_sent = selected_subscriber.get("last_sent_date")
+                            last_sent_formatted = (
+                                last_sent.strftime("%d/%m/%Y")
+                                if last_sent
+                                and isinstance(last_sent, datetime)
+                                and pd.notna(last_sent)
+                                else "Nunca"
                             )
+                            st.write(f"**Último envío:** {last_sent_formatted}")
                             st.write(
                                 f"**Total envíos:** {selected_subscriber.get('send_count', 0)}"
                             )

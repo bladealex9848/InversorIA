@@ -871,10 +871,21 @@ class DatabaseManager:
                           (title, summary, source, url, news_date, impact, symbol, created_at)
                           VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
+                # Asegurar que el resumen nunca esté vacío
+                summary = cleaned_data.get("summary", "")
+                if not summary or len(summary.strip()) < 5:
+                    title = cleaned_data.get("title", "")
+                    symbol = cleaned_data.get("symbol", "SPY")
+                    # Generar un resumen básico como último recurso
+                    summary = f"Noticia relacionada con {symbol}: {title}"
+                    logger.warning(
+                        f"Generando resumen de emergencia para noticia en save_multiple_records: {summary}"
+                    )
+
                 # Preparar datos
                 params = (
                     cleaned_data.get("title", ""),
-                    cleaned_data.get("summary", ""),
+                    summary,  # Usar el resumen verificado
                     cleaned_data.get("source", ""),
                     cleaned_data.get("url", ""),
                     cleaned_data.get("news_date", datetime.now()),
@@ -1129,10 +1140,21 @@ class DatabaseManager:
                                       (title, summary, source, url, news_date, impact, symbol, created_at)
                                       VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
+                            # Asegurar que el resumen nunca esté vacío
+                            summary = cleaned_data.get("summary", "")
+                            if not summary or len(summary.strip()) < 5:
+                                title = cleaned_data.get("title", "")
+                                symbol = cleaned_data.get("symbol", "SPY")
+                                # Generar un resumen básico como último recurso
+                                summary = f"Noticia relacionada con {symbol}: {title}"
+                                logger.warning(
+                                    f"Generando resumen de emergencia para noticia en transacción: {summary}"
+                                )
+
                             # Preparar datos
                             params = (
                                 cleaned_data.get("title", ""),
-                                cleaned_data.get("summary", ""),
+                                summary,  # Usar el resumen verificado
                                 cleaned_data.get("source", ""),
                                 cleaned_data.get("url", ""),
                                 cleaned_data.get("news_date", datetime.now()),
@@ -1452,8 +1474,13 @@ def save_market_news(
                     logger.info(
                         f"Resumen traducido y condensado: {news_data['summary']}"
                     )
+                else:
+                    # Si falla la traducción, asegurar que el resumen original se mantenga
+                    logger.warning(
+                        f"Fallo al traducir resumen, manteniendo original: {original_summary[:50]}..."
+                    )
             # Si no hay resumen o es muy corto, generarlo a partir del título y símbolo
-            elif not news_data.get("summary") or len(news_data.get("summary", "")) < 20:
+            else:
                 title = news_data.get("title", "")
                 symbol = news_data.get("symbol", "SPY")
                 url = news_data.get("url", "")
@@ -1499,9 +1526,18 @@ def save_market_news(
                   (title, summary, source, url, news_date, impact, symbol, created_at)
                   VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())"""
 
+        # Asegurar que el resumen nunca esté vacío
+        summary = cleaned_data.get("summary", "")
+        if not summary or len(summary.strip()) < 5:
+            title = cleaned_data.get("title", "")
+            symbol = cleaned_data.get("symbol", "SPY")
+            # Generar un resumen básico como último recurso
+            summary = f"Noticia relacionada con {symbol}: {title}"
+            logger.warning(f"Generando resumen de emergencia para noticia: {summary}")
+
         params = (
             cleaned_data.get("title", ""),
-            cleaned_data.get("summary", ""),
+            summary,  # Usar el resumen verificado
             cleaned_data.get("source", "InversorIA Analytics"),
             cleaned_data.get("url", ""),
             cleaned_data.get("news_date", datetime.now()),

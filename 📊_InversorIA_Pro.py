@@ -1277,10 +1277,21 @@ class DatabaseManager:
                           (title, summary, source, url, news_date, impact, created_at)
                           VALUES (%s, %s, %s, %s, %s, %s, NOW())"""
 
+                # Asegurar que el resumen nunca esté vacío
+                title = news_data.get("title", "")
+                summary = news_data.get("summary", "")
+                if not summary or len(summary.strip()) < 5:
+                    # Generar un resumen básico como último recurso
+                    symbol = news_data.get("symbol", "mercado")
+                    summary = f"Noticia relacionada con {symbol}: {title}"
+                    logger.warning(
+                        f"Generando resumen de emergencia para noticia en InversorIA_Pro: {summary}"
+                    )
+
                 # Preparar datos
                 params = (
-                    news_data.get("title", ""),
-                    news_data.get("summary", ""),
+                    title,
+                    summary,  # Usar el resumen verificado
                     news_data.get("source", ""),
                     news_data.get("url", ""),
                     news_data.get("news_date", datetime.now()),
@@ -8366,5 +8377,64 @@ def main():
         st.error(traceback.format_exc())
 
 
+def run_quality_check():
+    """Ejecuta el proceso de calidad de datos para asegurar que no haya campos vacíos"""
+    try:
+        # Mostrar mensaje de progreso
+        quality_container = st.empty()
+        quality_container.info("⏳ Verificando integridad de datos...")
+
+        # Importar módulo de calidad de datos
+        import post_save_quality_check
+        import sys
+        import os
+
+        # Asegurar que post_save_quality_check está en el path
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.append(current_dir)
+
+        # Procesar la calidad de los datos
+        result = post_save_quality_check.process_quality_after_save(
+            table_name="all",
+            limit=50,  # Procesar hasta 50 registros por tabla
+        )
+
+        if result:
+            logger.info(f"Procesamiento de calidad completado. Resultado: {result}")
+
+            # Mostrar mensaje de éxito
+            total_processed = (
+                result.get("news_processed", 0)
+                + result.get("news_symbols_processed", 0)
+                + result.get("sentiment_processed", 0)
+                + result.get("signals_processed", 0)
+            )
+
+            if total_processed > 0:
+                quality_container.success(
+                    f"✅ Control de calidad completado: {total_processed} registros procesados"
+                )
+                # Limpiar el contenedor después de 3 segundos
+                import time
+
+                time.sleep(3)
+                quality_container.empty()
+            else:
+                quality_container.info(
+                    "ℹ️ No se requirió procesamiento adicional de datos"
+                )
+                # Limpiar el contenedor después de 3 segundos
+                import time
+
+                time.sleep(3)
+                quality_container.empty()
+    except Exception as e:
+        logger.warning(f"Error en el procesamiento de calidad: {str(e)}")
+        logger.warning("Traza completa:", exc_info=True)
+
+
 if __name__ == "__main__":
     main()
+    # Ejecutar verificación de calidad de datos después de cargar la aplicación principal
+    run_quality_check()
