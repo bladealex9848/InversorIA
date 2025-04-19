@@ -7,9 +7,12 @@ Este archivo contiene clases y funciones para gestionar la conexión y operacion
 import logging
 import mysql.connector
 import decimal
+import json
+import csv
+import os
 from datetime import datetime
 import streamlit as st
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -2149,3 +2152,715 @@ def extract_symbol_from_title(title: str) -> Optional[str]:
         Optional[str]: Símbolo extraído o None si no se encuentra
     """
     return extract_symbol_from_content(title)
+
+
+class NewsletterSubscriberManager:
+    """
+    Gestiona los suscriptores del boletín de trading
+    """
+
+    def __init__(self):
+        """
+        Inicializa el gestor de suscriptores
+        """
+        self.db_manager = DatabaseManager()
+        self._ensure_tables_exist()
+
+    def _ensure_tables_exist(self) -> bool:
+        """
+        Asegura que las tablas necesarias existan en la base de datos
+
+        Returns:
+            bool: True si las tablas existen o se crearon correctamente, False en caso contrario
+        """
+        try:
+            # Verificar si la tabla de suscriptores existe
+            query = "SHOW TABLES LIKE 'newsletter_subscribers'"
+            result = self.db_manager.execute_query(query)
+
+            if not result:
+                # Crear tabla de suscriptores
+                create_subscribers_table = """
+                CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    name VARCHAR(100),
+                    last_name VARCHAR(100),
+                    company VARCHAR(150),
+                    active BOOLEAN DEFAULT TRUE,
+                    subscription_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_sent_date DATETIME,
+                    send_count INT DEFAULT 0,
+                    preferences JSON,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE INDEX idx_email (email)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                self.db_manager.execute_query(create_subscribers_table, fetch=False)
+                logger.info("Tabla newsletter_subscribers creada correctamente")
+
+            # Verificar si la tabla de logs de envío existe
+            query = "SHOW TABLES LIKE 'newsletter_send_logs'"
+            result = self.db_manager.execute_query(query)
+
+            if not result:
+                # Crear tabla de logs de envío
+                create_logs_table = """
+                CREATE TABLE IF NOT EXISTS newsletter_send_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    subscriber_id INT NOT NULL,
+                    email_log_id INT,
+                    send_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    status VARCHAR(50) DEFAULT 'success',
+                    error_message TEXT,
+                    pdf_attached BOOLEAN DEFAULT FALSE,
+                    signals_included TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (subscriber_id) REFERENCES newsletter_subscribers(id) ON DELETE CASCADE,
+                    FOREIGN KEY (email_log_id) REFERENCES email_logs(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+                self.db_manager.execute_query(create_logs_table, fetch=False)
+                logger.info("Tabla newsletter_send_logs creada correctamente")
+
+            return True
+        except Exception as e:
+            logger.error(f"Error asegurando tablas de suscriptores: {str(e)}")
+            return False
+
+    def get_all_subscribers(self, active_only: bool = True) -> List[Dict[str, Any]]:
+        """
+        Obtiene todos los suscriptores del boletín
+
+        Args:
+            active_only (bool): Si es True, solo devuelve suscriptores activos
+
+        Returns:
+            List[Dict[str, Any]]: Lista de suscriptores
+        """
+        try:
+            query = "SELECT * FROM newsletter_subscribers"
+            params = []
+
+            if active_only:
+                query += " WHERE active = TRUE"
+
+            query += " ORDER BY name, last_name, email"
+
+            subscribers = self.db_manager.execute_query(query, params)
+
+            # Convertir el campo preferences de JSON a diccionario
+            for subscriber in subscribers:
+                if subscriber.get("preferences") and isinstance(
+                    subscriber["preferences"], str
+                ):
+                    try:
+                        subscriber["preferences"] = json.loads(
+                            subscriber["preferences"]
+                        )
+                    except json.JSONDecodeError:
+                        subscriber["preferences"] = {}
+                elif not subscriber.get("preferences"):
+                    subscriber["preferences"] = {}
+
+            return subscribers
+        except Exception as e:
+            logger.error(f"Error obteniendo suscriptores: {str(e)}")
+            return []
+
+    def get_subscriber_by_id(self, subscriber_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene un suscriptor por su ID
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+
+        Returns:
+            Optional[Dict[str, Any]]: Datos del suscriptor o None si no existe
+        """
+        try:
+            query = "SELECT * FROM newsletter_subscribers WHERE id = %s"
+            params = [subscriber_id]
+
+            result = self.db_manager.execute_query(query, params)
+
+            if result and len(result) > 0:
+                subscriber = result[0]
+
+                # Convertir el campo preferences de JSON a diccionario
+                if subscriber.get("preferences") and isinstance(
+                    subscriber["preferences"], str
+                ):
+                    try:
+                        subscriber["preferences"] = json.loads(
+                            subscriber["preferences"]
+                        )
+                    except json.JSONDecodeError:
+                        subscriber["preferences"] = {}
+                elif not subscriber.get("preferences"):
+                    subscriber["preferences"] = {}
+
+                return subscriber
+            else:
+                return None
+        except Exception as e:
+            logger.error(f"Error obteniendo suscriptor por ID: {str(e)}")
+            return None
+
+    def get_subscriber_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene un suscriptor por su correo electrónico
+
+        Args:
+            email (str): Correo electrónico del suscriptor
+
+        Returns:
+            Optional[Dict[str, Any]]: Datos del suscriptor o None si no existe
+        """
+        try:
+            query = "SELECT * FROM newsletter_subscribers WHERE email = %s"
+            params = [email]
+
+            result = self.db_manager.execute_query(query, params)
+
+            if result and len(result) > 0:
+                subscriber = result[0]
+
+                # Convertir el campo preferences de JSON a diccionario
+                if subscriber.get("preferences") and isinstance(
+                    subscriber["preferences"], str
+                ):
+                    try:
+                        subscriber["preferences"] = json.loads(
+                            subscriber["preferences"]
+                        )
+                    except json.JSONDecodeError:
+                        subscriber["preferences"] = {}
+                elif not subscriber.get("preferences"):
+                    subscriber["preferences"] = {}
+
+                return subscriber
+            else:
+                return None
+        except Exception as e:
+            logger.error(f"Error obteniendo suscriptor por email: {str(e)}")
+            return None
+
+    def add_subscriber(
+        self,
+        email: str,
+        name: str = "",
+        last_name: str = "",
+        company: str = "",
+        preferences: Dict = None,
+    ) -> Optional[int]:
+        """
+        Añade un nuevo suscriptor al boletín
+
+        Args:
+            email (str): Correo electrónico del suscriptor
+            name (str, optional): Nombre del suscriptor
+            last_name (str, optional): Apellido del suscriptor
+            company (str, optional): Empresa del suscriptor
+            preferences (Dict, optional): Preferencias del suscriptor
+
+        Returns:
+            Optional[int]: ID del suscriptor añadido o None si hubo un error
+        """
+        try:
+            # Verificar si el suscriptor ya existe
+            existing = self.get_subscriber_by_email(email)
+            if existing:
+                # Si existe pero está inactivo, activarlo
+                if not existing.get("active", True):
+                    self.update_subscriber(existing["id"], {"active": True})
+                    logger.info(f"Suscriptor reactivado: {email}")
+                return existing["id"]
+
+            # Convertir preferencias a JSON
+            preferences_json = json.dumps(preferences) if preferences else None
+
+            query = """
+            INSERT INTO newsletter_subscribers
+            (email, name, last_name, company, preferences, subscription_date)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            params = [email, name, last_name, company, preferences_json, datetime.now()]
+
+            subscriber_id = self.db_manager.execute_query(query, params, fetch=False)
+            logger.info(f"Nuevo suscriptor añadido: {email}")
+
+            return subscriber_id
+        except Exception as e:
+            logger.error(f"Error añadiendo suscriptor: {str(e)}")
+            return None
+
+    def update_subscriber(self, subscriber_id: int, data: Dict[str, Any]) -> bool:
+        """
+        Actualiza los datos de un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+            data (Dict[str, Any]): Datos a actualizar
+
+        Returns:
+            bool: True si se actualizó correctamente, False en caso contrario
+        """
+        try:
+            # Verificar si el suscriptor existe
+            existing = self.get_subscriber_by_id(subscriber_id)
+            if not existing:
+                logger.warning(f"No se encontró el suscriptor con ID {subscriber_id}")
+                return False
+
+            # Preparar campos a actualizar
+            update_fields = []
+            params = []
+
+            for key, value in data.items():
+                if key in ["email", "name", "last_name", "company", "active"]:
+                    update_fields.append(f"{key} = %s")
+                    params.append(value)
+                elif key == "preferences" and isinstance(value, dict):
+                    update_fields.append("preferences = %s")
+                    params.append(json.dumps(value))
+
+            if not update_fields:
+                logger.warning("No hay campos válidos para actualizar")
+                return False
+
+            # Construir consulta
+            query = f"UPDATE newsletter_subscribers SET {', '.join(update_fields)} WHERE id = %s"
+            params.append(subscriber_id)
+
+            self.db_manager.execute_query(query, params, fetch=False)
+            logger.info(f"Suscriptor actualizado: ID {subscriber_id}")
+
+            return True
+        except Exception as e:
+            logger.error(f"Error actualizando suscriptor: {str(e)}")
+            return False
+
+    def delete_subscriber(self, subscriber_id: int) -> bool:
+        """
+        Elimina un suscriptor del boletín
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+
+        Returns:
+            bool: True si se eliminó correctamente, False en caso contrario
+        """
+        try:
+            # Verificar si el suscriptor existe
+            existing = self.get_subscriber_by_id(subscriber_id)
+            if not existing:
+                logger.warning(f"No se encontró el suscriptor con ID {subscriber_id}")
+                return False
+
+            query = "DELETE FROM newsletter_subscribers WHERE id = %s"
+            params = [subscriber_id]
+
+            self.db_manager.execute_query(query, params, fetch=False)
+            logger.info(f"Suscriptor eliminado: ID {subscriber_id}")
+
+            return True
+        except Exception as e:
+            logger.error(f"Error eliminando suscriptor: {str(e)}")
+            return False
+
+    def deactivate_subscriber(self, subscriber_id: int) -> bool:
+        """
+        Desactiva un suscriptor (alternativa a eliminarlo)
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+
+        Returns:
+            bool: True si se desactivó correctamente, False en caso contrario
+        """
+        return self.update_subscriber(subscriber_id, {"active": False})
+
+    def log_newsletter_send(
+        self,
+        subscriber_id: int,
+        email_log_id: int,
+        status: str = "success",
+        error_message: str = "",
+        pdf_attached: bool = False,
+        signals_included: str = "",
+    ) -> Optional[int]:
+        """
+        Registra el envío de un boletín a un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+            email_log_id (int): ID del registro de correo
+            status (str, optional): Estado del envío
+            error_message (str, optional): Mensaje de error si hubo alguno
+            pdf_attached (bool, optional): Si se adjuntó un PDF
+            signals_included (str, optional): IDs de las señales incluidas
+
+        Returns:
+            Optional[int]: ID del registro de envío o None si hubo un error
+        """
+        try:
+            query = """
+            INSERT INTO newsletter_send_logs
+            (subscriber_id, email_log_id, status, error_message, pdf_attached, signals_included)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            params = [
+                subscriber_id,
+                email_log_id,
+                status,
+                error_message,
+                pdf_attached,
+                signals_included,
+            ]
+
+            log_id = self.db_manager.execute_query(query, params, fetch=False)
+
+            # Actualizar contador y fecha de último envío del suscriptor
+            update_query = """
+            UPDATE newsletter_subscribers
+            SET send_count = send_count + 1, last_sent_date = %s
+            WHERE id = %s
+            """
+            update_params = [datetime.now(), subscriber_id]
+
+            self.db_manager.execute_query(update_query, update_params, fetch=False)
+
+            return log_id
+        except Exception as e:
+            logger.error(f"Error registrando envío de boletín: {str(e)}")
+            return None
+
+    def get_send_logs(
+        self, subscriber_id: Optional[int] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Obtiene los registros de envío de boletines
+
+        Args:
+            subscriber_id (Optional[int], optional): ID del suscriptor para filtrar
+            limit (int, optional): Límite de registros a obtener
+
+        Returns:
+            List[Dict[str, Any]]: Lista de registros de envío
+        """
+        try:
+            query = """
+            SELECT l.*, s.email, s.name, s.last_name
+            FROM newsletter_send_logs l
+            JOIN newsletter_subscribers s ON l.subscriber_id = s.id
+            """
+            params = []
+
+            if subscriber_id:
+                query += " WHERE l.subscriber_id = %s"
+                params.append(subscriber_id)
+
+            query += " ORDER BY l.send_date DESC LIMIT %s"
+            params.append(limit)
+
+            return self.db_manager.execute_query(query, params)
+        except Exception as e:
+            logger.error(f"Error obteniendo registros de envío: {str(e)}")
+            return []
+
+    def get_subscriber_emails(self, active_only: bool = True) -> List[str]:
+        """
+        Obtiene la lista de correos electrónicos de los suscriptores
+
+        Args:
+            active_only (bool): Si es True, solo devuelve suscriptores activos
+
+        Returns:
+            List[str]: Lista de correos electrónicos
+        """
+        try:
+            query = "SELECT email FROM newsletter_subscribers"
+            params = []
+
+            if active_only:
+                query += " WHERE active = TRUE"
+
+            result = self.db_manager.execute_query(query, params)
+
+            return [r["email"] for r in result if r.get("email")]
+        except Exception as e:
+            logger.error(f"Error obteniendo correos de suscriptores: {str(e)}")
+            return []
+
+    def import_subscribers_from_csv(
+        self, csv_file_path: str
+    ) -> Tuple[int, int, List[str]]:
+        """
+        Importa suscriptores desde un archivo CSV
+
+        Args:
+            csv_file_path (str): Ruta al archivo CSV
+
+        Returns:
+            Tuple[int, int, List[str]]: (Número de suscriptores añadidos, número de errores, lista de errores)
+        """
+        try:
+            import csv
+
+            added = 0
+            errors = 0
+            error_messages = []
+
+            with open(csv_file_path, "r", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+
+                for row in reader:
+                    email = row.get("email", "").strip()
+
+                    if not email or "@" not in email:
+                        errors += 1
+                        error_messages.append(f"Correo inválido: {email}")
+                        continue
+
+                    name = row.get("name", "").strip()
+                    last_name = row.get("last_name", "").strip()
+                    company = row.get("company", "").strip()
+
+                    # Intentar añadir el suscriptor
+                    result = self.add_subscriber(email, name, last_name, company)
+
+                    if result:
+                        added += 1
+                    else:
+                        errors += 1
+                        error_messages.append(f"Error añadiendo: {email}")
+
+            return added, errors, error_messages
+        except Exception as e:
+            logger.error(f"Error importando suscriptores desde CSV: {str(e)}")
+            return 0, 1, [str(e)]
+
+
+class NewsletterSubscriberManager:
+    """Gestiona los suscriptores del boletín"""
+
+    def __init__(self):
+        """Inicializa el gestor de suscriptores"""
+        self.db_manager = DatabaseManager()
+
+    def get_all_subscribers(self, active_only=True):
+        """Obtiene todos los suscriptores
+
+        Args:
+            active_only (bool, optional): Si es True, solo devuelve suscriptores activos. Defaults to True.
+
+        Returns:
+            List[Dict[str, Any]]: Lista de suscriptores
+        """
+        query = "SELECT * FROM newsletter_subscribers"
+        params = []
+
+        if active_only:
+            query += " WHERE active = 1"
+
+        query += " ORDER BY subscription_date DESC"
+
+        return self.db_manager.execute_query(query, params)
+
+    def get_subscriber_by_email(self, email):
+        """Obtiene un suscriptor por su correo electrónico
+
+        Args:
+            email (str): Correo electrónico del suscriptor
+
+        Returns:
+            Dict[str, Any]: Datos del suscriptor o None si no existe
+        """
+        query = "SELECT * FROM newsletter_subscribers WHERE email = %s LIMIT 1"
+        params = [email]
+
+        result = self.db_manager.execute_query(query, params)
+        return result[0] if result and len(result) > 0 else None
+
+    def add_subscriber(self, email, name="", last_name="", company=""):
+        """Añade un nuevo suscriptor
+
+        Args:
+            email (str): Correo electrónico del suscriptor
+            name (str, optional): Nombre del suscriptor. Defaults to "".
+            last_name (str, optional): Apellido del suscriptor. Defaults to "".
+            company (str, optional): Empresa del suscriptor. Defaults to "".
+
+        Returns:
+            bool: True si se añadió correctamente, False en caso contrario
+        """
+        # Verificar si ya existe
+        existing = self.get_subscriber_by_email(email)
+        if existing:
+            logger.warning(f"El suscriptor {email} ya existe")
+            return False
+
+        # Añadir nuevo suscriptor
+        query = """INSERT INTO newsletter_subscribers
+                  (email, name, last_name, company, active, subscription_date)
+                  VALUES (%s, %s, %s, %s, 1, NOW())"""
+        params = [email, name, last_name, company]
+
+        result = self.db_manager.execute_query(query, params, fetch=False)
+        return result is not None
+
+    def update_subscriber(self, subscriber_id, update_data):
+        """Actualiza los datos de un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+            update_data (Dict[str, Any]): Datos a actualizar
+
+        Returns:
+            bool: True si se actualizó correctamente, False en caso contrario
+        """
+        if not update_data:
+            logger.warning("No hay datos para actualizar")
+            return False
+
+        # Construir consulta de actualización
+        update_fields = []
+        params = []
+
+        for field, value in update_data.items():
+            update_fields.append(f"{field} = %s")
+            params.append(value)
+
+        if not update_fields:
+            logger.warning("No hay campos válidos para actualizar")
+            return False
+
+        query = f"UPDATE newsletter_subscribers SET {', '.join(update_fields)} WHERE id = %s"
+        params.append(subscriber_id)
+
+        result = self.db_manager.execute_query(query, params, fetch=False)
+        return result is not None
+
+    def delete_subscriber(self, subscriber_id):
+        """Elimina un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+
+        Returns:
+            bool: True si se eliminó correctamente, False en caso contrario
+        """
+        query = "DELETE FROM newsletter_subscribers WHERE id = %s"
+        params = [subscriber_id]
+
+        result = self.db_manager.execute_query(query, params, fetch=False)
+        return result is not None
+
+    def log_newsletter_send(
+        self,
+        subscriber_id,
+        email_log_id=None,
+        status="success",
+        error_message=None,
+        pdf_attached=False,
+        signals_included=None,
+    ):
+        """Registra el envío de un boletín a un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+            email_log_id (int, optional): ID del registro de correo. Defaults to None.
+            status (str, optional): Estado del envío. Defaults to "success".
+            error_message (str, optional): Mensaje de error. Defaults to None.
+            pdf_attached (bool, optional): Si se adjuntó un PDF. Defaults to False.
+            signals_included (str, optional): Señales incluidas en el boletín. Defaults to None.
+
+        Returns:
+            bool: True si se registró correctamente, False en caso contrario
+        """
+        query = """INSERT INTO newsletter_send_logs
+                  (subscriber_id, email_log_id, send_date, status, error_message, pdf_attached, signals_included)
+                  VALUES (%s, %s, NOW(), %s, %s, %s, %s)"""
+        params = [
+            subscriber_id,
+            email_log_id,
+            status,
+            error_message,
+            pdf_attached,
+            signals_included,
+        ]
+
+        result = self.db_manager.execute_query(query, params, fetch=False)
+
+        # Actualizar contador de envíos y fecha del último envío
+        if result is not None and status == "success":
+            update_query = """UPDATE newsletter_subscribers
+                            SET send_count = send_count + 1, last_sent_date = NOW()
+                            WHERE id = %s"""
+            update_params = [subscriber_id]
+            self.db_manager.execute_query(update_query, update_params, fetch=False)
+
+        return result is not None
+
+    def get_send_logs(self, subscriber_id, limit=10):
+        """Obtiene los registros de envíos a un suscriptor
+
+        Args:
+            subscriber_id (int): ID del suscriptor
+            limit (int, optional): Límite de registros a devolver. Defaults to 10.
+
+        Returns:
+            List[Dict[str, Any]]: Lista de registros de envíos
+        """
+        query = """SELECT * FROM newsletter_send_logs
+                  WHERE subscriber_id = %s
+                  ORDER BY send_date DESC
+                  LIMIT %s"""
+        params = [subscriber_id, limit]
+
+        return self.db_manager.execute_query(query, params)
+
+    def import_subscribers_from_csv(self, csv_file_path):
+        """Importa suscriptores desde un archivo CSV
+
+        Args:
+            csv_file_path (str): Ruta al archivo CSV
+
+        Returns:
+            Tuple[int, int, List[str]]: (Número de suscriptores añadidos, número de errores, lista de errores)
+        """
+        try:
+            added = 0
+            errors = 0
+            error_messages = []
+
+            with open(csv_file_path, "r", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+
+                for row in reader:
+                    email = row.get("email", "").strip()
+
+                    if not email or "@" not in email:
+                        errors += 1
+                        error_messages.append(f"Correo inválido: {email}")
+                        continue
+
+                    name = row.get("name", "").strip()
+                    last_name = row.get("last_name", "").strip()
+                    company = row.get("company", "").strip()
+
+                    # Intentar añadir el suscriptor
+                    result = self.add_subscriber(email, name, last_name, company)
+
+                    if result:
+                        added += 1
+                    else:
+                        errors += 1
+                        error_messages.append(f"Error añadiendo: {email}")
+
+            return added, errors, error_messages
+        except Exception as e:
+            logger.error(f"Error importando suscriptores desde CSV: {str(e)}")
+            return 0, 1, [str(e)]

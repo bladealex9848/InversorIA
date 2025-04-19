@@ -8,6 +8,9 @@ import mysql.connector
 import sys
 import os
 import decimal
+import io
+import csv
+import subprocess
 
 # import tempfile  # No se utiliza, usar carpeta 'temp' para archivos temporales
 from email.mime.text import MIMEText
@@ -15,6 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional, Tuple
 
 # Intentar importar pdfkit para la generación de PDF
 try:
@@ -56,6 +60,24 @@ st.set_page_config(
 # Título principal
 st.title("🔔 Sistema de Notificaciones y Seguimiento")
 
+# Mostrar mensaje de carga inicial
+with st.spinner(
+    "Inicializando sistema de notificaciones y verificando calidad de datos..."
+):
+    st.info(
+        """
+        **Verificando calidad de datos...**
+
+        El sistema está realizando las siguientes tareas:
+        - Verificando la estructura de la base de datos
+        - Comprobando la calidad de los resúmenes de noticias
+        - Procesando datos faltantes con IA
+        - Preparando la interfaz de usuario
+
+        Este proceso puede tomar unos segundos. Gracias por su paciencia.
+        """
+    )
+
 # Barra lateral para configuración
 with st.sidebar:
     st.header("Configuración")
@@ -95,10 +117,55 @@ with st.sidebar:
 
     # Configuración de correo
     st.subheader("Configuración de Correo")
-    destinatarios = st.text_area(
-        "Destinatarios (separados por coma)",
+
+    # Asegurarnos de que subscriber_manager esté disponible
+    if "subscriber_manager" not in globals():
+        # Si no está definido, lo inicializamos aquí
+        from database_utils import NewsletterSubscriberManager
+
+        subscriber_manager = NewsletterSubscriberManager()
+
+    # Obtener suscriptores activos directamente
+    # Esto asegura que siempre tengamos los datos más actualizados
+    subscribers_for_email = subscriber_manager.get_all_subscribers(active_only=True)
+    subscriber_emails_for_form = [
+        s["email"] for s in subscribers_for_email if s.get("email")
+    ]
+
+    # Mostrar suscriptores disponibles
+    if subscriber_emails_for_form:
+        st.success(
+            f"Se encontraron {len(subscriber_emails_for_form)} suscriptores activos"
+        )
+    else:
+        st.warning(
+            "No hay suscriptores registrados. Añada suscriptores en la pestaña 'Gestionar Suscriptores'"
+        )
+
+    # Permitir añadir destinatarios adicionales
+    destinatarios_adicionales = st.text_area(
+        "Destinatarios adicionales (separados por coma)",
         placeholder="ejemplo@correo.com, otro@correo.com",
+        help="Estos destinatarios se añadirán a los suscriptores registrados",
     )
+
+    # Combinar suscriptores con destinatarios adicionales
+    todos_destinatarios = (
+        subscriber_emails_for_form.copy() if subscriber_emails_for_form else []
+    )
+    if destinatarios_adicionales:
+        destinatarios_adicionales_lista = [
+            email.strip()
+            for email in destinatarios_adicionales.split(",")
+            if email.strip()
+        ]
+        todos_destinatarios.extend(destinatarios_adicionales_lista)
+
+    # Eliminar duplicados y ordenar
+    todos_destinatarios = sorted(list(set(todos_destinatarios)))
+
+    # Guardar en variable para usar en otras partes
+    destinatarios = ", ".join(todos_destinatarios) if todos_destinatarios else ""
 
     include_pdf = st.checkbox(
         "Incluir PDF del boletín",
@@ -114,6 +181,12 @@ with st.sidebar:
 
 # Añadir directorio raíz al path para importar módulos del proyecto principal
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Importar clases y funciones propias
+from database_utils import NewsletterSubscriberManager
+
+# Inicializar gestor de suscriptores
+subscriber_manager = NewsletterSubscriberManager()
 
 
 # Clase para gestionar la conexión a la base de datos
@@ -133,11 +206,171 @@ class DatabaseManager:
             }
             self.connection = None
             logger.info("Configuración de base de datos inicializada")
+
+            # Crear tablas si no existen
+            self.create_tables()
         except Exception as e:
             logger.error(
                 f"Error inicializando configuración de base de datos: {str(e)}"
             )
             self.db_config = None
+
+    def create_tables(self):
+        """Crea las tablas necesarias si no existen"""
+        try:
+            # Verificar si ya se han creado las tablas en esta sesión
+            if hasattr(self, "_tables_created") and self._tables_created:
+                logger.info("Las tablas ya fueron verificadas en esta sesión")
+                return
+
+            # Tabla para señales de trading
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS trading_signals (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    symbol VARCHAR(20) NOT NULL,
+                    direction VARCHAR(10) NOT NULL,
+                    price DECIMAL(10, 2),
+                    entry_price DECIMAL(10, 2),
+                    stop_loss DECIMAL(10, 2),
+                    target_price DECIMAL(10, 2),
+                    risk_reward DECIMAL(5, 2),
+                    confidence_level VARCHAR(20),
+                    is_high_confidence TINYINT(1) DEFAULT 0,
+                    timeframe VARCHAR(20),
+                    strategy VARCHAR(50),
+                    category VARCHAR(50),
+                    trend VARCHAR(50),
+                    trend_strength VARCHAR(20),
+                    setup_type VARCHAR(50),
+                    daily_trend VARCHAR(20),
+                    weekly_trend VARCHAR(20),
+                    monthly_trend VARCHAR(20),
+                    rsi DECIMAL(5, 2),
+                    macd VARCHAR(50),
+                    support_level DECIMAL(10, 2),
+                    resistance_level DECIMAL(10, 2),
+                    volume BIGINT,
+                    analysis TEXT,
+                    technical_analysis TEXT,
+                    expert_analysis TEXT,
+                    recommendation TEXT,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    INDEX idx_symbol (symbol),
+                    INDEX idx_created_at (created_at),
+                    INDEX idx_confidence (confidence_level, is_high_confidence)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Tabla para sentimiento de mercado
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS market_sentiment (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    date DATE NOT NULL,
+                    overall_sentiment VARCHAR(20),
+                    sentiment_score DECIMAL(5, 2),
+                    market_trend VARCHAR(20),
+                    vix DECIMAL(6, 2),
+                    sp500_change DECIMAL(5, 2),
+                    nasdaq_change DECIMAL(5, 2),
+                    dow_change DECIMAL(5, 2),
+                    sector_rotation TEXT,
+                    market_breadth TEXT,
+                    analysis TEXT,
+                    created_at DATETIME,
+                    UNIQUE INDEX idx_date (date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Tabla para noticias de mercado
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS market_news (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    summary TEXT,
+                    source VARCHAR(100),
+                    url VARCHAR(255),
+                    news_date DATETIME,
+                    impact VARCHAR(20),
+                    symbol VARCHAR(20),
+                    created_at DATETIME,
+                    INDEX idx_news_date (news_date),
+                    INDEX idx_symbol (symbol)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Tabla para registros de correos enviados
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS email_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    recipients TEXT NOT NULL,
+                    subject VARCHAR(255),
+                    content_summary TEXT,
+                    signals_included TEXT,
+                    sent_at DATETIME,
+                    status VARCHAR(20),
+                    error_message TEXT,
+                    INDEX idx_sent_at (sent_at),
+                    INDEX idx_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Tabla para suscriptores del boletín
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL,
+                    name VARCHAR(100),
+                    last_name VARCHAR(100),
+                    company VARCHAR(100),
+                    active TINYINT(1) DEFAULT 1,
+                    subscription_date DATETIME,
+                    last_sent_date DATETIME,
+                    send_count INT DEFAULT 0,
+                    UNIQUE INDEX idx_email (email),
+                    INDEX idx_active (active),
+                    INDEX idx_subscription_date (subscription_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Tabla para registros de envíos a suscriptores
+            self.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS newsletter_send_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    subscriber_id INT NOT NULL,
+                    email_log_id INT,
+                    send_date DATETIME,
+                    status VARCHAR(20),
+                    error_message TEXT,
+                    pdf_attached TINYINT(1) DEFAULT 0,
+                    signals_included TEXT,
+                    INDEX idx_subscriber_id (subscriber_id),
+                    INDEX idx_email_log_id (email_log_id),
+                    INDEX idx_send_date (send_date),
+                    INDEX idx_status (status),
+                    FOREIGN KEY (subscriber_id) REFERENCES newsletter_subscribers(id) ON DELETE CASCADE,
+                    FOREIGN KEY (email_log_id) REFERENCES email_logs(id) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                """
+            )
+
+            # Marcar que las tablas ya fueron creadas en esta sesión
+            self._tables_created = True
+
+            logger.info("Tablas creadas o verificadas correctamente")
+        except Exception as e:
+            logger.error(f"Error creando tablas: {str(e)}")
 
     def connect(self):
         """Establece conexión con la base de datos"""
@@ -334,7 +567,51 @@ class DatabaseManager:
             email_data.get("error_message"),
         )
 
-        return self.execute_query(query, params, fetch=False)
+        # Ejecutar la consulta y obtener el ID insertado
+        cursor = self.connection.cursor()
+        cursor.execute(query, params)
+        self.connection.commit()
+
+        # Obtener el ID del registro insertado
+        log_id = cursor.lastrowid
+        cursor.close()
+
+        return log_id
+
+    def update_email_log(self, log_id, update_data):
+        """Actualiza un registro de envío de correo electrónico"""
+        if not log_id:
+            logger.warning("No se proporcionó ID para actualizar el registro de correo")
+            return False
+
+        # Construir la consulta de actualización
+        update_fields = []
+        params = []
+
+        if "status" in update_data:
+            update_fields.append("status = %s")
+            params.append(update_data["status"])
+
+        if "error_message" in update_data:
+            update_fields.append("error_message = %s")
+            params.append(update_data["error_message"])
+
+        if not update_fields:
+            logger.warning("No hay campos para actualizar en el registro de correo")
+            return False
+
+        # Construir la consulta completa
+        query = f"UPDATE email_logs SET {', '.join(update_fields)} WHERE id = %s"
+        params.append(log_id)
+
+        # Ejecutar la consulta
+        try:
+            self.execute_query(query, params, fetch=False)
+            logger.info(f"Registro de correo ID {log_id} actualizado correctamente")
+            return True
+        except Exception as e:
+            logger.error(f"Error actualizando registro de correo ID {log_id}: {str(e)}")
+            return False
 
     def save_market_sentiment(self, sentiment_data):
         """Guarda el sentimiento del mercado en la base de datos"""
@@ -482,6 +759,187 @@ class DatabaseManager:
 class EmailManager:
     """Gestiona el envío de correos electrónicos con boletines de trading"""
 
+
+# Clase para gestionar los suscriptores del boletín
+class NewsletterSubscriberManager:
+    """Gestiona los suscriptores del boletín de trading"""
+
+    def __init__(self):
+        """Inicializa el gestor de suscriptores"""
+        self.db_manager = DatabaseManager()
+
+    def get_all_subscribers(self, active_only=True):
+        """Obtiene todos los suscriptores"""
+        query = """SELECT * FROM newsletter_subscribers
+                  WHERE 1=1"""
+
+        if active_only:
+            query += " AND active = 1"
+
+        query += " ORDER BY subscription_date DESC"
+
+        return self.db_manager.execute_query(query)
+
+    def get_subscriber_by_email(self, email):
+        """Obtiene un suscriptor por su correo electrónico"""
+        query = """SELECT * FROM newsletter_subscribers
+                  WHERE email = %s
+                  LIMIT 1"""
+        params = [email]
+
+        result = self.db_manager.execute_query(query, params)
+        return result[0] if result and len(result) > 0 else None
+
+    def get_subscriber_by_id(self, subscriber_id):
+        """Obtiene un suscriptor por su ID"""
+        query = """SELECT * FROM newsletter_subscribers
+                  WHERE id = %s
+                  LIMIT 1"""
+        params = [subscriber_id]
+
+        result = self.db_manager.execute_query(query, params)
+        return result[0] if result and len(result) > 0 else None
+
+    def add_subscriber(self, email, name="", last_name="", company=""):
+        """Añade un nuevo suscriptor"""
+        # Verificar si ya existe
+        existing = self.get_subscriber_by_email(email)
+        if existing:
+            # Si existe pero está inactivo, activarlo
+            if not existing.get("active", True):
+                return self.update_subscriber(existing["id"], {"active": True})
+            return False
+
+        query = """INSERT INTO newsletter_subscribers
+                  (email, name, last_name, company, active, subscription_date, send_count)
+                  VALUES (%s, %s, %s, %s, 1, NOW(), 0)"""
+        params = [email, name, last_name, company]
+
+        return self.db_manager.execute_query(query, params, fetch=False)
+
+    def update_subscriber(self, subscriber_id, update_data):
+        """Actualiza los datos de un suscriptor"""
+        if not subscriber_id or not update_data:
+            return False
+
+        # Construir la consulta de actualización
+        update_fields = []
+        params = []
+
+        for field, value in update_data.items():
+            if field in [
+                "email",
+                "name",
+                "last_name",
+                "company",
+                "active",
+                "send_count",
+            ]:
+                update_fields.append(f"{field} = %s")
+                params.append(value)
+
+        if not update_fields:
+            return False
+
+        query = f"""UPDATE newsletter_subscribers
+                  SET {', '.join(update_fields)}
+                  WHERE id = %s"""
+        params.append(subscriber_id)
+
+        return self.db_manager.execute_query(query, params, fetch=False)
+
+    def delete_subscriber(self, subscriber_id):
+        """Elimina un suscriptor"""
+        query = """DELETE FROM newsletter_subscribers
+                  WHERE id = %s"""
+        params = [subscriber_id]
+
+        return self.db_manager.execute_query(query, params, fetch=False)
+
+    def log_newsletter_send(
+        self,
+        subscriber_id,
+        email_log_id,
+        status="success",
+        error_message=None,
+        pdf_attached=False,
+        signals_included=None,
+    ):
+        """Registra el envío de un boletín a un suscriptor"""
+        query = """INSERT INTO newsletter_send_logs
+                  (subscriber_id, email_log_id, send_date, status, error_message, pdf_attached, signals_included)
+                  VALUES (%s, %s, NOW(), %s, %s, %s, %s)"""
+        params = [
+            subscriber_id,
+            email_log_id,
+            status,
+            error_message,
+            pdf_attached,
+            signals_included,
+        ]
+
+        # Actualizar contador de envíos y fecha del último envío
+        if status == "success":
+            update_query = """UPDATE newsletter_subscribers
+                          SET send_count = send_count + 1, last_sent_date = NOW()
+                          WHERE id = %s"""
+            self.db_manager.execute_query(update_query, [subscriber_id], fetch=False)
+
+        return self.db_manager.execute_query(query, params, fetch=False)
+
+    def get_send_logs(self, subscriber_id, limit=10):
+        """Obtiene los registros de envío de un suscriptor"""
+        query = """SELECT * FROM newsletter_send_logs
+                  WHERE subscriber_id = %s
+                  ORDER BY send_date DESC
+                  LIMIT %s"""
+        params = [subscriber_id, limit]
+
+        return self.db_manager.execute_query(query, params)
+
+    def import_subscribers_from_csv(self, csv_file_path):
+        """Importa suscriptores desde un archivo CSV"""
+        added = 0
+        errors = 0
+        error_messages = []
+
+        try:
+            with open(csv_file_path, "r") as file:
+                csv_reader = csv.DictReader(file)
+                for row in csv_reader:
+                    # Verificar que tenga el campo email
+                    if "email" not in row or not row["email"]:
+                        errors += 1
+                        error_messages.append(f"Fila sin correo electrónico: {row}")
+                        continue
+
+                    # Intentar añadir el suscriptor
+                    try:
+                        if self.add_subscriber(
+                            email=row["email"],
+                            name=row.get("name", ""),
+                            last_name=row.get("last_name", ""),
+                            company=row.get("company", ""),
+                        ):
+                            added += 1
+                        else:
+                            # Si ya existe, no se considera error
+                            logger.info(f"El suscriptor {row['email']} ya existe")
+                    except Exception as e:
+                        errors += 1
+                        error_messages.append(
+                            f"Error añadiendo {row['email']}: {str(e)}"
+                        )
+        except Exception as e:
+            errors += 1
+            error_messages.append(f"Error procesando archivo CSV: {str(e)}")
+
+        return added, errors, error_messages
+
+
+class EmailManager:
+    """Gestiona el envío de correos electrónicos con boletines de trading"""
+
     def __init__(self):
         """Inicializa el gestor de correos con credenciales desde secrets"""
         try:
@@ -565,14 +1023,47 @@ class EmailManager:
 
             # Adjuntar PDF si existe
             if pdf_attachment:
-                pdf_part = MIMEApplication(pdf_attachment, _subtype="pdf")
-                pdf_part.add_header(
-                    "Content-Disposition",
-                    "attachment",
-                    filename="InversorIA_Pro_Boletin_Trading.pdf",
-                )
-                msg.attach(pdf_part)
-                logger.info("PDF adjuntado al correo")
+                try:
+                    pdf_part = MIMEApplication(pdf_attachment, _subtype="pdf")
+                    pdf_part.add_header(
+                        "Content-Disposition",
+                        "attachment",
+                        filename="InversorIA_Pro_Boletin_Trading.pdf",
+                    )
+                    msg.attach(pdf_part)
+                    logger.info("PDF adjuntado al correo")
+                except Exception as pdf_error:
+                    logger.error(f"Error adjuntando PDF al correo: {str(pdf_error)}")
+                    # Intentar con un enfoque alternativo
+                    try:
+                        # Guardar PDF temporalmente y adjuntarlo desde archivo
+                        temp_pdf_path = "temp/boletin_temp.pdf"
+                        os.makedirs("temp", exist_ok=True)
+                        with open(temp_pdf_path, "wb") as f:
+                            f.write(pdf_attachment)
+
+                        with open(temp_pdf_path, "rb") as f:
+                            pdf_data = f.read()
+                            pdf_part = MIMEApplication(pdf_data, _subtype="pdf")
+                            pdf_part.add_header(
+                                "Content-Disposition",
+                                "attachment",
+                                filename="InversorIA_Pro_Boletin_Trading.pdf",
+                            )
+                            msg.attach(pdf_part)
+                            logger.info(
+                                "PDF adjuntado al correo usando archivo temporal"
+                            )
+
+                        # Eliminar archivo temporal
+                        try:
+                            os.remove(temp_pdf_path)
+                        except:
+                            pass
+                    except Exception as alt_error:
+                        logger.error(
+                            f"Error con enfoque alternativo para PDF: {str(alt_error)}"
+                        )
 
             # Adjuntar imágenes si existen
             if images and isinstance(images, dict):
@@ -664,8 +1155,28 @@ class EmailManager:
 
     def create_newsletter_html(self, signals, market_sentiment, news_summary):
         """Crea el contenido HTML para el boletín de trading con diseño mejorado optimizado para clientes de correo"""
-        # Fecha actual formateada
-        current_date = datetime.now().strftime("%d de %B de %Y")
+        # Fecha actual formateada en español
+        # Definir meses en español
+        meses_es = {
+            "January": "enero",
+            "February": "febrero",
+            "March": "marzo",
+            "April": "abril",
+            "May": "mayo",
+            "June": "junio",
+            "July": "julio",
+            "August": "agosto",
+            "September": "septiembre",
+            "October": "octubre",
+            "November": "noviembre",
+            "December": "diciembre",
+        }
+
+        # Formatear fecha y traducir el mes
+        fecha_actual = datetime.now()
+        mes_en = fecha_actual.strftime("%B")
+        mes_es = meses_es.get(mes_en, mes_en)
+        current_date = f"{fecha_actual.day} de {mes_es} de {fecha_actual.year}"
 
         # Encabezado del boletín con diseño mejorado para compatibilidad con clientes de correo
         html = f"""
@@ -1251,10 +1762,33 @@ class EmailManager:
 
         if news_summary and len(news_summary) > 0:
             for item in news_summary:
-                # Formatear fecha
+                # Formatear fecha en español
                 news_date = item.get("news_date", datetime.now())
                 if isinstance(news_date, datetime):
-                    formatted_date = news_date.strftime("%d %b %Y")
+                    # Definir meses en español abreviados
+                    meses_es_abrev = {
+                        "Jan": "ene",
+                        "Feb": "feb",
+                        "Mar": "mar",
+                        "Apr": "abr",
+                        "May": "may",
+                        "Jun": "jun",
+                        "Jul": "jul",
+                        "Aug": "ago",
+                        "Sep": "sep",
+                        "Oct": "oct",
+                        "Nov": "nov",
+                        "Dec": "dic",
+                    }
+
+                    # Formatear fecha y traducir el mes
+                    fecha_en = news_date.strftime("%d %b %Y")
+                    for mes_en, mes_es in meses_es_abrev.items():
+                        if mes_en in fecha_en:
+                            formatted_date = fecha_en.replace(mes_en, mes_es)
+                            break
+                    else:
+                        formatted_date = fecha_en
                 else:
                     formatted_date = str(news_date)
 
@@ -1287,13 +1821,56 @@ class EmailManager:
                 if url and len(url) > 5:
                     title_display = f"<a href='{url}' target='_blank' style='color: #0275d8; text-decoration: none;'>{item.get('title', '')} <span style='font-size: 12px;'>&#128279;</span></a>"
 
+                # Obtener el resumen de la noticia
+                summary = item.get("summary", "")
+
+                # Si no hay resumen, ejecutar post_save_quality_check.py y mostrar un mensaje
+                if not summary or len(summary.strip()) < 10:
+                    # Ejecutar post_save_quality_check.py para procesar noticias sin resumen
+                    try:
+                        st.warning(
+                            "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
+                        )
+                        subprocess.run(
+                            ["python", "post_save_quality_check.py"], check=True
+                        )
+                        logger.info("Verificación de calidad ejecutada correctamente")
+                        # Intentar obtener el resumen actualizado
+                        if item.get("id"):
+                            # Consultar la noticia actualizada
+                            db_manager = DatabaseManager()
+                            updated_news = db_manager.execute_query(
+                                "SELECT summary FROM market_news WHERE id = %s",
+                                [item.get("id")],
+                            )
+                            if (
+                                updated_news
+                                and len(updated_news) > 0
+                                and updated_news[0].get("summary")
+                            ):
+                                summary = updated_news[0].get("summary")
+                                logger.info(
+                                    f"Resumen actualizado para noticia ID {item.get('id')}"
+                                )
+                            else:
+                                summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
+                        else:
+                            summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
+                    except Exception as e:
+                        logger.error(
+                            f"Error ejecutando verificación de calidad: {str(e)}"
+                        )
+                        summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+
                 html += f"""
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 20px; background-color: #ffffff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                     <tr>
                         <td style="padding: 20px;">
                             <h3 style="margin-top: 0; margin-bottom: 10px; color: #0275d8; font-size: 18px;">{title_display}</h3>
                             {f'<p style="margin: 0 0 10px; font-size: 13px; color: #444;"><strong>{symbol}</strong> - {company_name}</p>' if symbol and company_name else ''}
-                            <p style="margin: 0 0 15px; line-height: 1.6;">{item.get('summary', '')}</p>
+                            <div style="margin: 0 0 15px; line-height: 1.6; background-color: #f9f9f9; padding: 12px; border-left: 3px solid #0275d8; border-radius: 4px;">
+                                <p style="margin: 0; color: #333;">{summary}</p>
+                            </div>
                             <p style="margin: 0; font-size: 12px; color: #6c757d;">
                                 {f'<span style="color: {impact_color}; font-weight: bold;">Impacto: {impact}</span> &bull; ' if impact else ''}
                                 Fuente: {item.get('source', '')} &bull; {formatted_date}
@@ -1985,46 +2562,119 @@ class SignalManager:
         subject = (
             f"InversorIA Pro - Boletín de Trading {datetime.now().strftime('%d/%m/%Y')}"
         )
-        success = self.email_manager.send_email(
-            recipients, subject, html_content, pdf_content
+
+        # Inicializar gestor de suscriptores
+        subscriber_manager = NewsletterSubscriberManager()
+
+        # Convertir a lista si es un string
+        recipient_list = (
+            recipients
+            if isinstance(recipients, list)
+            else [r.strip() for r in recipients.split(",") if r.strip()]
         )
 
-        # Registrar envío en la base de datos si fue exitoso
-        if success:
-            # Usar los IDs de las señales guardadas o existentes
-            signal_ids_str = ", ".join(signal_ids) if signal_ids else "Ninguna"
+        # Registrar el envío en la base de datos
+        email_log_id = None
+        signal_ids_str = ", ".join(signal_ids) if signal_ids else "Ninguna"
 
-            email_data = {
-                "recipients": (
-                    recipients if isinstance(recipients, str) else ", ".join(recipients)
-                ),
-                "subject": subject,
-                "content_summary": f"Boletín con {len(signals) if signals else 0} señales",
-                "signals_included": signal_ids_str,
+        # Preparar datos para el registro de correo
+        email_data = {
+            "recipients": ", ".join(recipient_list),
+            "subject": subject,
+            "content_summary": f"Boletín con {len(signals) if signals else 0} señales",
+            "signals_included": signal_ids_str,
+            "status": "pending",  # Se actualizará después del envío
+            "error_message": None,
+        }
+
+        # Registrar el correo antes de enviarlo
+        email_log_id = self.db_manager.log_email_sent(email_data)
+
+        # Enviar el correo
+        success = self.email_manager.send_email(
+            recipient_list, subject, html_content, pdf_content
+        )
+
+        # Actualizar el estado del envío en la base de datos
+        if success:
+            # Actualizar el registro de correo
+            update_data = {
                 "status": "success",
                 "error_message": None,
             }
-            self.db_manager.log_email_sent(email_data)
+            self.db_manager.update_email_log(email_log_id, update_data)
+
+            # Registrar el envío para cada suscriptor
+            for recipient in recipient_list:
+                # Verificar si es un suscriptor registrado
+                subscriber = subscriber_manager.get_subscriber_by_email(recipient)
+
+                if subscriber:
+                    # Registrar el envío para este suscriptor
+                    subscriber_manager.log_newsletter_send(
+                        subscriber_id=subscriber["id"],
+                        email_log_id=email_log_id,
+                        status="success",
+                        pdf_attached=include_pdf and pdf_content is not None,
+                        signals_included=signal_ids_str,
+                    )
+                    logger.info(f"Envío registrado para suscriptor: {recipient}")
+
             return True
         else:
-            # Registrar el error en la base de datos
-            email_data = {
-                "recipients": (
-                    recipients if isinstance(recipients, str) else ", ".join(recipients)
-                ),
-                "subject": subject,
-                "content_summary": f"Boletín con {len(signals) if signals else 0} señales",
-                "signals_included": ", ".join(signal_ids) if signal_ids else "Ninguna",
+            # Actualizar el registro de correo con el error
+            update_data = {
                 "status": "failed",
                 "error_message": "Error enviando el correo electrónico",
             }
-            self.db_manager.log_email_sent(email_data)
+            self.db_manager.update_email_log(email_log_id, update_data)
+
+            # Registrar el fallo para cada suscriptor
+            for recipient in recipient_list:
+                # Verificar si es un suscriptor registrado
+                subscriber = subscriber_manager.get_subscriber_by_email(recipient)
+
+                if subscriber:
+                    # Registrar el fallo para este suscriptor
+                    subscriber_manager.log_newsletter_send(
+                        subscriber_id=subscriber["id"],
+                        email_log_id=email_log_id,
+                        status="failed",
+                        error_message="Error enviando el correo electrónico",
+                        pdf_attached=False,
+                        signals_included=signal_ids_str,
+                    )
+
             return False
 
 
+# Asegurarnos de que subscriber_manager esté disponible para la barra lateral
+if "subscriber_manager" not in globals():
+    # Si no está definido, lo inicializamos aquí
+    from database_utils import NewsletterSubscriberManager
+
+    subscriber_manager = NewsletterSubscriberManager()
+
+# Obtener suscriptores activos para la barra lateral
+subscribers = subscriber_manager.get_all_subscribers(active_only=True)
+subscriber_emails = [s["email"] for s in subscribers if s.get("email")]
+
+# Actualizar la información en la barra lateral
+if subscriber_emails:
+    st.sidebar.success(f"Se encontraron {len(subscriber_emails)} suscriptores activos")
+else:
+    st.sidebar.warning(
+        "No hay suscriptores registrados. Añada suscriptores en la pestaña 'Gestionar Suscriptores'"
+    )
+
 # Crear pestañas para organizar la interfaz
-tab1, tab2, tab3 = st.tabs(
-    ["📋 Señales Activas", "📬 Envío de Boletines", "📊 Historial de Señales"]
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "📋 Señales Activas",
+        "📬 Envío de Boletines",
+        "📊 Historial de Señales",
+        "👥 Gestionar Suscriptores",
+    ]
 )
 
 # Inicializar estado de sesión para señales
@@ -2891,6 +3541,41 @@ with tab1:
             else:
                 symbol_badge = ""
 
+            # Verificar si hay resumen y ejecutar post_save_quality_check.py si es necesario
+            summary = item.get("summary", "")
+            if not summary or len(summary.strip()) < 10:
+                # Ejecutar post_save_quality_check.py para procesar noticias sin resumen
+                try:
+                    st.warning(
+                        "Detectadas noticias sin resumen. Ejecutando verificación de calidad..."
+                    )
+                    subprocess.run(["python", "post_save_quality_check.py"], check=True)
+                    logger.info("Verificación de calidad ejecutada correctamente")
+                    # Intentar obtener el resumen actualizado
+                    if item.get("id"):
+                        # Consultar la noticia actualizada
+                        db_manager = DatabaseManager()
+                        updated_news = db_manager.execute_query(
+                            "SELECT summary FROM market_news WHERE id = %s",
+                            [item.get("id")],
+                        )
+                        if (
+                            updated_news
+                            and len(updated_news) > 0
+                            and updated_news[0].get("summary")
+                        ):
+                            summary = updated_news[0].get("summary")
+                            logger.info(
+                                f"Resumen actualizado para noticia ID {item.get('id')}"
+                            )
+                        else:
+                            summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
+                    else:
+                        summary = "No hay resumen disponible para esta noticia. Se ha programado una verificación de calidad."
+                except Exception as e:
+                    logger.error(f"Error ejecutando verificación de calidad: {str(e)}")
+                    summary = "No hay resumen disponible para esta noticia. Error en la verificación de calidad."
+
             st.markdown(
                 f"""
             <div style="background-color: rgba(255,255,255,0.05); padding: 20px;
@@ -2900,7 +3585,7 @@ with tab1:
                 <h4 style="margin-top: 0; font-weight: 600; font-size: 18px;">
                     {title_with_link}
                 </h4>
-                <p>{item.get('summary', '')}</p>
+                <p>{summary}</p>
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                     <div>
                         {symbol_badge}
@@ -2933,6 +3618,13 @@ with tab1:
 # Contenido de la pestaña "Envío de Boletines"
 with tab2:
     st.header("📬 Envío de Boletines de Trading")
+
+    # Asegurarnos de que subscriber_manager esté disponible en esta pestaña
+    if "subscriber_manager" not in globals():
+        # Si no está definido, lo inicializamos aquí
+        from database_utils import NewsletterSubscriberManager
+
+        subscriber_manager = NewsletterSubscriberManager()
 
     # Selección de señales para incluir en el boletín
     st.subheader("Paso 1: Seleccionar Señales para el Boletín")
@@ -2975,14 +3667,34 @@ with tab2:
             )
             signal_options[key] = signal
 
-        # Permitir al usuario seleccionar señales (priorizar alta confianza en defaults)
+        # Seleccionar automáticamente todas las señales de alta confianza por defecto
         high_confidence_keys = [k for k in signal_options.keys() if "⭐" in k]
-        default_keys = high_confidence_keys[: min(3, len(high_confidence_keys))]
-        if len(default_keys) < 3 and len(signal_options) > 0:
-            remaining_keys = [k for k in signal_options.keys() if k not in default_keys]
-            default_keys.extend(
-                remaining_keys[: min(3 - len(default_keys), len(remaining_keys))]
+
+        # Si no hay señales de alta confianza, seleccionar las de confianza "Alta"
+        if not high_confidence_keys:
+            high_confidence_keys = [
+                k for k in signal_options.keys() if " - Alta " in k or " - Alta" in k
+            ]
+
+        # Si aún no hay señales, seleccionar las primeras 3 (o todas si hay menos)
+        if not high_confidence_keys and len(signal_options) > 0:
+            high_confidence_keys = list(signal_options.keys())[
+                : min(3, len(signal_options))
+            ]
+
+        # Usar todas las señales de alta confianza como valor predeterminado
+        default_keys = high_confidence_keys
+
+        # Opción para seleccionar/deseleccionar todas las señales
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            select_all = st.checkbox(
+                "Seleccionar todas", value=False, key="select_all_signals"
             )
+
+        # Si se selecciona "Seleccionar todas", usar todas las señales como valor predeterminado
+        if select_all:
+            default_keys = list(signal_options.keys())
 
         selected_signals = st.multiselect(
             "Seleccionar señales para incluir:",
@@ -3414,3 +4126,533 @@ with tab3:
             )
         else:
             st.info("No hay registros de envíos de boletines.")
+
+# Contenido de la pestaña "Gestionar Suscriptores"
+with tab4:
+    st.header("👥 Gestionar Suscriptores del Boletín")
+
+    # Asegurarnos de que subscriber_manager esté disponible en esta pestaña
+    if "subscriber_manager" not in globals():
+        # Si no está definido, lo inicializamos aquí
+        from database_utils import NewsletterSubscriberManager
+
+        subscriber_manager = NewsletterSubscriberManager()
+
+    # Crear pestañas para organizar la gestión de suscriptores
+    sub_tab1, sub_tab2, sub_tab3 = st.tabs(
+        ["Lista de Suscriptores", "Añadir Suscriptor", "Importar/Exportar"]
+    )
+
+    # Pestaña de lista de suscriptores
+    with sub_tab1:
+        st.subheader("Suscriptores Registrados")
+
+        # Filtros
+        col1, col2 = st.columns(2)
+        with col1:
+            show_inactive = st.checkbox("Mostrar suscriptores inactivos", value=False)
+        with col2:
+            refresh_subscribers = st.button(
+                "🔄 Actualizar Lista", key="refresh_subscribers"
+            )
+
+        # Obtener suscriptores
+        subscribers = subscriber_manager.get_all_subscribers(
+            active_only=not show_inactive
+        )
+
+        if subscribers and len(subscribers) > 0:
+            # Convertir a DataFrame para mejor visualización
+            df_subscribers = pd.DataFrame(subscribers)
+
+            # Formatear columnas para visualización
+            if "subscription_date" in df_subscribers.columns:
+                df_subscribers["Fecha Suscripción"] = df_subscribers[
+                    "subscription_date"
+                ].apply(
+                    lambda x: (
+                        x.strftime("%d/%m/%Y") if isinstance(x, datetime) else str(x)
+                    )
+                )
+
+            if "last_sent_date" in df_subscribers.columns:
+                df_subscribers["Último Envío"] = df_subscribers["last_sent_date"].apply(
+                    lambda x: (
+                        x.strftime("%d/%m/%Y")
+                        if isinstance(x, datetime) and x is not None
+                        else "Nunca"
+                    )
+                )
+
+            # Formatear estado activo
+            if "active" in df_subscribers.columns:
+                df_subscribers["Estado"] = df_subscribers["active"].apply(
+                    lambda x: "✅ Activo" if x else "❌ Inactivo"
+                )
+
+            # Seleccionar columnas para mostrar
+            display_cols = {
+                "email": "Correo Electrónico",
+                "name": "Nombre",
+                "last_name": "Apellido",
+                "company": "Empresa",
+                "send_count": "Envíos",
+                "Estado": "Estado",
+                "Fecha Suscripción": "Fecha Suscripción",
+                "Último Envío": "Último Envío",
+            }
+
+            # Crear DataFrame para mostrar
+            available_cols = [
+                c for c in display_cols.keys() if c in df_subscribers.columns
+            ]
+            df_display = df_subscribers[available_cols].copy()
+            df_display.columns = [display_cols[c] for c in available_cols]
+
+            # Aplicar formato condicional
+            styled_df = df_display.style
+
+            if "Estado" in df_display.columns:
+                styled_df = styled_df.map(
+                    lambda x: (
+                        "color: #28a745; font-weight: bold"
+                        if "Activo" in str(x)
+                        else "color: #dc3545; font-weight: bold"
+                    ),
+                    subset=["Estado"],
+                )
+
+            # Mostrar tabla
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+            # Acciones para suscriptores seleccionados
+            st.subheader("Acciones para Suscriptores")
+
+            # Seleccionar suscriptor para acciones
+            selected_email = st.selectbox(
+                "Seleccionar suscriptor",
+                options=[s["email"] for s in subscribers],
+                format_func=lambda x: f"{x} - {next((s['name'] + ' ' + s['last_name']).strip() for s in subscribers if s['email'] == x), ''}",
+            )
+
+            if selected_email:
+                # Obtener datos del suscriptor seleccionado
+                selected_subscriber = next(
+                    (s for s in subscribers if s["email"] == selected_email), None
+                )
+
+                if selected_subscriber:
+                    # Mostrar detalles del suscriptor
+                    with st.expander("Detalles del suscriptor", expanded=True):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.write(f"**ID:** {selected_subscriber.get('id')}")
+                            st.write(f"**Correo:** {selected_subscriber.get('email')}")
+                            st.write(
+                                f"**Nombre:** {selected_subscriber.get('name', '')} {selected_subscriber.get('last_name', '')}"
+                            )
+                            st.write(
+                                f"**Empresa:** {selected_subscriber.get('company', '')}"
+                            )
+                        with col2:
+                            st.write(
+                                f"**Estado:** {'Activo' if selected_subscriber.get('active') else 'Inactivo'}"
+                            )
+                            st.write(
+                                f"**Fecha de suscripción:** {selected_subscriber.get('subscription_date').strftime('%d/%m/%Y') if selected_subscriber.get('subscription_date') else 'N/A'}"
+                            )
+                            st.write(
+                                f"**Último envío:** {selected_subscriber.get('last_sent_date').strftime('%d/%m/%Y') if selected_subscriber.get('last_sent_date') else 'Nunca'}"
+                            )
+                            st.write(
+                                f"**Total envíos:** {selected_subscriber.get('send_count', 0)}"
+                            )
+
+                    # Acciones disponibles
+                    st.write("**Acciones disponibles:**")
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        # Botón para activar/desactivar
+                        if selected_subscriber.get("active", True):
+                            if st.button("❌ Desactivar", key="deactivate_subscriber"):
+                                if subscriber_manager.update_subscriber(
+                                    selected_subscriber["id"], {"active": False}
+                                ):
+                                    st.success(
+                                        f"Suscriptor {selected_email} desactivado correctamente"
+                                    )
+                                    st.rerun()
+                                else:
+                                    st.error("Error al desactivar el suscriptor")
+                        else:
+                            if st.button("✅ Activar", key="activate_subscriber"):
+                                if subscriber_manager.update_subscriber(
+                                    selected_subscriber["id"], {"active": True}
+                                ):
+                                    st.success(
+                                        f"Suscriptor {selected_email} activado correctamente"
+                                    )
+                                    st.rerun()
+                                else:
+                                    st.error("Error al activar el suscriptor")
+
+                    with col2:
+                        # Botón para editar
+                        if st.button("✏️ Editar", key="edit_subscriber"):
+                            st.session_state.edit_subscriber_id = selected_subscriber[
+                                "id"
+                            ]
+                            st.session_state.edit_subscriber_data = selected_subscriber
+
+                    with col3:
+                        # Botón para eliminar
+                        if st.button("🚮 Eliminar", key="delete_subscriber"):
+                            if (
+                                st.session_state.get("confirm_delete")
+                                == selected_subscriber["id"]
+                            ):
+                                # Confirmación ya solicitada, proceder con la eliminación
+                                if subscriber_manager.delete_subscriber(
+                                    selected_subscriber["id"]
+                                ):
+                                    st.success(
+                                        f"Suscriptor {selected_email} eliminado correctamente"
+                                    )
+                                    st.session_state.pop("confirm_delete", None)
+                                    st.rerun()
+                                else:
+                                    st.error("Error al eliminar el suscriptor")
+                            else:
+                                # Solicitar confirmación
+                                st.session_state.confirm_delete = selected_subscriber[
+                                    "id"
+                                ]
+                                st.warning(
+                                    "\u26a0️ ¿Está seguro de eliminar este suscriptor? Esta acción no se puede deshacer. Haga clic nuevamente en Eliminar para confirmar."
+                                )
+
+                    # Formulario de edición si está en modo edición
+                    if (
+                        st.session_state.get("edit_subscriber_id")
+                        == selected_subscriber["id"]
+                    ):
+                        with st.form("edit_subscriber_form"):
+                            st.subheader("Editar Suscriptor")
+
+                            edit_name = st.text_input(
+                                "Nombre", value=selected_subscriber.get("name", "")
+                            )
+                            edit_last_name = st.text_input(
+                                "Apellido",
+                                value=selected_subscriber.get("last_name", ""),
+                            )
+                            edit_company = st.text_input(
+                                "Empresa", value=selected_subscriber.get("company", "")
+                            )
+                            edit_email = st.text_input(
+                                "Correo Electrónico",
+                                value=selected_subscriber.get("email", ""),
+                            )
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                submit_button = st.form_submit_button("Guardar Cambios")
+                            with col2:
+                                cancel_button = st.form_submit_button("Cancelar")
+
+                            if submit_button:
+                                # Validar correo electrónico
+                                if "@" not in edit_email:
+                                    st.error(
+                                        "Por favor, ingrese un correo electrónico válido"
+                                    )
+                                else:
+                                    # Actualizar suscriptor
+                                    update_data = {
+                                        "name": edit_name,
+                                        "last_name": edit_last_name,
+                                        "company": edit_company,
+                                        "email": edit_email,
+                                    }
+
+                                    if subscriber_manager.update_subscriber(
+                                        selected_subscriber["id"], update_data
+                                    ):
+                                        st.success(
+                                            "Suscriptor actualizado correctamente"
+                                        )
+                                        st.session_state.pop("edit_subscriber_id", None)
+                                        st.session_state.pop(
+                                            "edit_subscriber_data", None
+                                        )
+                                        st.rerun()
+                                    else:
+                                        st.error("Error al actualizar el suscriptor")
+
+                            if cancel_button:
+                                st.session_state.pop("edit_subscriber_id", None)
+                                st.session_state.pop("edit_subscriber_data", None)
+                                st.rerun()
+
+                # Historial de envíos del suscriptor
+                if selected_subscriber:
+                    st.subheader("Historial de Envíos")
+                    send_logs = subscriber_manager.get_send_logs(
+                        selected_subscriber["id"], limit=10
+                    )
+
+                    if send_logs and len(send_logs) > 0:
+                        # Convertir a DataFrame
+                        df_logs = pd.DataFrame(send_logs)
+
+                        # Formatear fecha
+                        if "send_date" in df_logs.columns:
+                            df_logs["Fecha"] = df_logs["send_date"].apply(
+                                lambda x: (
+                                    x.strftime("%d/%m/%Y %H:%M")
+                                    if isinstance(x, datetime)
+                                    else str(x)
+                                )
+                            )
+
+                        # Formatear estado
+                        if "status" in df_logs.columns:
+                            df_logs["Estado"] = df_logs["status"].apply(
+                                lambda x: (
+                                    "✅ Exitoso" if x == "success" else "❌ Fallido"
+                                )
+                            )
+
+                        # Formatear PDF adjunto
+                        if "pdf_attached" in df_logs.columns:
+                            df_logs["PDF"] = df_logs["pdf_attached"].apply(
+                                lambda x: "✅ Sí" if x else "❌ No"
+                            )
+
+                        # Seleccionar columnas para mostrar
+                        display_cols = {
+                            "email_log_id": "ID Envío",
+                            "Fecha": "Fecha",
+                            "Estado": "Estado",
+                            "PDF": "PDF Adjunto",
+                            "signals_included": "Señales Incluidas",
+                        }
+
+                        # Crear DataFrame para mostrar
+                        available_cols = [
+                            c for c in display_cols.keys() if c in df_logs.columns
+                        ]
+                        df_display = df_logs[available_cols].copy()
+                        df_display.columns = [display_cols[c] for c in available_cols]
+
+                        # Mostrar tabla
+                        st.dataframe(
+                            df_display, use_container_width=True, hide_index=True
+                        )
+                    else:
+                        st.info("No hay registros de envíos para este suscriptor")
+        else:
+            st.warning("No hay suscriptores registrados")
+
+    # Pestaña para añadir suscriptor
+    with sub_tab2:
+        st.subheader("Añadir Nuevo Suscriptor")
+
+        with st.form("add_subscriber_form"):
+            # Usar session_state para mantener los campos limpios después de enviar
+            if (
+                "new_subscriber_form_submitted" in st.session_state
+                and st.session_state.new_subscriber_form_submitted
+            ):
+                # Limpiar los campos después de enviar
+                new_email = st.text_input(
+                    "Correo Electrónico *",
+                    placeholder="ejemplo@correo.com",
+                    key="new_email_input",
+                    value="",
+                )
+                new_name = st.text_input(
+                    "Nombre",
+                    placeholder="Nombre del suscriptor",
+                    key="new_name_input",
+                    value="",
+                )
+                new_last_name = st.text_input(
+                    "Apellido",
+                    placeholder="Apellido del suscriptor",
+                    key="new_last_name_input",
+                    value="",
+                )
+                new_company = st.text_input(
+                    "Empresa",
+                    placeholder="Empresa del suscriptor",
+                    key="new_company_input",
+                    value="",
+                )
+
+                # Mostrar mensaje de éxito si hay un suscriptor recién añadido
+                if "last_added_subscriber" in st.session_state:
+                    st.success(
+                        f"Suscriptor {st.session_state.last_added_subscriber} añadido correctamente"
+                    )
+                    # Limpiar el estado para el próximo uso
+                    st.session_state.pop("new_subscriber_form_submitted", None)
+                    st.session_state.pop("last_added_subscriber", None)
+            else:
+                # Campos normales
+                new_email = st.text_input(
+                    "Correo Electrónico *",
+                    placeholder="ejemplo@correo.com",
+                    key="new_email_input",
+                )
+                new_name = st.text_input(
+                    "Nombre", placeholder="Nombre del suscriptor", key="new_name_input"
+                )
+                new_last_name = st.text_input(
+                    "Apellido",
+                    placeholder="Apellido del suscriptor",
+                    key="new_last_name_input",
+                )
+                new_company = st.text_input(
+                    "Empresa",
+                    placeholder="Empresa del suscriptor",
+                    key="new_company_input",
+                )
+
+            submit_button = st.form_submit_button("Añadir Suscriptor")
+
+            if submit_button:
+                # Validar correo electrónico
+                if not new_email or "@" not in new_email:
+                    st.error("Por favor, ingrese un correo electrónico válido")
+                else:
+                    # Añadir suscriptor
+                    result = subscriber_manager.add_subscriber(
+                        email=new_email,
+                        name=new_name,
+                        last_name=new_last_name,
+                        company=new_company,
+                    )
+
+                    if result:
+                        # Configurar el estado para limpiar el formulario en la próxima renderización
+                        st.session_state.new_subscriber_form_submitted = True
+                        # Guardar el email para mostrar mensaje de éxito
+                        st.session_state.last_added_subscriber = new_email
+                        # Recargar la página para limpiar el formulario
+                        st.rerun()
+                    else:
+                        st.error(
+                            "Error al añadir el suscriptor. Es posible que ya exista."
+                        )
+
+    # Pestaña para importar/exportar
+    with sub_tab3:
+        st.subheader("Importar/Exportar Suscriptores")
+
+        # Exportar suscriptores
+        st.write("### Exportar Suscriptores")
+
+        # Obtener todos los suscriptores para exportar
+        all_subscribers = subscriber_manager.get_all_subscribers(active_only=False)
+
+        if all_subscribers and len(all_subscribers) > 0:
+            # Convertir a DataFrame
+            df_export = pd.DataFrame(all_subscribers)
+
+            # Seleccionar columnas para exportar
+            export_cols = [
+                "email",
+                "name",
+                "last_name",
+                "company",
+                "active",
+                "subscription_date",
+                "last_sent_date",
+                "send_count",
+            ]
+            available_export_cols = [c for c in export_cols if c in df_export.columns]
+            df_export = df_export[available_export_cols].copy()
+
+            # Convertir a CSV
+            csv = df_export.to_csv(index=False).encode("utf-8")
+
+            # Botón de descarga
+            st.download_button(
+                label="📥 Descargar CSV",
+                data=csv,
+                file_name=f"suscriptores_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+            )
+
+            st.caption(f"Total de suscriptores: {len(all_subscribers)}")
+        else:
+            st.info("No hay suscriptores para exportar")
+
+        # Importar suscriptores
+        st.write("### Importar Suscriptores")
+
+        uploaded_file = st.file_uploader("Seleccionar archivo CSV", type=["csv"])
+
+        if uploaded_file is not None:
+            # Leer archivo CSV
+            try:
+                # Guardar archivo temporal
+                temp_file_path = f"temp/subscribers_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                os.makedirs("temp", exist_ok=True)
+
+                with open(temp_file_path, "wb") as f:
+                    f.write(uploaded_file.getvalue())
+
+                # Mostrar vista previa
+                df_preview = pd.read_csv(uploaded_file)
+                st.write("Vista previa:")
+                st.dataframe(df_preview.head(5), use_container_width=True)
+
+                # Botón para importar
+                if st.button("Importar Suscriptores"):
+                    # Importar suscriptores
+                    added, errors, error_messages = (
+                        subscriber_manager.import_subscribers_from_csv(temp_file_path)
+                    )
+
+                    # Mostrar resultados
+                    if added > 0:
+                        st.success(f"Se importaron {added} suscriptores correctamente")
+
+                    if errors > 0:
+                        st.warning(
+                            f"Se encontraron {errors} errores durante la importación"
+                        )
+                        if error_messages:
+                            with st.expander("Ver errores"):
+                                for error in error_messages:
+                                    st.write(f"- {error}")
+
+                    # Eliminar archivo temporal
+                    try:
+                        os.remove(temp_file_path)
+                    except Exception as e:
+                        logger.warning(f"Error eliminando archivo temporal: {str(e)}")
+            except Exception as e:
+                st.error(f"Error procesando el archivo: {str(e)}")
+
+        # Instrucciones para el formato del CSV
+        with st.expander("Formato del archivo CSV"):
+            st.write(
+                """
+            El archivo CSV debe tener las siguientes columnas:
+            - **email** (obligatorio): Correo electrónico del suscriptor
+            - **name** (opcional): Nombre del suscriptor
+            - **last_name** (opcional): Apellido del suscriptor
+            - **company** (opcional): Empresa del suscriptor
+
+            Ejemplo:
+            ```
+            email,name,last_name,company
+            ejemplo@correo.com,Juan,Pérez,Empresa Ejemplo
+            otro@correo.com,María,Gómez,Otra Empresa
+            ```
+            """
+            )
